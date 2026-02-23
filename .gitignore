@@ -20,6 +20,8 @@ gha-creds-*.json
 *.pem
 *.key
 *.cert
+# Ajouter le rapport de sécurité nommé "rapport_sensible.md" qui est à la racine du projet
+rapport_sensible.md
 
 # ============================================
 # BACKUPS ET DONNÉES
