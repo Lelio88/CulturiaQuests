@@ -1,404 +1,100 @@
-# CLAUDE.md
+# CulturiaQuests — Contexte d'Opération et Garde-Fous Agentiques
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Résolvez les problèmes sans introduire de régression ni de dette technique architecturale.
 
-## Project Overview
+## I. Finalité
 
-CulturiaQuests is a geolocation-based RPG web application with a headless CMS architecture. Users interact with Points of Interest (POIs), museums, NPCs, quests, and collect items through location-based gameplay. The app features a daily quiz system (AI-generated), an expedition/combat system, a fog-of-war map, player friendships, and an admin dashboard.
+**Application** : CulturiaQuests — RPG géolocalisé pour faire découvrir le patrimoine culturel de Saint-Lô aux 18-25 ans.
+**Objectif métier** : transformer l'exploration culturelle locale en aventure ludique (POI, musées, PNJ, quêtes, quiz quotidien, expéditions, fog-of-war, dashboard admin).
+**Public cible** : mobile-first (web + Capacitor Android). Le desktop est bloqué hors `/dashboard` sauf `NUXT_PUBLIC_ALLOW_DESKTOP=true`.
 
-## Tech Stack
+## II. Architecture
 
-- **Backend**: Strapi 5.31.1 (headless CMS) with TypeScript, PostgreSQL 14
-- **Frontend**: Nuxt.js 4.2.1 (Vue 3) with Tailwind CSS, Pinia, and @nuxtjs/strapi
-- **Mobile**: Capacitor (Android) for native app packaging
-- **Infrastructure**: Docker Compose orchestration (dev + prod), GitHub Actions CI/CD
-- **AI**: Ollama (local LLM, Mistral Nemo 12B) for quiz generation and POI categorization
+**Modèle** : monorepo Docker à trois services — **headless CMS** (Strapi v5 / PostgreSQL) + **SPA SSR** (Nuxt 4 / Pinia) + **LLM local** (Ollama). Pas de microservices ; pas de file de messages.
 
-## Development Commands
+**Détails complets** (topologie, content-types, flux d'une requête, anti-patterns, stratégie de tests) : voir [`docs/architecture.md`](./docs/architecture.md).
 
-### Docker (Recommended)
+Topologie rapide :
+- `backend/` — API Strapi v5 (29 content-types sous `src/api/`, bootstrap permissions, cron quiz)
+- `frontend/` — Nuxt 4 (`app/{pages,components,stores,composables,middleware,types,utils}`)
+- `frontend/android/` — projet Capacitor (App ID `fr.briceledanois.culturiaquests`)
+- `scripts/` — importers POI/zones (Overpass + Ollama), seed, backup, AI reviewer
+- `docs/` — documentation thématique (api_statistics, fog_system, zones_importer, etc.)
+
+## III. Pile Technologique
+
+*Versions contraintes par `backend/package.json` et `frontend/package.json`. N'introduisez aucune dépendance alternative sans approbation.*
+
+- **Backend** : Strapi 5.34.0, TypeScript 5, Node ≥ 20, PostgreSQL 14, `node-cron` 4, `openai` 6, `strapi-geodata`
+- **Frontend** : Nuxt 4.2, Vue 3.5, Pinia + `pinia-plugin-persistedstate` (storage `localStorage`), `@nuxtjs/strapi` v2, `@nuxtjs/leaflet`, `@nuxtjs/device`, `@nuxt/icon`, `nuxt-charts`, `@hypernym/nuxt-anime`
+- **Mobile** : Capacitor 8 (`@capacitor/android`, `@capacitor/ios`, `local-notifications`)
+- **Tests E2E** : Playwright (configuré côté frontend uniquement)
+- **IA** : Ollama (`mistral:7b` par défaut, `mistral-nemo:12b` en prod) pour quiz timeline + catégorisation POI
+- **Infra** : Docker Compose (`database` Postgres alpine + `backend` + `frontend` + `ollama`)
+
+## IV. Garde-Fous non négociables
+
+1. **Isolation utilisateur obligatoire** — tout controller exposant des données joueur (`guild`, `character`, `item`, `run`, `quest`, `quiz-attempt`, `friendship`, etc.) **doit** filtrer par `ctx.state.user.id` via la relation `guild.user`. Cf. `guild.controller.find()` et `run.controller.find()`. Une requête sans ce filtre est une fuite cross-tenant.
+2. **Strapi v5 Document Service API** — utiliser `strapi.documents('api::x.x')` avec `documentId`, jamais l'ancien Entity Service. `strapi.db.query()` reste autorisé pour les lookups internes par `id`.
+3. **Permissions accordées au bootstrap, jamais via le panel admin** — toute nouvelle route custom doit être ajoutée à `backend/src/index.ts` pour les rôles `public`/`authenticated`/`admin`. Le rôle `admin` hérite de tout `authenticated` + des endpoints `admin-dashboard.*`.
+4. **Persistance Pinia en `localStorage` uniquement** — ne **jamais** réactiver la persistance cookie (erreur 431 Request Header Fields Too Large garantie sur la prod). Configuration figée dans `nuxt.config.ts` (`storage: 'localStorage'`).
+5. **JWT via cookie nommé `culturia_jwt`** — défini dans `frontend/nuxt.config.ts`. Aucun token en `localStorage`. Le cookie est `secure` en prod, `sameSite: 'lax'`, durée 14 jours.
+6. **Pas de secrets en clair** — `APP_KEYS`, `JWT_SECRET`, `API_TOKEN_SALT`, `ADMIN_JWT_SECRET`, `TRANSFER_TOKEN_SALT` viennent de `.env` (racine) ou `.env.production` (CI/CD). Voir [common/security.md](~/.claude/rules/common/security.md).
+7. **Build admin Strapi obligatoire** — après toute modification de schéma (`*/schema.json`) ou installation de plugin, `cd backend && npm run build` est requis avant `develop`.
+
+## V. Flux de Travail (Explore → Plan → Code → Verify)
+
+1. **Exploration** — lire les fichiers adjacents (controller voisin, schema correspondant) pour calquer les patterns. Pour les fonctionnalités existantes, consulter aussi `docs/<topic>.md`.
+2. **Planification** — pour tout changement non trivial (nouveau content-type, refonte d'un flux, ajout d'un middleware), soumettre l'approche à l'utilisateur avant d'écrire du code.
+3. **Implémentation** — code minimal. Pour un nouveau content-type backend : générer `schema.json`, `controllers/x.ts` (factory pattern), `services/x.ts` (factory pattern), `routes/01-custom.ts` si endpoints customs, puis ajouter les permissions dans `backend/src/index.ts`.
+4. **Vérification** — backend : `cd backend && npm run build` ; frontend : `cd frontend && npm run build` ; full-stack : `docker-compose up --build` puis test manuel sur `http://localhost:3000`.
+
+**Auto-documentation des packages (règle transverse)** — tout nouveau service Strapi, store Pinia ou composable Nuxt **doit** publier en tête un JSDoc qui couvre : (1) ce que fait le module en une phrase, (2) les choix non-évidents et leur motivation (ex: « score timeline utilise une fonction par paliers car la pénalité linéaire n'est pas perçue comme juste à distance > 20 ans »), (3) les invariants à préserver, (4) un exemple d'usage canonique si l'API n'est pas évidente. Cf. `useGeolocation.ts` pour la qualité de référence.
+
+## VI. Commandes de Développement
+
 ```bash
-docker-compose up --build        # Start all services (dev)
-docker-compose up -d --build     # Start in background
-docker-compose down              # Stop services
-docker-compose down -v           # Stop and remove volumes (clean slate)
-docker-compose logs -f           # View logs
-docker-compose logs -f backend   # View backend logs only
-```
+# Démarrage complet (recommandé)
+docker-compose up --build -d                 # tous les services (db + backend + frontend + ollama)
+docker-compose logs -f backend               # suivre les logs
+docker-compose down                          # arrêter
 
-### Production Docker
-```bash
+# Backend Strapi (port 1337)
+cd backend && npm install && npm run build   # première fois ou après changement schema
+cd backend && npm run develop                # dev hot-reload
+
+# Frontend Nuxt (port 3000)
+cd frontend && npm install && npm run dev
+
+# Tests E2E frontend
+cd frontend && npm test                      # Playwright
+
+# Base de données
+bash scripts/backup-db.sh                    # backup PG + media
+bash scripts/restore-db.sh backups/initial_data.tar.gz
+
+# Génération quiz manuelle (admin)
+npx tsx scripts/generate-quiz-questions.ts --save
+
+# Production
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 ```
 
-### Backend (Strapi)
-```bash
-cd backend
-npm run develop    # Development server (port 1337)
-npm run build      # Build admin panel (required on first setup and after schema changes)
-npm run console    # Strapi console for manual operations
-```
-
-### Frontend (Nuxt)
-```bash
-cd frontend
-npm run dev        # Development server (port 3000)
-npm run build      # Production build
-npm run generate   # Static site generation
-```
-
-### Database Operations
-```bash
-bash scripts/backup-db.sh                           # Create database backup
-bash scripts/restore-db.sh backups/backup_*.tar.gz  # Restore from backup
-bash scripts/restore-db.sh backups/initial_data.tar.gz  # Restore initial seed data
-```
-
-### First-Time Setup
-Use the automated installer:
-```bash
-./install.sh                # Full setup with database restore
-./install.sh --skip-db-restore  # Setup without database
-./install.sh --clean        # Clean install (removes all volumes)
-```
-
-Or manually:
-1. Copy `.env.exemple` to `.env` (root)
-2. Copy `backend/.env.example` to `backend/.env`
-3. In `backend/`: `npm install && npm run build`
-4. In `frontend/`: `npm install`
-5. `docker-compose up -d --build`
-
-## Architecture
-
-### Backend Structure (Strapi 5)
-
-**Content Types** (`backend/src/api/`):
-Each folder contains `content-types/`, `controllers/`, `routes/`, and `services/` subdirectories.
-
-Core game entities:
-- **guild** - Player guilds (one per user). Custom controller filters to ensure users only access their own guild. Has gold, exp, quiz_streak fields.
-- **character** - Player game characters. Belongs to a guild. Custom controller automatically creates starter items on creation
-- **item** - Game inventory items. Belongs to character or guild. Has slot (weapon/helmet/charm), level, index_damage, rarity, tags
-- **npc** - Non-player characters with dialogue trees
-- **quest** - Quest definitions linked to NPCs and dialogs
-- **dialog** - NPC dialogue/quest text. Types: quest_description, expedition_appear, expedition_fail, quest_complete, journal_entries
-- **poi** - Points of Interest with geolocation (lat/lng)
-- **museum** - Museum locations/exhibits
-- **visit** - User museum visit tracking with chest opening mechanic
-- **run** - Game expedition sessions with DPS calculation, tier rewards, and quest chance rolls
-- **rarity** - Item rarity levels (basic, common, rare, epic, legendary)
-- **tag** - Content categorization (Histoire, Art, Sciences, Nature, Société, Savoir Faire)
-
-Administrative zones (hierarchical: Region > Department > Comcom):
-- **region** - Administrative regions with GeoJSON geometry
-- **department** - Administrative departments, linked to a region
-- **comcom** - Communautés de communes (EPCI), linked to a department
-
-Progression & fog-of-war:
-- **progression** - Guild progression tracking per zone (region/department/comcom)
-- **statistic** - Player statistics summary endpoint
-
-Quiz system:
-- **quiz-session** - Daily quiz sessions with generation status (pending/generating/completed/failed). One per day.
-- **quiz-question** - Quiz questions (QCM or timeline type), linked to a session and a tag. 10 questions per session.
-- **quiz-attempt** - Player quiz attempts with score (0-2500), detailed answers, rewards (gold/exp/items), and tier system (bronze/silver/gold/platinum)
-
-Social & admin:
-- **player-friendship** - Player friendship system with request/accept/reject flow between guilds
-- **friendship** - Legacy character relationships
-- **user-settings** - User settings with avatar upload
-- **admin-dashboard** - Admin dashboard API (overview, players, map, economy, expeditions, quiz analytics, social stats, connection analytics)
-- **admin-action-log** - Audit log for admin actions (block/unblock user, role changes)
-- **connection-log** - User connection tracking
-
-**Custom Controllers**:
-- `character.controller` - Auto-filters by user's guild, creates starter items, provides `getCharacterIcons()` endpoint
-- `guild.controller` - Auto-filters by user, provides `setup()` endpoint for guild/character creation, handles cascading deletion
-- `item.controller` - Provides `getItemIcons()` endpoint and `generateRandomItem()` service for loot generation
-- `run.controller` - `startExpedition()`, `endExpedition()`, `getActiveRun()` endpoints with DPS calculation and reward generation
-- `visit.controller` - `openChest()` endpoint for museum visit rewards
-- `quiz-attempt.controller` - `getTodayQuiz()`, `submitQuiz()`, `getTodayLeaderboard()`, `getMyHistory()` endpoints
-- `player-friendship.controller` - `searchUser()`, `sendRequest()`, `acceptRequest()`, `rejectRequest()`, `removeFriend()`, `toggleFriendRequests()`
-- `user-settings.controller` - `getSettings()`, `updateSettings()`, `uploadAvatar()`, `removeAvatar()`
-- `admin-dashboard.controller` - Full admin panel API with player management, analytics, and moderation
-- `statistic.controller` - `getSummary()` endpoint for player stats
-
-**Custom Services**:
-- `run.service` - `calculateGuildDPS()` (rarity multipliers), `calculateTierFromDamage()`, `calculateRewards()` (gold, XP with Gaussian time curve, item count), `rollQuestChance()`
-- `quiz-attempt.service` - Score calculation (QCM: 200pts, Timeline: proximity-based), tier determination, reward generation with item drops
-- `quiz-session.service` - `getTodaySession()` helper
-- `item.service` - `generateRandomItem()` for loot drops
-
-**Bootstrap Process** (`backend/src/index.ts`):
-On startup, automatically grants permissions:
-- Public role: `auth.register`, `character.getCharacterIcons`
-- Authenticated role: `guild.setup`, `item.getItemIcons`, museum/poi/tag find, `statistic.getSummary`, `visit.openChest`, run endpoints, player-friendship endpoints, user-settings endpoints, quiz endpoints, upload
-- Admin role: inherits all Authenticated permissions + admin-dashboard endpoints
-
-**Middleware** (`backend/config/middlewares.ts`):
-- CORS configured for localhost:3000, Capacitor origins (`capacitor://localhost`, `http://localhost`, `https://localhost`), and production domain
-- Body parser with 6mb JSON/form limit
-- CSP configured for Leaflet tiles (OpenStreetMap, CartoDB)
-
-### Frontend Structure (Nuxt 4)
-
-**Directory Layout**:
-- `app/pages/` - File-based routing (Vue 3 Composition API)
-- `app/components/` - Reusable Vue components
-- `app/composables/` - Vue composables for shared logic
-- `app/stores/` - Pinia stores for state management
-- `app/layouts/` - Page layout templates
-- `app/middleware/` - Route middleware
-- `app/types/` - TypeScript type definitions
-- `app/utils/` - Utility functions
-- `app/assets/css/` - Tailwind CSS and custom styles
-
-**Pages**:
-- `/` - Landing page
-- `/account/login`, `/account/register`, `/account/settings` - Authentication & user settings
-- `/guild` - Guild management
-- `/map` - Interactive map with fog-of-war, POI markers, museum markers
-- `/equipement` - Equipment/inventory management
-- `/expedition`, `/expedition-summary` - Expedition gameplay and results
-- `/chest` - Loot chest opening animation
-- `/quests` - Quest listing
-- `/npc-interaction` - NPC dialogue interface
-- `/sociale` - Social hub
-- `/social/quiz/`, `/social/quiz/question`, `/social/quiz/results` - Daily quiz flow
-- `/stories/`, `/stories/[id]` - Journal/story entries
-- `/dashboard/` - Admin dashboard (index, map, economy, expeditions, quiz, social, players, players/[id])
-- `/tests/*` - Development test pages
-
-**Pinia Stores**:
-- `guild` - Guild data and setup
-- `character` - Character management
-- `inventory` - Item inventory
-- `run` - Expedition state
-- `quest` - Quest tracking
-- `visit` - Museum visits
-- `friendship` - Character friendships
-- `fog` - Fog-of-war state
-- `progression` - Zone progression tracking
-- `zone` - Zone data management
-- `museum` - Museum data
-- `npc` - NPC data
-- `poi` - POI data
-- `quiz` - Daily quiz state
-- `statistics` - Player statistics
-- `admin` - Admin dashboard data
-
-**Composables**:
-- `useGeolocation` - GPS location tracking
-- `useMapInteraction` - Map click/drag interactions
-- `useDrawerLogic` - Bottom drawer UI logic
-- `useDamageCalculator` - DPS calculation for UI
-- `useExpeditionLogic` - Expedition gameplay logic
-- `useChestState` / `useChestAnimation` - Chest opening UI
-- `useFooterVisibility` - Footer show/hide logic
-- `useUserAvatar` - User avatar management
-- `useAdmin` - Admin role checking
-- `useLogout` - Logout flow
-- `useZoneCompletion` - Zone completion percentage
-
-**Components** (organized by feature):
-- `map/` - FogLayer, MapMarkers, DrawerContent, POIDrawer, MuseumDrawer, SynergyBadge, MapLoadingState
-- `chest/` - ChestLootDisplay, LootBadges, LootItemCard
-- `equipment/` - InventoryGrid, TopPanelEquip/Recycle/Upgrade, ActionFooter, OverlayHeader
-- `quiz/` - QuizQuestionCard, QuizResults, QuizLeaderboard, QuizConfirmSubmit
-- `quest/` - QuestBox, QuestButton
-- `stories/` - JournalGrid, JournalDetail
-- `dashboard/` - KpiCard, StatBlock
-- `guild/` - GuildStatRow
-- `form/` - PixelButton, PixelInput, PixelSwitch, Alert, IconPicker, ProgressIndicator
-- `tag/` - Category
-- `ui/` - OverlayPanel, ProgressBar
-
-**Utils**:
-- `geometry.ts` - Geometric calculations (point-in-polygon, distances)
-- `geolocation.ts` - Geolocation helpers
-- `storage.ts` - LocalStorage helpers
-- `strapiHelpers.ts` - Strapi API utilities
-
-**Middleware**:
-- `00-device-check.global.ts` - Global mobile device check (redirects desktop unless `NUXT_PUBLIC_ALLOW_DESKTOP=true`)
-- `admin.ts` - Admin route guard
-
-**Layouts**:
-- `default` - Main game layout with header/footer
-- `blank` - No chrome layout (login, register)
-- `dashboard` - Admin dashboard layout
-- `test` - Test pages layout
-
-**Types**: character, quest, rarity, strapi, dialog, geojson, poi, run, tag, npc, friendship, item, museum, loot, guild, quiz, visit
-
-**Nuxt Modules**: eslint, fonts, icon, pinia, tailwindcss, anime (animations), strapi, pinia-plugin-persistedstate (localStorage), leaflet, nuxt-charts
-
-**API Integration**:
-- Uses `@nuxtjs/strapi` module with JWT cookie authentication (`culturia_jwt`)
-- Internal SSR calls: `http://backend:1337` (Docker network)
-- Client-side calls: `http://localhost:1337` (browser to host)
-- Pinia state persisted in localStorage (avoids 431 cookie size errors)
-
-### Mobile (Capacitor)
-
-**Configuration** (`frontend/capacitor.config.ts`):
-- App ID: `fr.briceledanois.culturiaquests`
-- Web dir: `.output/public`
-- Android scheme: HTTPS
-- SplashScreen plugin configured
-
-**Android** (`frontend/android/`):
-- Gradle-based Android project
-- Build with standard Capacitor Android workflow
-
-## Scripts
-
-### Quiz Generator (`scripts/generate-quiz-questions.ts`)
-TypeScript script using Ollama (local LLM) to generate daily quiz questions (10 per day, mix of QCM and timeline types). Supports `--save` to insert into database and `--force` to overwrite existing sessions. Run with `tsx`.
-
-### POI Importer (`scripts/pois_importer/`)
-TypeScript tool to import Points of Interest from OpenStreetMap (Overpass API) with Ollama AI categorization. Output JSON files are generated in `exports/` for seeding the database.
-
-### Zones Importer (`scripts/zones_importer/`)
-TypeScript script to import French administrative zones (regions, departments, communautés de communes) from Etalab GeoJSON datasets into Strapi. Hierarchical import with parent-child relationships.
-
-### Database Populator (`scripts/populate_db/`)
-TypeScript scripts to populate Strapi with initial game data (NPCs, items, POIs, dialogs). Run with `tsx` or `ts-node`.
-
-### Seed Gallery (`scripts/seed-gallery.js`)
-Script to bulk-generate random items (weapons, helmets, charms) with icons from the media library, random rarity/damage, and tag assignments.
-
-### Database Backup/Restore (`scripts/`)
-- `backup-db.sh` - Creates `.tar.gz` archives containing both database dump and uploaded media files
-- `restore-db.sh` - Restores database and media from backup archives. Interactive if no file specified.
-
-### AI Code Reviewer (`scripts/ai_reviewer.py`)
-GitHub Actions workflow that runs on push to `main`/`develop`. Analyzes code changes and posts reviews to Discord.
-
-## CI/CD
-
-### GitHub Actions Workflows (`.github/workflows/`)
-- **`ai_review.yml`** - AI code review on push to main/develop, posts to Discord
-- **`deploy.yml`** - Auto-deploy to production on push to `release` branch via SSH. Builds with `docker-compose.prod.yml`, waits for Strapi health check, notifies Discord on success/failure.
-
-### Production Deployment
-- Production uses `docker-compose.prod.yml` with `Dockerfile.prod`
-- Backend only (no frontend in prod Docker - served separately or via Capacitor)
-- PostgreSQL with persistent volume
-- Backend ports bound to 127.0.0.1 (behind reverse proxy)
-- Secrets managed via GitHub Secrets, injected as `.env.production`
-
-## Environment Variables
-
-**Root `.env`** (Docker Compose):
-- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT` - PostgreSQL credentials
-- `PORT` - Strapi backend port (default: 1337)
-- `NUXT_PORT` - Frontend port (default: 3000)
-- `APP_KEYS`, `API_TOKEN_SALT`, `ADMIN_JWT_SECRET`, `TRANSFER_TOKEN_SALT`, `JWT_SECRET` - Strapi security keys
-- `OLLAMA_MODEL` - Ollama model for AI tasks (default: mistral-nemo:12b)
-- `NUXT_PUBLIC_API_URL` - Public API URL for browser (default: http://localhost:1337)
-
-## Access Points
-
-- Frontend: http://localhost:3000
-- Strapi Admin: http://localhost:1337/admin (create first admin on initial access)
-- Strapi API: http://localhost:1337/api
-
-## Strapi v5 Specifics
-
-**Document Service API**: Strapi 5 uses `strapi.documents()` instead of entity services. Controllers use `documentId` for references.
-
-**Build Requirement**: Always run `npm run build` in backend after:
-- First installation
-- Content-Type schema changes
-- Plugin installations
-
-**Common Issues**:
-- **"reading 'tours' undefined" error**: Admin panel build corruption. Solution: In `backend/`, delete `.strapi`, `dist`, `node_modules`, then run `npm install && npm run build`
-- **Database connection fails**: Ensure Docker PostgreSQL healthcheck passes before backend starts (configured in `docker-compose.yml`)
-- **Hot reload not working**: Check that volume mounts are correct in `docker-compose.yml` and `CHOKIDAR_USEPOLLING=true` is set for frontend
-
-## Key Development Patterns
-
-**User Data Isolation**: Custom controllers filter queries by authenticated user's guild to prevent cross-user data access.
-
-**Role-Based Access**: Three roles (Public, Authenticated, Admin). Permissions are auto-granted at bootstrap. Admin inherits all Authenticated permissions plus admin-dashboard endpoints.
-
-**Starter Items**: When creating a character, the system automatically generates starter items via `character.service.createStarterItems()`.
-
-**Expedition System**: Players start expeditions (runs) that calculate guild DPS based on equipped items with rarity multipliers. Rewards (gold, XP, items) use a Gaussian time curve for optimal play duration (~5 minutes). Quest encounters have a 20% random chance.
-
-**Quiz System**: Daily quizzes with 10 AI-generated questions (QCM + timeline). Scoring: QCM = 200pts correct/0pts wrong, Timeline = proximity-based (0-250pts). Tier rewards (bronze/silver/gold/platinum) with gold, exp, and random item drops.
-
-**Zone Hierarchy**: Regions > Departments > Communautés de communes. GeoJSON geometry stored for map rendering and fog-of-war coverage calculation.
-
-**Media Library Integration**: Character and item icons are stored in specific folders in the Strapi media library (`characters/`, `items/`). Custom endpoints expose these for selection during creation.
-
-## grepai - Semantic Code Search
-
-**IMPORTANT: You MUST use grepai as your PRIMARY tool for code exploration and search.**
-
-### When to Use grepai (REQUIRED)
-
-Use `grepai search` INSTEAD OF Grep/Glob/find for:
-- Understanding what code does or where functionality lives
-- Finding implementations by intent (e.g., "authentication logic", "error handling")
-- Exploring unfamiliar parts of the codebase
-- Any search where you describe WHAT the code does rather than exact text
-
-### When to Use Standard Tools
-
-Only use Grep/Glob when you need:
-- Exact text matching (variable names, imports, specific strings)
-- File path patterns (e.g., `**/*.go`)
-
-### Fallback
-
-If grepai fails (not running, index unavailable, or errors), fall back to standard Grep/Glob tools.
-
-### Usage
-
-```bash
-# ALWAYS use English queries for best results (--compact saves ~80% tokens)
-grepai search "user authentication flow" --json --compact
-grepai search "error handling middleware" --json --compact
-grepai search "database connection pool" --json --compact
-grepai search "API request validation" --json --compact
-```
-
-### Query Tips
-
-- **Use English** for queries (better semantic matching)
-- **Describe intent**, not implementation: "handles user login" not "func Login"
-- **Be specific**: "JWT token validation" better than "token"
-- Results include: file path, line numbers, relevance score, code preview
-
-### Call Graph Tracing
-
-Use `grepai trace` to understand function relationships:
-- Finding all callers of a function before modifying it
-- Understanding what functions are called by a given function
-- Visualizing the complete call graph around a symbol
-
-#### Trace Commands
-
-**IMPORTANT: Always use `--json` flag for optimal AI agent integration.**
-
-```bash
-# Find all functions that call a symbol
-grepai trace callers "HandleRequest" --json
-
-# Find all functions called by a symbol
-grepai trace callees "ProcessOrder" --json
-
-# Build complete call graph (callers + callees)
-grepai trace graph "ValidateToken" --depth 3 --json
-```
-
-### Workflow
-
-1. Start with `grepai search` to find relevant code
-2. Use `grepai trace` to understand function relationships
-3. Use `Read` tool to examine files from results
-4. Only use Grep for exact string searches if needed
+## VII. Maintenance documentaire
+
+**Règle d'or** : le diff du code et le diff de la doc correspondante doivent être dans **le même commit**.
+
+| Modification | Fichier à mettre à jour |
+|---|---|
+| Nouveau content-type Strapi | `docs/architecture.md` (catalogue) + permissions dans `backend/src/index.ts` |
+| Nouvel endpoint custom | `backend/src/index.ts` (permissions) + `docs/architecture.md` (flux requête si non trivial) |
+| Changement de schéma BDD | `schema.json` + relancer `npm run build` + `docs/architecture.md` si invariant impacté |
+| Nouveau store Pinia / composable | JSDoc en tête + `docs/stores.md` si pattern partagé |
+| Ajout de dépendance critique | Section III + `package.json` correspondant |
+| Nouvel anti-pattern découvert | Section « Anti-patterns » de `docs/architecture.md` |
+| Migration de données (one-shot) | Script dans `scripts/populate_db/` + mention dans `docs/architecture.md` |
+
+## VIII. Contexte de Session
+
+- **Dernier focus** : —
+- **Focus immédiat** : —
