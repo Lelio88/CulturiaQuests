@@ -68,6 +68,10 @@ const USED_QUESTIONS_PATH = path.join(DATA_DIR, 'used-questions.json');
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral:7b';
 
+// Nombre total de questions par quiz quotidien. Les questions timeline (Ollama) sont
+// best-effort ; les QCM (OpenQuizzDB) complètent pour toujours atteindre ce total.
+const TOTAL_QUESTIONS = 10;
+
 const TIMELINE_PROMPT = `Génère exactement 3 questions de type "timeline" culturelles en français.
 Pour chaque question, l'utilisateur doit deviner une année.
 
@@ -108,7 +112,11 @@ function loadUsedQuestions(): UsedQuestionsData {
 }
 
 function saveUsedQuestions(data: UsedQuestionsData): void {
-  fs.writeFileSync(USED_QUESTIONS_PATH, JSON.stringify(data, null, 2), 'utf-8');
+  // Écriture atomique (temp + rename) : évite un fichier corrompu si deux générations
+  // s'exécutent en parallèle ou si le process est interrompu en plein écriture.
+  const tmp = `${USED_QUESTIONS_PATH}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
+  fs.renameSync(tmp, USED_QUESTIONS_PATH);
 }
 
 /**
@@ -349,22 +357,32 @@ export default {
       return;
     }
 
-    // Créer la session en status "generating"
-    const session = await strapi.documents('api::quiz-session.quiz-session').create({
-      data: {
-        date: today,
-        generation_status: 'generating',
-      },
-    });
+    // Créer la session en status "generating". La colonne `date` est UNIQUE : si une
+    // génération concurrente (cron + rattrapage à la demande) la crée au même moment,
+    // la seconde lève une violation de contrainte → on s'arrête proprement.
+    let session: any;
+    try {
+      session = await strapi.documents('api::quiz-session.quiz-session').create({
+        data: {
+          date: today,
+          generation_status: 'generating',
+        },
+      });
+    } catch (err) {
+      strapi.log.info(`[quiz-generator] Génération concurrente détectée pour ${today} (date unique), skip`);
+      return;
+    }
 
     try {
-      // 1. Piocher 7 QCM depuis OpenQuizzDB
-      const qcmQuestions = pickOpenQuizzDBQuestions(7);
-      strapi.log.info(`[quiz-generator] ${qcmQuestions.length} QCM piochés depuis OpenQuizzDB`);
-
-      // 2. Générer 3 questions timeline via Ollama
+      // 1. Questions timeline via Ollama (best-effort : 0 à 3 selon disponibilité)
       const timelineQuestions = await generateTimelineQuestions(3);
       strapi.log.info(`[quiz-generator] ${timelineQuestions.length} timeline générées via Ollama`);
+
+      // 2. QCM OpenQuizzDB : compléter pour TOUJOURS atteindre TOTAL_QUESTIONS. Si Ollama
+      // est indisponible (0 timeline), on pioche d'autant plus de QCM plutôt que de livrer
+      // un quiz dégradé à 7 questions au score maximal incohérent.
+      const qcmQuestions = pickOpenQuizzDBQuestions(TOTAL_QUESTIONS - timelineQuestions.length);
+      strapi.log.info(`[quiz-generator] ${qcmQuestions.length} QCM piochés depuis OpenQuizzDB`);
 
       // Combiner et mélanger
       const allQuestions = shuffleArray([...qcmQuestions, ...timelineQuestions]);
