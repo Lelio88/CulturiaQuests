@@ -148,6 +148,15 @@ export default factories.createCoreController('api::guild.guild', ({ strapi }) =
       return ctx.unauthorized('You must be logged in');
     }
 
+    // Strictement réservé aux admins : debug_mode désactive le geofence (anti-triche).
+    const fullUser = await strapi.db.query('plugin::users-permissions.user').findOne({
+      where: { id: user.id },
+      populate: { role: { select: ['type'] } },
+    });
+    if (fullUser?.role?.type !== 'admin') {
+      return ctx.forbidden('Admin role required');
+    }
+
     // Get user's guild
     const guild = await strapi.db.query('api::guild.guild').findOne({
       where: { user: { id: user.id } },

@@ -272,12 +272,24 @@ export default {
         await strapi.documents('api::gdpr-request.gdpr-request').delete({ documentId: r.documentId });
       }
 
-      // 8. Supprimer les admin-action-logs (en tant que cible ou admin)
+      // 8. Anonymiser (NE PAS supprimer) les admin-action-logs liés à l'utilisateur (RGPD) :
+      // on conserve la trace d'audit (action / date / IP) mais on détache les références vers
+      // l'utilisateur supprimé. Empêche un admin d'effacer sa propre trace via la suppression
+      // de son compte, tout en respectant le droit à l'oubli (plus de PII liée).
       const actionLogs = await strapi.db.query('api::admin-action-log.admin-action-log').findMany({
         where: { $or: [{ target_user: user.id }, { admin: user.id }] },
+        populate: { admin: { select: ['id'] }, target_user: { select: ['id'] } },
       });
       for (const al of actionLogs) {
-        await strapi.documents('api::admin-action-log.admin-action-log').delete({ documentId: al.documentId });
+        const anonymized: Record<string, any> = {};
+        if (al.admin?.id === user.id) anonymized.admin = null;
+        if (al.target_user?.id === user.id) anonymized.target_user = null;
+        if (Object.keys(anonymized).length > 0) {
+          await strapi.documents('api::admin-action-log.admin-action-log').update({
+            documentId: al.documentId,
+            data: anonymized,
+          });
+        }
       }
 
       // 9. Supprimer l'avatar
