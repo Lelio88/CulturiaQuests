@@ -5,6 +5,11 @@
 
 const svc = () => strapi.service('api::admin-dashboard.admin-dashboard');
 
+// Champs autorisés pour le tri de la liste des joueurs (évite l'injection de
+// clé ORM via le paramètre `sortBy` brut). Doivent rester cohérents avec le
+// `select` de admin-dashboard.service.getPlayers().
+const PLAYER_SORT_FIELDS = ['createdAt', 'username', 'email', 'blocked', 'id'];
+
 /**
  * Helper: Verify that the current user has the admin role
  * Returns true if admin, false otherwise
@@ -46,6 +51,7 @@ export default {
   },
 
   async getOverview(ctx) {
+    if (!(await verifyAdminRole(ctx))) return ctx.forbidden('Admin role required');
     try {
       return ctx.send(await svc().getOverview());
     } catch (error) {
@@ -55,14 +61,18 @@ export default {
   },
 
   async getPlayers(ctx) {
+    if (!(await verifyAdminRole(ctx))) return ctx.forbidden('Admin role required');
     const { page = 1, pageSize = 25, search = '', sortBy = 'createdAt', sortOrder = 'desc' } = ctx.query;
+    // Whitelist du tri pour empêcher l'injection de clé ORM / valeurs invalides
+    const safeSortBy = PLAYER_SORT_FIELDS.includes(String(sortBy)) ? String(sortBy) : 'createdAt';
+    const safeSortOrder = String(sortOrder).toLowerCase() === 'asc' ? 'asc' : 'desc';
     try {
       return ctx.send(await svc().getPlayers({
         page: Math.max(1, Number(page)),
         pageSize: Math.max(1, Math.min(Number(pageSize), 100)),
         search: String(search),
-        sortBy: String(sortBy),
-        sortOrder: String(sortOrder),
+        sortBy: safeSortBy,
+        sortOrder: safeSortOrder,
       }));
     } catch (error) {
       strapi.log.error('Admin dashboard - getPlayers failed:', error);
@@ -71,6 +81,7 @@ export default {
   },
 
   async getPlayerDetail(ctx) {
+    if (!(await verifyAdminRole(ctx))) return ctx.forbidden('Admin role required');
     const { id } = ctx.params;
     if (!id || isNaN(Number(id))) return ctx.badRequest('Invalid player ID');
     try {
@@ -154,6 +165,7 @@ export default {
   },
 
   async getMapData(ctx) {
+    if (!(await verifyAdminRole(ctx))) return ctx.forbidden('Admin role required');
     try {
       return ctx.send(await svc().getMapData());
     } catch (error) {
@@ -163,6 +175,7 @@ export default {
   },
 
   async getEconomy(ctx) {
+    if (!(await verifyAdminRole(ctx))) return ctx.forbidden('Admin role required');
     try {
       return ctx.send(await svc().getEconomy());
     } catch (error) {
@@ -172,6 +185,7 @@ export default {
   },
 
   async getExpeditions(ctx) {
+    if (!(await verifyAdminRole(ctx))) return ctx.forbidden('Admin role required');
     try {
       return ctx.send(await svc().getExpeditions());
     } catch (error) {
@@ -181,6 +195,7 @@ export default {
   },
 
   async getQuizAnalytics(ctx) {
+    if (!(await verifyAdminRole(ctx))) return ctx.forbidden('Admin role required');
     try {
       return ctx.send(await svc().getQuizAnalytics());
     } catch (error) {
@@ -190,6 +205,7 @@ export default {
   },
 
   async getSocialStats(ctx) {
+    if (!(await verifyAdminRole(ctx))) return ctx.forbidden('Admin role required');
     try {
       return ctx.send(await svc().getSocialStats());
     } catch (error) {
@@ -199,6 +215,7 @@ export default {
   },
 
   async getConnectionAnalytics(ctx) {
+    if (!(await verifyAdminRole(ctx))) return ctx.forbidden('Admin role required');
     try {
       return ctx.send(await svc().getConnectionAnalytics());
     } catch (error) {
@@ -208,6 +225,7 @@ export default {
   },
 
   async getGdprRequests(ctx) {
+    if (!(await verifyAdminRole(ctx))) return ctx.forbidden('Admin role required');
     try {
       return ctx.send(await svc().getGdprRequests());
     } catch (error) {

@@ -20,12 +20,6 @@ export default defineNuxtRouteMiddleware((to) => {
   // Dashboard routes are always allowed on desktop (admin panel)
   const isDashboardRoute = to.path.startsWith('/dashboard')
 
-  // Check if user is on desktop and desktop access is not allowed
-  if (!allowDesktop && isDesktop && !isDashboardRoute) {
-    return
-
-  }
-
   // Define public routes accessible without authentication
   const publicRoutes = [
     '/',
@@ -37,11 +31,18 @@ export default defineNuxtRouteMiddleware((to) => {
     '/politique-confidentialite'
   ]
 
-  // Check authentication
+  // Check authentication FIRST so that the desktop early-return below cannot
+  // bypass the auth guard (previously a bare `return` short-circuited this).
   if (!user.value) {
     // If user is not authenticated and trying to access a protected route
     if (!publicRoutes.includes(to.path)) {
       return navigateTo('/account/login')
     }
+  }
+
+  // Desktop access is not allowed (mobile-first); the global desktop overlay
+  // handles the UI. We stop here only after auth has been enforced.
+  if (!allowDesktop && isDesktop && !isDashboardRoute) {
+    return
   }
 })

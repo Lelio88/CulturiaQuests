@@ -23,7 +23,6 @@
     "@nuxt/fonts": "^0.12.1",
     "@nuxt/icon": "^2.1.0",
     "@nuxtjs/strapi": "^2.1.1",
-    "@types/geojson": "^7946.0.16",
     "eslint": "^9.39.1",
     "idb-keyval": "^6.2.2",
     "nuxt": "^4.2.1",
@@ -39,7 +38,7 @@
     "@nuxtjs/tailwindcss": "^6.14.0",
     "@pinia/nuxt": "^0.11.3",
     "@playwright/test": "^1.58.0",
-    "nuxt-charts": "^2.1.1",
+    "@types/geojson": "^7946.0.16",
     "pinia-plugin-persistedstate": "^4.7.1"
   }
 }

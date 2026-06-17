@@ -7,6 +7,7 @@ import crypto from 'crypto';
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+const ALLOWED_IMAGE_FORMATS = ['png', 'jpeg', 'webp'];
 const AVATAR_SIZE = 256;
 
 export default {
@@ -31,6 +32,12 @@ export default {
     let tmpPath: string | null = null;
 
     try {
+      // Valider le type MIME déclaré dans le data-URI (défense en profondeur)
+      const declaredMime = (base64.match(/^data:([^;]+);base64,/) || [])[1];
+      if (declaredMime && !ALLOWED_MIME_TYPES.includes(declaredMime)) {
+        return ctx.badRequest(`Unsupported image type. Allowed: ${ALLOWED_MIME_TYPES.join(', ')}`);
+      }
+
       // Décoder le base64 (format: "data:image/png;base64,<données>")
       const base64Data = base64.replace(/^data:[^;]+;base64,/, '');
       const fileBuffer = Buffer.from(base64Data, 'base64');
@@ -40,10 +47,10 @@ export default {
         return ctx.badRequest('File size exceeds 4MB');
       }
 
-      // Vérifier que c'est bien une image via Sharp (valide le contenu, pas le type déclaré)
+      // Vérifier le contenu réel via Sharp et restreindre aux formats autorisés
       const metadata = await sharp(fileBuffer).metadata();
-      if (!metadata.format || !['png', 'jpeg', 'webp', 'gif', 'tiff'].includes(metadata.format)) {
-        return ctx.badRequest('File is not a valid image');
+      if (!metadata.format || !ALLOWED_IMAGE_FORMATS.includes(metadata.format)) {
+        return ctx.badRequest('File is not a valid image (allowed: PNG, JPEG, WebP)');
       }
 
       // Redimensionner en 256x256 WebP

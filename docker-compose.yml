@@ -10,7 +10,8 @@ services:
     volumes:
       - strapi-data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_PORT:-5432}:5432" 
+      # Bind sur la loopback : la base n'est pas exposée sur le réseau local (LAN) en dev
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     networks:
       - app-network
     healthcheck:

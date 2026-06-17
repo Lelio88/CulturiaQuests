@@ -82,8 +82,13 @@ export default factories.createCoreController('api::run.run', ({ strapi }) => ({
     if (!user) return ctx.unauthorized();
 
     const { museumDocumentId, userLat, userLng } = ctx.request.body;
-    if (!museumDocumentId || !userLat || !userLng) {
+    if (!museumDocumentId) {
       return ctx.badRequest('Missing parameters');
+    }
+    // Number.isFinite accepte 0 (coordonnée valide, ex. équateur/Greenwich) et
+    // rejette NaN/Infinity/undefined qui contourneraient le contrôle de distance.
+    if (!Number.isFinite(userLat) || !Number.isFinite(userLng)) {
+      return ctx.badRequest('Invalid coordinates');
     }
 
     // 1. Get Guild
