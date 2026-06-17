@@ -8,6 +8,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { getParisDateKey } from '../../../utils/quiz-date';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -102,7 +103,7 @@ function loadSelectedQuizzes(): SelectedQuizzesConfig {
 
 function loadUsedQuestions(): UsedQuestionsData {
   if (!fs.existsSync(USED_QUESTIONS_PATH)) {
-    return { lastReset: new Date().toISOString().split('T')[0], usedIds: [] };
+    return { lastReset: getParisDateKey(), usedIds: [] };
   }
   return JSON.parse(fs.readFileSync(USED_QUESTIONS_PATH, 'utf-8'));
 }
@@ -273,7 +274,7 @@ function pickOpenQuizzDBQuestions(count: number): GeneratedQuestion[] {
   if (available.length < count) {
     strapi.log.info(`[quiz-generator] Toutes les questions utilisées (${usedData.usedIds.length}), reset de l'historique`);
     usedData.usedIds = [];
-    usedData.lastReset = new Date().toISOString().split('T')[0];
+    usedData.lastReset = getParisDateKey();
     available = allQuestions;
   }
 
@@ -336,7 +337,7 @@ async function generateTimelineQuestions(count: number): Promise<GeneratedQuesti
 
 export default {
   async generateDailyQuiz() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getParisDateKey();
     strapi.log.info(`[quiz-generator] Démarrage de la génération du quiz pour ${today}`);
 
     // Vérifier si une session existe déjà pour aujourd'hui
