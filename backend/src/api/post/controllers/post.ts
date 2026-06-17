@@ -16,11 +16,43 @@ export default factories.createCoreController('api::post.post', ({ strapi }) => 
 
     const authorId = user.documentId || user.id;
 
+    // Anti mass-assignment : whitelist des champs. `likes` n'est JAMAIS accepté du client
+    // (sinon pré-remplissage de likes) et `author` est forcé sur l'utilisateur courant.
+    const postData: any = {
+        show_loot: typeof data.show_loot === 'boolean' ? data.show_loot : true,
+        tags: data.tags ?? null,
+        author: authorId,
+    };
+
+    // Ownership des relations affichées : un joueur ne peut publier que SON run et SON
+    // loot, pas ceux d'autrui (les relations sont validées contre sa guilde).
+    const myGuild = await strapi.db.query('api::guild.guild').findOne({
+        where: { user: { id: user.id } },
+        select: ['id'],
+    });
+
+    const runDocId = typeof data.run_history === 'string' ? data.run_history : data.run_history?.documentId;
+    if (runDocId) {
+        const ownedRun = await strapi.db.query('api::run.run').findOne({
+            where: { documentId: runDocId, guild: { id: myGuild?.id } },
+            select: ['documentId'],
+        });
+        if (!ownedRun) return ctx.badRequest('run_history invalide ou non possédé');
+        postData.run_history = runDocId;
+    }
+
+    const lootDocId = typeof data.best_loot === 'string' ? data.best_loot : data.best_loot?.documentId;
+    if (lootDocId) {
+        const ownedItem = await strapi.db.query('api::item.item').findOne({
+            where: { documentId: lootDocId, guild: { id: myGuild?.id } },
+            select: ['documentId'],
+        });
+        if (!ownedItem) return ctx.badRequest('best_loot invalide ou non possédé');
+        postData.best_loot = lootDocId;
+    }
+
     const post = await strapi.documents('api::post.post').create({
-        data: {
-            ...data,
-            author: authorId
-        }
+        data: postData
     });
     
     const sanitized = await this.sanitizeOutput(post, ctx);
