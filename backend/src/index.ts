@@ -119,6 +119,25 @@ export default {
         // Friendship (legacy) — find/findOne filtrés par guild.user.id
         'api::friendship.friendship.find',
         'api::friendship.friendship.findOne',
+        // Routes cœur (find/findOne) appelées par le front. Isolation vérifiée :
+        // chaque controller filtre par la guilde de l'utilisateur (cf. §IV.1).
+        // Versionner ces permissions évite de dépendre d'une config admin-panel
+        // non reproductible (garde-fou §IV.3) — sans elles : 403 sur tout env neuf.
+        'api::guild.guild.find',
+        'api::guild.guild.findOne',
+        'api::character.character.find',
+        'api::character.character.findOne',
+        'api::item.item.find',
+        'api::item.item.findOne',
+        'api::run.run.find',
+        'api::run.run.findOne',
+        'api::visit.visit.find',
+        'api::visit.visit.findOne',
+        'api::quest.quest.find',
+        'api::quest.quest.findOne',
+        // NPC : contenu de jeu partagé (lecture, comme museum/poi)
+        'api::npc.npc.find',
+        'api::npc.npc.findOne',
       ], 'Authenticated');
     }
 
