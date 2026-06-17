@@ -67,8 +67,7 @@ export function debugLocalStorage() {
  * Garde les autres données (par exemple, les préférences utilisateur)
  */
 export function clearPiniaStores() {
-  const piniaKeys = Object.keys(localStorage).filter(key => 
-    key !== 'culturia_jwt' && // Garde le JWT
+  const piniaKeys = Object.keys(localStorage).filter(key =>
     key !== 'debug' // Garde les flags de debug si présents
   )
   

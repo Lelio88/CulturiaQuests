@@ -219,8 +219,8 @@
           </p>
           <div class="space-y-3">
             <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">Cookie d'authentification (culturia_jwt)</p>
-              <p class="text-gray-600 mt-1">Cookie strictement nécessaire au fonctionnement de l'application. Il contient votre jeton d'authentification (JWT) et a une durée de vie de 14 jours. Ce cookie est exempt de consentement conformément aux recommandations de la CNIL (cookie technique indispensable).</p>
+              <p class="font-bold text-gray-800">Cookie d'authentification (cq_session)</p>
+              <p class="text-gray-600 mt-1">Cookie strictement nécessaire au fonctionnement de l'application. Il contient votre jeton d'authentification (JWT) et a une durée de vie de 14 jours. Il est <span class="font-semibold">HttpOnly</span> (inaccessible au JavaScript, pour votre sécurité). Ce cookie est exempt de consentement conformément aux recommandations de la CNIL (cookie technique indispensable).</p>
             </div>
             <div class="p-3 bg-gray-50 rounded-lg text-sm">
               <p class="font-bold text-gray-800">Stockage local (localStorage)</p>

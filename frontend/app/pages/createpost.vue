@@ -164,7 +164,6 @@ const router = useRouter();
 const config = useRuntimeConfig();
 const strapiUrl = config.public.strapi?.url || 'http://localhost:1337';
 const { calculateItemPower } = useDamageCalculator();
-const { find } = useStrapi();
 
 // --- ÉTATS ---
 const isLoading = ref(true);
@@ -228,11 +227,13 @@ const formatTimeAgo = (dateString) => {
 const fetchRecentRuns = async () => {
     isLoading.value = true;
     try {
-        const response = await find('runs', {
-            populate: ['museum', 'museum.tags', 'items', 'items.rarity', 'items.icon'],
-            sort: 'createdAt:desc',
-            pagination: { limit: 5 },
-            filters: { date_end: { $null: false } }
+        const response = await useApi()('/runs', {
+            params: {
+                populate: ['museum', 'museum.tags', 'items', 'items.rarity', 'items.icon'],
+                sort: 'createdAt:desc',
+                pagination: { limit: 5 },
+                filters: { date_end: { $null: false } }
+            }
         });
         
         recentRuns.value = (response.data || []).map(run => {
