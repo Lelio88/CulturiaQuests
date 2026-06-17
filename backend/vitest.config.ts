@@ -2,9 +2,9 @@ import { defineConfig } from 'vitest/config';
 
 /**
  * Tests unitaires backend (Vitest).
- * Cible les fonctions pures/utilitaires (`src/**/*.test.ts`) — pas les couches
- * Strapi (controllers/services) qui dépendent du global `strapi` et relèvent de
- * tests d'intégration.
+ * Cible les fichiers de test sous src/ (motif "src" + glob + ".test.ts") — fonctions
+ * pures/utilitaires uniquement. Les couches Strapi (controllers/services) dépendent du
+ * global `strapi` et relèvent de tests d'intégration (hors scope ici).
  */
 export default defineConfig({
   test: {

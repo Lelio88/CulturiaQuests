@@ -37,6 +37,8 @@
     "src/admin/",
     // Do not include test files
     "**/*.test.*",
+    // Do not include the Vitest config (build tool, not server code)
+    "vitest.config.ts",
     // Do not include plugins in the server compilation
     "src/plugins/**",
     // Do not include OpenQuizzDB data files in compilation
