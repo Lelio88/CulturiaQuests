@@ -57,7 +57,9 @@ export default (plugin) => {
     // Persister la date de naissance sur l'utilisateur créé : le register natif
     // users-permissions ne sauvegarde que username/email/password, les champs
     // additionnels (date_of_birth) sont sinon validés puis perdus.
-    if (ctx.body && ctx.body.user && ctx.body.user.id) {
+    // Garde : ne persister que si le register a réussi (sinon ctx.body.user peut
+    // refléter une réponse d'erreur émise sans throw).
+    if (ctx.status < 400 && ctx.body && ctx.body.user && ctx.body.user.id) {
       try {
         await strapi.db.query('plugin::users-permissions.user').update({
           where: { id: ctx.body.user.id },

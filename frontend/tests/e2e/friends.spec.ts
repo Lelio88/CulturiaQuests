@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test'
 
+// NOTE: ces tests ciblaient la page de DEBUG /tests/friends (« Friends System Test »)
+// et /tests/login, retirées pour raisons de sécurité (#50). Ils sont donc SKIPPÉS en
+// attendant une réécriture contre l'UI réelle des amis. Voir auth.setup.ts (migré vers
+// /account/login). Ne pas réactiver sans réécrire les sélecteurs/parcours.
+
 // Test credentials - these should match existing test users in the database
 const TEST_USER_1 = {
   email: 'test@culturia.com',
@@ -13,7 +18,7 @@ const TEST_USER_2 = {
   username: 'testuser2',
 }
 
-test.describe('Friends Page - Unauthenticated', () => {
+test.describe.skip('Friends Page - Unauthenticated', () => {
   test('should show login prompt when not authenticated', async ({ page }) => {
     await page.goto('/tests/friends')
 
@@ -30,7 +35,7 @@ test.describe('Friends Page - Unauthenticated', () => {
   })
 })
 
-test.describe('Friends Page - Authenticated', () => {
+test.describe.skip('Friends Page - Authenticated', () => {
   test.beforeEach(async ({ page }) => {
     // Login before each test
     await page.goto('/tests/login')
@@ -150,7 +155,7 @@ test.describe('Friends Page - Authenticated', () => {
   })
 })
 
-test.describe('Friends - Search and Request Flow', () => {
+test.describe.skip('Friends - Search and Request Flow', () => {
   test('search button should be disabled with empty input', async ({ page }) => {
     // Login first
     await page.goto('/tests/login')
@@ -179,7 +184,7 @@ test.describe('Friends - Search and Request Flow', () => {
   })
 })
 
-test.describe('Friends - Error Handling', () => {
+test.describe.skip('Friends - Error Handling', () => {
   test('should display error messages gracefully', async ({ page }) => {
     // Login first
     await page.goto('/tests/login')
