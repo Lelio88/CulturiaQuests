@@ -12,7 +12,9 @@
     "start": "strapi start",
     "strapi": "strapi",
     "upgrade": "npx @strapi/upgrade latest",
-    "upgrade:dry": "npx @strapi/upgrade latest --dry"
+    "upgrade:dry": "npx @strapi/upgrade latest --dry",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@strapi/plugin-cloud": "5.34.0",
@@ -35,7 +37,8 @@
     "@types/node-cron": "^3.0.11",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   },
   "engines": {
     "node": ">=20.0.0 <=24.x.x",
