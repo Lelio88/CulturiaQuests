@@ -1,9 +1,10 @@
 /**
- * Service de génération automatique du quiz quotidien
+ * Service de génération automatique du quiz quotidien.
  *
- * - 7 QCM piochés dans OpenQuizzDB (fichiers JSON locaux)
- * - 3 Timeline générées par Ollama (avec fallback)
- * - Historique anti-répétition via used-questions.json
+ * - 10 questions au total (TOTAL_QUESTIONS).
+ * - Timeline générées par Ollama (best-effort : 0 à 3 selon disponibilité).
+ * - QCM piochés dans OpenQuizzDB (fichiers JSON locaux) pour compléter jusqu'à 10.
+ * - Historique anti-répétition via used-questions.json (écriture atomique).
  */
 
 import fs from 'fs';
@@ -191,6 +192,9 @@ async function callOllama(prompt: string, retries = 3): Promise<unknown> {
           stream: false,
           options: { temperature: 0.7 },
         }),
+        // Borne chaque tentative (évite un hang indéfini, notamment via la génération
+        // à la demande déclenchée depuis une requête GET).
+        signal: AbortSignal.timeout(8000),
       });
 
       if (!response.ok) {
@@ -369,8 +373,18 @@ export default {
         },
       });
     } catch (err) {
-      strapi.log.info(`[quiz-generator] Génération concurrente détectée pour ${today} (date unique), skip`);
-      return;
+      // La création peut échouer car une génération concurrente a déjà créé la session
+      // (contrainte unique sur `date`). On ne traite ce cas comme "skip" QUE si une session
+      // existe désormais ; sinon c'est une vraie erreur qu'on propage.
+      const concurrent = await strapi.db.query('api::quiz-session.quiz-session').findOne({
+        where: { date: today },
+        select: ['id'],
+      });
+      if (concurrent) {
+        strapi.log.info(`[quiz-generator] Génération concurrente détectée pour ${today}, skip`);
+        return;
+      }
+      throw err;
     }
 
     try {
