@@ -83,7 +83,7 @@ export function useZoneCompletion() {
     pendingCompletions.add(comcomDocId)
 
     try {
-      const client = useStrapiClient()
+      const client = useApi()
       const guildDocId = guildStore.guild?.documentId
       if (!guildDocId) return
 

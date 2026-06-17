@@ -81,7 +81,7 @@ export const useQuizStore = defineStore('quiz', {
 
   actions: {
     async fetchTodayQuiz() {
-      const client = useStrapiClient()
+      const client = useApi()
       this.loading = true
       this.error = null
       this.alreadyCompleted = false
@@ -106,11 +106,13 @@ export const useQuizStore = defineStore('quiz', {
 
         await this.fetchLeaderboard()
       } catch (e: unknown) {
-        const error = e as { error?: { status?: number; message?: string }; message?: string }
-        if (error?.error?.status === 404) {
+        const error = e as any
+        // Via le proxy BFF, le statut est sur e.statusCode (repli sur les anciennes formes).
+        const status = error?.statusCode ?? error?.error?.status ?? error?.data?.error?.status
+        if (status === 404) {
           this.error = "Aucun quiz disponible pour aujourd'hui. Revenez plus tard !"
         } else {
-          this.error = error?.error?.message || error?.message || 'Erreur'
+          this.error = extractApiError(error, 'Erreur')
         }
       } finally {
         this.loading = false
@@ -118,7 +120,7 @@ export const useQuizStore = defineStore('quiz', {
     },
 
     async fetchLeaderboard() {
-      const client = useStrapiClient()
+      const client = useApi()
       this.leaderboardLoading = true
 
       try {
@@ -139,7 +141,7 @@ export const useQuizStore = defineStore('quiz', {
         return
       }
 
-      const client = useStrapiClient()
+      const client = useApi()
       this.submitting = true
       this.error = null
 
@@ -163,15 +165,14 @@ export const useQuizStore = defineStore('quiz', {
         this.clearSavedAnswers()
         await this.fetchLeaderboard()
       } catch (e: unknown) {
-        const error = e as { error?: { message?: string }; message?: string }
-        this.error = error?.error?.message || error?.message || 'Erreur lors de la soumission'
+        this.error = extractApiError(e, 'Erreur lors de la soumission')
       } finally {
         this.submitting = false
       }
     },
 
     async fetchResults(documentId: string) {
-      const client = useStrapiClient()
+      const client = useApi()
       this.loading = true
       this.error = null
 
@@ -198,8 +199,7 @@ export const useQuizStore = defineStore('quiz', {
           newStreak: data.guild?.quiz_streak || 0,
         }
       } catch (e: unknown) {
-        const error = e as { error?: { message?: string }; message?: string }
-        this.error = error?.error?.message || error?.message || 'Erreur lors du chargement des résultats'
+        this.error = extractApiError(e, 'Erreur lors du chargement des résultats')
       } finally {
         this.loading = false
       }

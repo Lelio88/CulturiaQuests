@@ -119,7 +119,7 @@ const router = useRouter()
 const quizStore = useQuizStore()
 const config = useRuntimeConfig()
 
-const user = useStrapiUser()
+const user = useAuth().user
 const isAuthenticated = computed(() => !!user.value)
 
 onMounted(async () => {

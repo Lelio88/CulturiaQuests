@@ -68,7 +68,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   }
 
   async function fetchItems() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -96,7 +96,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   }
 
   async function fetchItemIcons() {
-    const client = useStrapiClient()
+    const client = useApi()
     iconsLoading.value = true
     try {
       const response = await client<any>('/item-icons')

@@ -1,13 +1,15 @@
 /**
  * Admin route middleware
- * Protects /dashboard routes - redirects non-admin users to home
+ * Protège les routes /dashboard — redirige les non-admins vers l'accueil.
+ *
+ * S'exécute aussi en SSR (l'enforcement serveur a été activé avec la migration BFF #17) :
+ * `user` est hydraté par plugins/auth.ts via /users/me-with-role (role peuplé), et
+ * `verifyAdmin()` passe par le proxy (cookie forwardé en SSR par useRequestFetch).
+ * `verifyAdmin` reste un filet de défense en profondeur (le backend filtre de toute façon
+ * par ctx.state.user).
  */
 export default defineNuxtRouteMiddleware(async () => {
-  // Skip SSR: useStrapiToken can't read the cookie name from the private runtimeConfig
-  // (which only has `url`). The client will re-run this middleware on hydration.
-  if (import.meta.server) return
-
-  const user = useStrapiUser()
+  const { user } = useAuth()
 
   if (!user.value) {
     return navigateTo('/account/login')

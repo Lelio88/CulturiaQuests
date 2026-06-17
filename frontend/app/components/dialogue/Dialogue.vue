@@ -65,7 +65,7 @@ const emit = defineEmits<{
   complete: []
 }>()
 
-const user = useStrapiUser()
+const user = useAuth().user
 const playerName = computed(() => (user.value as any)?.username || 'Aventurier')
 
 const npcImage = computed(() => {

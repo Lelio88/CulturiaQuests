@@ -25,7 +25,7 @@ interface UserSettings {
 const PLACEHOLDER_URL = '/assets/avatar-placeholder.svg'
 
 export function useUserAvatar() {
-  const client = useStrapiClient()
+  const client = useApi()
   const config = useRuntimeConfig()
 
   const avatar = ref<AvatarData | null>(null)
@@ -134,7 +134,7 @@ export function useUserAvatar() {
 
       uploadProgress.value = 30
 
-      // Envoyer via JSON au controller custom (auth géré automatiquement par useStrapiClient)
+      // Envoyer via JSON au controller custom (auth géré automatiquement par useApi)
       const response = await client<{ data: { avatar: AvatarData }, message: string }>('/user-settings/avatar', {
         method: 'POST',
         body: { base64 },

@@ -8,8 +8,11 @@
  *   `const api = useApi(); api('/guilds', { method, params, body })`
  *
  * Choix non évidents :
- * - `params` est remappé sur `query` (ofetch n'a pas d'option `params`) — sans quoi tous
- *   les `populate`/`filters` des stores tomberaient silencieusement.
+ * - `params`/`query` sont sérialisés avec `qs` (`encodeValuesOnly: true`) — EXACTEMENT comme
+ *   `useStrapiClient` de @nuxtjs/strapi — puis appondus à l'URL. Indispensable : la notation
+ *   à crochets de Strapi (`populate[characters][...]`) n'est PAS produite par ofetch (qui
+ *   sérialiserait un objet imbriqué en JSON → 400 Strapi). Le proxy [...path].ts forwarde
+ *   ensuite ce query string verbatim (sans re-sérialiser).
  * - Le fetcher est résolu paresseusement : en SSR on utilise `useRequestFetch()` afin de
  *   propager le cookie HTTP-ONLY entrant à la route serveur (un `$fetch` nu n'attache pas
  *   le cookie navigateur côté serveur → 401 + hydration mismatch).
@@ -22,15 +25,19 @@
  * const api = useApi()
  * const guild = await api('/guilds', { params: { populate: 'characters' } })
  */
+import { stringify } from 'qs'
+
 export function useApi() {
   const fetcher = import.meta.server ? useRequestFetch() : $fetch
 
   return <T = unknown>(path: string, opts: Record<string, unknown> = {}): Promise<T> => {
     const cleanPath = path.replace(/^\/+/, '')
     const { params, query, ...rest } = opts as { params?: unknown; query?: unknown }
-    return fetcher<T>(`/api/strapi/${cleanPath}`, {
-      ...rest,
-      query: query ?? params,
-    } as Record<string, unknown>)
+    const q = query ?? params
+    const search =
+      q && typeof q === 'object' && Object.keys(q as object).length
+        ? `?${stringify(q, { encodeValuesOnly: true })}`
+        : ''
+    return fetcher<T>(`/api/strapi/${cleanPath}${search}`, rest as Record<string, unknown>)
   }
 }

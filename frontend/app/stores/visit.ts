@@ -102,7 +102,7 @@ export const useVisitStore = defineStore('visit', () => {
   }
 
   async function fetchVisits() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -128,7 +128,7 @@ export const useVisitStore = defineStore('visit', () => {
    * Open a chest at a POI
    */
   async function openChest(poiId: string, userLat: number, userLng: number) {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 

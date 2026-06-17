@@ -5,7 +5,7 @@
  * 2. Async: calls /admin-dashboard/check endpoint (reliable fallback)
  */
 export function useAdmin() {
-  const user = useStrapiUser()
+  const { user } = useAuth()
   const isAdminVerified = useState<boolean>('is_admin_verified', () => false)
   const verifyPending = ref(false)
 
@@ -20,7 +20,7 @@ export function useAdmin() {
     if (!user.value || verifyPending.value) return
     verifyPending.value = true
     try {
-      const client = useStrapiClient()
+      const client = useApi()
       const result: any = await client('/admin-dashboard/check')
       isAdminVerified.value = result?.isAdmin === true
     } catch {

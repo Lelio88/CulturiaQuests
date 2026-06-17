@@ -63,8 +63,7 @@ import { useGuildStore } from '~/stores/guild'
 import PixelInput from '~/components/form/PixelInput.vue'
 import PixelButton from '~/components/form/PixelButton.vue'
 
-const { login } = useStrapiAuth()
-const user = useStrapiUser()
+const { login, user } = useAuth()
 const router = useRouter()
 const guildStore = useGuildStore()
 
@@ -82,10 +81,7 @@ const handleSubmit = async () => {
     loading.value = true
     error.value = null
 
-    await login({
-      identifier: form.value.identifier,
-      password: form.value.password,
-    })
+    await login(form.value.identifier, form.value.password)
 
     // Fetch all user data after login (guild + characters, items, quests, etc.)
     // Utilise fetchAll() pour précharger toutes les données en une seule requête
@@ -98,7 +94,7 @@ const handleSubmit = async () => {
 
   } catch (e: any) {
     console.error('Login error:', e)
-    error.value = e?.error?.message || 'Une erreur est survenue lors de la connexion.'
+    error.value = extractApiError(e, 'Une erreur est survenue lors de la connexion.')
   } finally {
     loading.value = false
   }

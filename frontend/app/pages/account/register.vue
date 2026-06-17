@@ -190,8 +190,7 @@ import Alert from '~/components/form/Alert.vue'
 import OverlayPanel from '~/components/ui/OverlayPanel.vue'
 import CguContent from '~/components/legal/CguContent.vue'
 
-const { register } = useStrapiAuth()
-const user = useStrapiUser()
+const { register, user } = useAuth()
 const router = useRouter()
 const guildStore = useGuildStore()
 const characterStore = useCharacterStore()
@@ -360,7 +359,7 @@ const handleSubmit = async () => {
 
   } catch (e: any) {
     console.error('Registration error:', e)
-    error.value = e?.error?.message || 'Une erreur est survenue lors de l\'inscription.'
+    error.value = extractApiError(e, 'Une erreur est survenue lors de l\'inscription.')
   } finally {
     loading.value = false
   }

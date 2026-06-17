@@ -12,6 +12,8 @@
  *   un `$fetch` suffit (cookie same-origin envoyé automatiquement).
  * - login/register/logout sont déclenchés par interaction → toujours côté client : le
  *   Set-Cookie d'une sous-requête Nitro en SSR ne remonterait pas au navigateur.
+ * - `reconcileUser` purge les stores Pinia persistés si l'utilisateur courant diffère du
+ *   dernier connu sur cet appareil (anti-fuite cross-user, device partagé sans logout).
  *
  * @example
  * const { user, login, logout } = useAuth()
@@ -26,13 +28,30 @@ export interface CqUser {
   [key: string]: unknown
 }
 
+const LAST_USER_KEY = 'cq_last_user_id'
+
 export function useAuth() {
   const user = useState<CqUser | null>('cq_user', () => null)
+
+  /**
+   * Anti-fuite cross-user : si les stores persistés (localStorage) appartiennent à un
+   * autre utilisateur que celui qui se (re)connecte sur cet appareil, on les purge.
+   * Client-only (localStorage). No-op si `id` est absent.
+   */
+  function reconcileUser(id?: number | null) {
+    if (!import.meta.client || id == null) return
+    const last = localStorage.getItem(LAST_USER_KEY)
+    if (last && last !== String(id)) {
+      clearPiniaStores()
+    }
+    localStorage.setItem(LAST_USER_KEY, String(id))
+  }
 
   async function fetchMe(): Promise<CqUser | null> {
     const fetcher = import.meta.server ? useRequestFetch() : $fetch
     try {
       user.value = await fetcher<CqUser>('/api/auth/me')
+      reconcileUser(user.value?.id)
     } catch {
       user.value = null
     }
@@ -45,6 +64,7 @@ export function useAuth() {
       body: { identifier, password },
     })
     user.value = res.user
+    reconcileUser(res.user?.id)
     return res.user
   }
 
@@ -54,6 +74,7 @@ export function useAuth() {
       body,
     })
     user.value = res.user
+    reconcileUser(res.user?.id)
     return res.user
   }
 
@@ -62,5 +83,5 @@ export function useAuth() {
     user.value = null
   }
 
-  return { user, fetchMe, login, register, logout }
+  return { user, fetchMe, login, register, logout, reconcileUser }
 }

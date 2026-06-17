@@ -71,7 +71,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
   async function fetchStatistics() {
     isLoading.value = true
     error.value = null
-    const client = useStrapiClient()
+    const client = useApi()
 
     try {
       const response = await client<GuildStatistics>('/statistics/summary', {

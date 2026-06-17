@@ -174,8 +174,8 @@ const props = defineProps({
 const emit = defineEmits(['delete', 'edit', 'refresh']);
 
 const { calculateItemPower } = useDamageCalculator();
-const user = useStrapiUser();
-const client = useStrapiClient();
+const user = useAuth().user;
+const client = useApi();
 
 // --- ÉTATS ---
 const isLiked = ref(false);

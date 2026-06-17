@@ -79,7 +79,7 @@ export const useQuestStore = defineStore('quest', () => {
   }
 
   async function generateDailyQuests(poiDocumentIds: string[]) {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -101,7 +101,7 @@ export const useQuestStore = defineStore('quest', () => {
   }
 
   async function fetchQuests() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
