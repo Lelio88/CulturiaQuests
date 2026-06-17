@@ -11,9 +11,11 @@ export default factories.createCoreController('api::character.character', ({ str
    */
   async find(ctx) {
     const user = ctx.state.user;
+    if (!user) return ctx.unauthorized();
     const sanitizedQuery = await this.sanitizeQuery(ctx);
 
-    if (user) {
+    // user garanti (early-return ci-dessus) : filtrage par guilde inconditionnel
+    {
       // Fetch the user's guild first to ensure robust filtering
       const userGuild = await strapi.db.query('api::guild.guild').findOne({
         where: { user: { id: user.id } },
@@ -44,9 +46,11 @@ export default factories.createCoreController('api::character.character', ({ str
   async findOne(ctx) {
     const user = ctx.state.user;
     const { id } = ctx.params;
+    if (!user) return ctx.unauthorized();
     const sanitizedQuery = await this.sanitizeQuery(ctx);
 
-    if (user) {
+    // user garanti (early-return ci-dessus) : filtrage par guilde inconditionnel
+    {
       // Fetch the user's guild first
       const userGuild = await strapi.db.query('api::guild.guild').findOne({
         where: { user: { id: user.id } },

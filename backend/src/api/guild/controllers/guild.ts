@@ -10,11 +10,13 @@ export default factories.createCoreController('api::guild.guild', ({ strapi }) =
    */
   async find(ctx) {
     const user = ctx.state.user;
+    if (!user) return ctx.unauthorized();
 
     // Sanitize the query parameters first (handles populate, sort, etc.)
     const sanitizedQuery = await this.sanitizeQuery(ctx);
 
-    if (user) {
+    // user garanti (early-return ci-dessus) : filtrage par utilisateur inconditionnel
+    {
       // Force filter by the authenticated user's ID
       // We assume sanitizedQuery.filters is an object (it usually is after sanitization)
       sanitizedQuery.filters = {
@@ -38,10 +40,12 @@ export default factories.createCoreController('api::guild.guild', ({ strapi }) =
   async findOne(ctx) {
     const user = ctx.state.user;
     const { id } = ctx.params;
+    if (!user) return ctx.unauthorized();
 
     const sanitizedQuery = await this.sanitizeQuery(ctx);
 
-    if (user) {
+    // user garanti (early-return ci-dessus) : filtrage par utilisateur inconditionnel
+    {
       // Force filter by the authenticated user's ID
       sanitizedQuery.filters = {
         ...(sanitizedQuery.filters as any || {}),
