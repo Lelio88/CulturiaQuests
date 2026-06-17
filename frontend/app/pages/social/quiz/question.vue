@@ -75,6 +75,7 @@
               color="indigo"
               class="w-full !mt-0 !py-2.5"
               :class="{'opacity-50': quizStore.selectedAnswer && quizStore.selectedAnswer !== option}"
+              :disabled="quizStore.submitting"
               @click="handleSelectAnswer(option)"
             >
               {{ option }}
