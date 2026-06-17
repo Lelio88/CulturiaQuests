@@ -213,7 +213,7 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 const adminStore = useAdminStore()
-const currentUser = useStrapiUser()
+const currentUser = useAuth().user
 const config = useRuntimeConfig()
 
 const apiUrl = computed(() => config.public.strapi.url)

@@ -74,7 +74,7 @@ export const useRunStore = defineStore('run', () => {
   }
 
   async function fetchRuns() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -97,7 +97,7 @@ export const useRunStore = defineStore('run', () => {
   }
 
   async function startExpedition(museumDocumentId: string, userLat: number, userLng: number) {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -118,7 +118,7 @@ export const useRunStore = defineStore('run', () => {
       return { run, questRolled, dialog, npc }
     } catch (e: any) {
       console.error('Failed to start expedition:', e)
-      error.value = e?.error?.message || e?.message || 'Failed to start expedition'
+      error.value = extractApiError(e, 'Failed to start expedition')
       throw e
     } finally {
       loading.value = false
@@ -126,7 +126,7 @@ export const useRunStore = defineStore('run', () => {
   }
 
   async function endExpedition(runDocumentId: string) {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -149,7 +149,7 @@ export const useRunStore = defineStore('run', () => {
       return { run, rewards, questSuccess }
     } catch (e: any) {
       console.error('Failed to end expedition:', e)
-      error.value = e?.error?.message || e?.message || 'Failed to end expedition'
+      error.value = extractApiError(e, 'Failed to end expedition')
       throw e
     } finally {
       loading.value = false
@@ -157,7 +157,7 @@ export const useRunStore = defineStore('run', () => {
   }
 
   async function fetchActiveRun() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 

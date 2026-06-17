@@ -93,7 +93,7 @@ const emit = defineEmits(['close', 'equip'])
 
 const guildStore = useGuildStore()
 const inventoryStore = useInventoryStore()
-const client = useStrapiClient()
+const client = useApi()
 const { calculateItemPower } = useDamageCalculator()
 const { hideFooter, showFooter } = useFooterVisibility()
 

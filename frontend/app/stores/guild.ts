@@ -85,7 +85,7 @@ export const useGuildStore = defineStore('guild', () => {
    * Fetches the guild data for the current authenticated user (basic info only)
    */
   async function fetchGuild() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -113,7 +113,7 @@ export const useGuildStore = defineStore('guild', () => {
    * Fetches the guild with all related data and hydrates all stores
    */
   async function fetchAll() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -203,7 +203,7 @@ export const useGuildStore = defineStore('guild', () => {
    * Refetch only the guild stats (gold, exp, scrap, debug_mode)
    */
   async function refetchStats() {
-    const client = useStrapiClient()
+    const client = useApi()
 
     try {
       const response = await client<any>('/guilds', {
@@ -237,7 +237,7 @@ export const useGuildStore = defineStore('guild', () => {
     lastname: string
     iconId: number
   }) {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -271,7 +271,7 @@ export const useGuildStore = defineStore('guild', () => {
       throw new Error('No guild to delete')
     }
 
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 

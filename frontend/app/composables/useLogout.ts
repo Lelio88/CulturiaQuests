@@ -1,35 +1,39 @@
 /**
- * Composable for handling complete logout
- * Clears JWT token, localStorage, and all Pinia stores
+ * Composable de déconnexion complète.
+ * Efface la session httpOnly (BFF `cq_session`), tous les stores Pinia, le localStorage,
+ * puis force un reload pour repartir d'un état propre.
+ *
+ * INVARIANT (anti-fuite cross-user, ne pas retirer) : `localStorage.clear()` +
+ * `sessionStorage.clear()` + reload externe — sinon l'utilisateur suivant sur le même
+ * appareil hériterait des stores persistés du précédent.
  */
 export function useLogout() {
-  const { logout: strapiLogout } = useStrapiAuth()
+  const { logout: authLogout } = useAuth()
   const guildStore = useGuildStore()
-  /**
-   * Performs a complete logout:
-   * 1. Clears the Strapi JWT token
-   * 2. Clears all Pinia stores
-   * 3. Clears localStorage
-   * 4. Redirects to a specified route (default: '/')
-   */
+
   async function logout(redirectTo: string = '/') {
-    // Explicitly clear the Strapi JWT cookie
-    const token = useCookie('culturia_jwt', { path: '/' })
-    token.value = null
+    // 1. Efface la session httpOnly côté serveur (cookie cq_session). Best-effort :
+    //    on poursuit le nettoyage local même si l'appel réseau échoue.
+    try {
+      await authLogout()
+    } catch {
+      // ignore — le nettoyage local ci-dessous reste impératif
+    }
 
-    // Clear Strapi auth (internal state)
-    strapiLogout()
+    // 2. Défensif : efface un éventuel cookie `culturia_jwt` résiduel (legacy
+    //    @nuxtjs/strapi, retiré au cutover #17). No-op s'il est httpOnly.
+    useCookie('culturia_jwt', { path: '/' }).value = null
 
-    // Clear all Pinia stores
+    // 3. Purge tous les stores Pinia
     guildStore.clearAll()
 
-    // Clear localStorage and sessionStorage
+    // 4. Vide localStorage + sessionStorage (INVARIANT anti-fuite cross-user)
     if (import.meta.client) {
       localStorage.clear()
       sessionStorage.clear()
     }
 
-    // Force full page reload to reset all state cleanly
+    // 5. Reload complet
     await navigateTo(redirectTo, { external: true })
   }
 

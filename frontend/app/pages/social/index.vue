@@ -108,7 +108,7 @@ const quizStreak = computed(() => guildStore.quizStreak);
 // --- RÉCUPÉRATION DES POSTS ---
 const posts = ref([]);
 const isLoading = ref(true);
-const client = useStrapiClient();
+const client = useApi();
 const config = useRuntimeConfig();
 const strapiUrl = config.public.strapi?.url || 'http://localhost:1337';
 

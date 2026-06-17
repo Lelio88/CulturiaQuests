@@ -54,7 +54,7 @@ export const usePlayerFriendshipStore = defineStore('playerFriendship', () => {
 
   // Actions
   async function fetchFriendships() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -76,7 +76,7 @@ export const usePlayerFriendshipStore = defineStore('playerFriendship', () => {
   }
 
   async function searchUser(username: string) {
-    const client = useStrapiClient()
+    const client = useApi()
     searchLoading.value = true
     searchResult.value = null
     searchMessage.value = null
@@ -91,14 +91,14 @@ export const usePlayerFriendshipStore = defineStore('playerFriendship', () => {
       searchMessage.value = response.message || null
     } catch (e: any) {
       console.error('Failed to search user:', e)
-      searchMessage.value = e?.data?.error?.message || e?.message || 'Erreur lors de la recherche'
+      searchMessage.value = extractApiError(e, 'Erreur lors de la recherche')
     } finally {
       searchLoading.value = false
     }
   }
 
   async function sendRequest(receiverGuildDocumentId: string) {
-    const client = useStrapiClient()
+    const client = useApi()
     actionLoading.value[receiverGuildDocumentId] = true
 
     try {
@@ -114,14 +114,14 @@ export const usePlayerFriendshipStore = defineStore('playerFriendship', () => {
       searchMessage.value = null
     } catch (e: any) {
       console.error('Failed to send friend request:', e)
-      searchMessage.value = e?.data?.error?.message || e?.message || 'Erreur lors de l\'envoi'
+      searchMessage.value = extractApiError(e, 'Erreur lors de l\'envoi')
     } finally {
       actionLoading.value[receiverGuildDocumentId] = false
     }
   }
 
   async function acceptRequest(documentId: string) {
-    const client = useStrapiClient()
+    const client = useApi()
     actionLoading.value[documentId] = true
 
     try {
@@ -139,7 +139,7 @@ export const usePlayerFriendshipStore = defineStore('playerFriendship', () => {
   }
 
   async function rejectRequest(documentId: string) {
-    const client = useStrapiClient()
+    const client = useApi()
     actionLoading.value[documentId] = true
 
     try {
@@ -157,7 +157,7 @@ export const usePlayerFriendshipStore = defineStore('playerFriendship', () => {
   }
 
   async function removeFriend(documentId: string) {
-    const client = useStrapiClient()
+    const client = useApi()
     actionLoading.value[documentId] = true
 
     try {

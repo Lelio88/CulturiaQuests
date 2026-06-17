@@ -4,7 +4,7 @@
  */
 export function useDeleteAccount() {
   const { logout } = useLogout()
-  const client = useStrapiClient()
+  const client = useApi()
   const loading = ref(false)
   const error = ref<string | null>(null)
 

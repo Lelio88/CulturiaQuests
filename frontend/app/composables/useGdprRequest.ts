@@ -1,5 +1,5 @@
 export function useGdprRequest() {
-  const client = useStrapiClient()
+  const client = useApi()
   const loading = ref(false)
   const error = ref<string | null>(null)
   const success = ref<string | null>(null)

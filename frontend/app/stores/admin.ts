@@ -46,7 +46,7 @@ export const useAdminStore = defineStore('admin', () => {
   const error = ref<string | null>(null)
 
   async function fetchOverview() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true; error.value = null
     try { overview.value = await client<DashboardOverview>('/admin-dashboard/overview', { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch overview' }
@@ -54,7 +54,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function fetchPlayers(params: { page?: number; pageSize?: number; search?: string; sortBy?: string; sortOrder?: string } = {}) {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true; error.value = null
     try {
       const response = await client<{ data: PlayerSummary[]; pagination: Pagination }>('/admin-dashboard/players', {
@@ -66,7 +66,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function fetchPlayerDetail(userId: number) {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true; error.value = null
     try { playerDetail.value = await client<PlayerDetail>(`/admin-dashboard/players/${userId}`, { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch player detail' }
@@ -74,7 +74,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function toggleBlockPlayer(userId: number) {
-    const client = useStrapiClient()
+    const client = useApi()
     try {
       const response = await client<{ id: number; username: string; blocked: boolean }>(`/admin-dashboard/players/${userId}/toggle-block`, { method: 'PUT' })
       const idx = players.value.findIndex((p) => p.id === userId)
@@ -85,7 +85,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function changePlayerRole(userId: number, role: string) {
-    const client = useStrapiClient()
+    const client = useApi()
     try {
       const response = await client<{ id: number; username: string; role: { id: number; name: string; type: string } }>(`/admin-dashboard/players/${userId}/role`, { method: 'PUT', body: { role } })
       const idx = players.value.findIndex((p) => p.id === userId)
@@ -96,7 +96,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function fetchMapData() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true; error.value = null
     try { mapData.value = await client<any>('/admin-dashboard/map', { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch map data' }
@@ -104,7 +104,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function fetchEconomy() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true; error.value = null
     try { economyData.value = await client<any>('/admin-dashboard/economy', { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch economy data' }
@@ -112,7 +112,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function fetchExpeditions() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true; error.value = null
     try { expeditionsData.value = await client<any>('/admin-dashboard/expeditions', { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch expeditions data' }
@@ -120,7 +120,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function fetchQuiz() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true; error.value = null
     try { quizData.value = await client<any>('/admin-dashboard/quiz', { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch quiz data' }
@@ -128,7 +128,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function fetchSocial() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true; error.value = null
     try { socialData.value = await client<any>('/admin-dashboard/social', { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch social data' }
@@ -136,7 +136,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function fetchConnections() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true; error.value = null
     try { connectionData.value = await client<any>('/admin-dashboard/connections', { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch connection data' }
@@ -144,7 +144,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function fetchGdprRequests() {
-    const client = useStrapiClient()
+    const client = useApi()
     try {
       const res = await client<{ requests: any[] }>('/admin-dashboard/gdpr-requests', { method: 'GET' })
       gdprRequests.value = res.requests
@@ -152,7 +152,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function markGdprProcessed(id: number) {
-    const client = useStrapiClient()
+    const client = useApi()
     await client(`/admin-dashboard/gdpr-requests/${id}/process`, { method: 'PUT' })
     const req = gdprRequests.value.find(r => r.id === id)
     if (req) req.status = 'processed'

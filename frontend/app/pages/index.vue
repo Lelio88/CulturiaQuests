@@ -30,7 +30,7 @@
 <script setup lang="ts">
 import PixelButton from '~/components/form/PixelButton.vue'
 
-const user = useStrapiUser()
+const user = useAuth().user
 
 onMounted(async () => {
   // Redirect authenticated users to map page

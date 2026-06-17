@@ -1,5 +1,7 @@
 export default defineNuxtRouteMiddleware((to) => {
-  const user = useStrapiUser()
+  // user est hydraté en SSR par plugins/auth.ts (cookie cq_session) → l'auth est
+  // désormais appliquée aussi côté serveur (redirection 302 serveur sur route protégée).
+  const { user } = useAuth()
   const config = useRuntimeConfig()
   
   // Device detection (might be undefined if module not loaded or SSR issue)

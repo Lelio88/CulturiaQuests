@@ -193,7 +193,7 @@ export const useNpcStore = defineStore('npc', () => {
    * @param withRelations - Inclure les relations (friendships, quests, dialogs, runs)
    */
   async function fetchNpcs(withRelations: boolean = false) {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -230,7 +230,7 @@ export const useNpcStore = defineStore('npc', () => {
    * @param withRelations - Inclure les relations
    */
   async function fetchNpcByDocumentId(documentId: string, withRelations: boolean = false): Promise<Npc | null> {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 

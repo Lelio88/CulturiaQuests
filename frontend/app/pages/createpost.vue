@@ -303,7 +303,7 @@ const publishPost = async () => {
     if (!selectedRun.value || isPublishing.value) return;
     
     isPublishing.value = true;
-    const client = useStrapiClient();
+    const client = useApi();
 
     try {
         const payload = {

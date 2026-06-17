@@ -60,7 +60,7 @@ export const useCharacterStore = defineStore('character', () => {
   }
 
   async function fetchCharacters(withItems: boolean = false) {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -98,7 +98,7 @@ export const useCharacterStore = defineStore('character', () => {
   }
 
   async function fetchCharacterIcons() {
-    const client = useStrapiClient()
+    const client = useApi()
     iconsLoading.value = true
 
     try {
@@ -117,7 +117,7 @@ export const useCharacterStore = defineStore('character', () => {
   }
 
   async function createCharacter(data: CharacterFormData): Promise<Character | null> {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -149,7 +149,7 @@ export const useCharacterStore = defineStore('character', () => {
   }
 
   async function saveCharacter(documentId: string, data: CharacterFormData): Promise<boolean> {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 
@@ -177,7 +177,7 @@ export const useCharacterStore = defineStore('character', () => {
   }
 
   async function deleteCharacter(documentId: string): Promise<boolean> {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 

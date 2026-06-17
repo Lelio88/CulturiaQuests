@@ -226,7 +226,7 @@
 </template>
 
 <script setup lang="ts">
-const user = useStrapiUser()
+const user = useAuth().user
 const { isAdmin, verifyAdmin } = useAdmin()
 const { logout } = useLogout()
 const {

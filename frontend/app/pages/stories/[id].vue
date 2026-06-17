@@ -17,7 +17,7 @@
 <script setup>
 import { useRoute, useRouter } from 'vue-router';
 import { onMounted, ref } from 'vue';
-import { useStrapiClient } from '#imports';
+import { useApi } from '#imports';
 
 const route = useRoute();
 const router = useRouter();
@@ -32,7 +32,7 @@ const goBack = () => {
 };
 
 onMounted(async () => {
-    const client = useStrapiClient();
+    const client = useApi();
 
     try {
         const idToSearch = Number(friendshipId);

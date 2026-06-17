@@ -43,7 +43,9 @@ export default defineEventHandler(async (event) => {
 
   const strapiUrl = useRuntimeConfig(event).strapi?.url || 'http://localhost:1337'
   const path = getRouterParam(event, 'path') || ''
-  const query = getQuery(event)
+  // Forward du query string VERBATIM (déjà sérialisé en notation Strapi par useApi/qs).
+  // Ne PAS parser+re-sérialiser : getQuery+ofetch casserait `populate[...]` imbriqué.
+  const search = getRequestURL(event).search
 
   const headers: Record<string, string> = { Authorization: `Bearer ${jwt}` }
 
@@ -53,7 +55,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    return await $fetch(`${strapiUrl}/api/${path}`, { method, query, headers, body })
+    return await $fetch(`${strapiUrl}/api/${path}${search}`, { method, headers, body })
   } catch (err: any) {
     // Forme d'erreur robuste : err.response.statusText est vide en HTTP/2 (h2c) et
     // err.response.status n'est pas garanti sur ofetch → on retombe en cascade.

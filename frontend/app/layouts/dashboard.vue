@@ -100,7 +100,7 @@
 <script setup lang="ts">
 const route = useRoute()
 const router = useRouter()
-const user = useStrapiUser()
+const user = useAuth().user
 
 const isSidebarOpen = ref(true)
 const username = computed(() => (user.value as any)?.username || 'Admin')

@@ -90,7 +90,7 @@ const router = useRouter();
 const route = useRoute();
 const characterStore = useCharacterStore();
 const guildStore = useGuildStore();
-const client = useStrapiClient();
+const client = useApi();
 const config = useRuntimeConfig();
 const strapiUrl = config.public.strapi?.url || 'http://localhost:1337';
 

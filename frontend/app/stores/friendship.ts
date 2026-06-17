@@ -129,7 +129,7 @@ export const useFriendshipStore = defineStore('friendship', () => {
   }
 
   async function fetchFriendships() {
-    const client = useStrapiClient()
+    const client = useApi()
     loading.value = true
     error.value = null
 

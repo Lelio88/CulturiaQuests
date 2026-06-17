@@ -198,10 +198,10 @@ const handleEquipItem = async (newItemMapped) => {
   }
 };
 
-// --- FONCTION API (Utilisation de useStrapiClient) ---
+// --- FONCTION API (Utilisation de useApi) ---
 const saveEquipmentChange = async (characterId, newItemId, oldItemId) => {
   // Le client Strapi gère automatiquement l'URL API et le Token d'auth
-  const client = useStrapiClient();
+  const client = useApi();
 
   try {
     console.log(`💾 Sauvegarde équipement en cours...`);
