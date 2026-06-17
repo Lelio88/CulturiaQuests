@@ -3,6 +3,13 @@
  * Efface le cookie de session HTTP-ONLY.
  */
 export default defineEventHandler((event) => {
-  deleteCookie(event, 'cq_session', { path: '/' })
+  // Les attributs doivent correspondre à ceux du setCookie (login/register), sinon le
+  // cookie `secure` posé en prod ne serait pas effacé (navigateur = cookie distinct).
+  deleteCookie(event, 'cq_session', {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  })
   return { ok: true }
 })

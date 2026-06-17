@@ -195,6 +195,17 @@ Exemple end-to-end représentatif (auth + validation métier + interaction multi
 - **Lecture defensive du shape Strapi** : `guild.value?.gold ?? guild.value?.attributes?.gold ?? 0` — Strapi v5 a aplati la structure mais certaines réponses peuvent encore retourner `attributes`. Toujours fournir un fallback `0` / `''`.
 - **SSR vs CSR** : `runtimeConfig.strapi.url = 'http://backend:1337'` (interne Docker, utilisé par le SSR), `runtimeConfig.public.strapi.url = 'http://localhost:1337'` (utilisé par le browser). Ne **jamais** inverser.
 
+### BFF httpOnly (#17 — migration en cours)
+
+Objectif : soustraire le JWT au JavaScript. À terme le token vit dans un cookie **HTTP-ONLY** (`cq_session`) détenu côté serveur Nuxt, et tous les appels passent par un **BFF** (Backend-For-Frontend) same-origin.
+
+- **Routes serveur** (`frontend/server/api/`) :
+  - `POST /api/auth/login|register`, `POST /api/auth/logout`, `GET /api/auth/me` : auth ; posent/lisent/effacent le cookie httpOnly `cq_session`, ne renvoient jamais le JWT au client.
+  - `ANY /api/strapi/<chemin>` : proxy authentifié — relaie vers Strapi `/api/<chemin>` en injectant `Authorization: Bearer` côté serveur. Garde `!jwt` (401), **défense CSRF** (origine same-origin exigée sur POST/PUT/PATCH/DELETE), mapping d'erreur robuste.
+- **Endpoint backend `GET /api/users/me-with-role`** (extension users-permissions) : variante de `/users/me` qui **peuple le `role`** (le `me` natif le retire au `sanitizeQuery`), requis par les checks admin du front. Permission `plugin::users-permissions.user.meWithRole` accordée au bootstrap (`authenticated`, héritée par `admin`).
+- **Front (`useApi` / `useAuth` / `plugins/auth.ts`)** : `useApi()` (compatible `useStrapiClient`) route vers le proxy ; `useAuth()` remplace `useStrapiUser/Auth` ; le plugin hydrate l'user en SSR (gate sur présence du cookie). Le fetcher SSR utilise `useRequestFetch()` pour propager le cookie httpOnly.
+- **État** : socle + durcissement + infra front **livrés** (additifs). Cohabitation `culturia_jwt` (@nuxtjs/strapi) ↔ `cq_session` pendant la migration ; bascule atomique des stores + retrait de `culturia_jwt` à venir (phases suivantes de #17). Détail : `frontend/server/README.md`.
+
 ### Conventions cross-cutting
 
 - **Coordonnées GPS** : `lat`/`lng` (jamais `latitude`/`longitude`). Défaut Saint-Lô = `(49.1167, -1.0833)`.
