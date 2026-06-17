@@ -231,10 +231,18 @@ export default factories.createCoreController('api::run.run', ({ strapi }) => ({
       return ctx.forbidden('You do not own this run');
     }
 
-    if (run.date_end) return ctx.badRequest('Run already finished');
+    // Claim atomique : termine la run UNIQUEMENT si elle ne l'est pas déjà. Empêche le
+    // double-traitement (double loot/crédit) en cas de double-soumission concurrente.
+    const now = new Date();
+    const claim = await strapi.db.query('api::run.run').updateMany({
+      where: { documentId: runDocumentId, date_end: { $null: true } },
+      data: { date_end: now },
+    });
+    if (!claim || claim.count === 0) {
+      return ctx.badRequest('Run already finished');
+    }
 
     // 2. Calculate Stats
-    const now = new Date();
     const start = new Date(run.date_start as string);
     const elapsedSeconds = (now.getTime() - start.getTime()) / 1000;
     const totalDamage = Math.floor(elapsedSeconds * run.dps);
@@ -305,7 +313,7 @@ export default factories.createCoreController('api::run.run', ({ strapi }) => ({
     const updatedRun = await strapi.documents('api::run.run').update({
       documentId: runDocumentId,
       data: {
-        date_end: now,
+        // date_end déjà posé par le claim atomique ci-dessus
         threshold_reached: tier,
         gold_earned: gold,
         xp_earned: xp,

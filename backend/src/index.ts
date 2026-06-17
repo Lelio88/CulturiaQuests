@@ -61,6 +61,8 @@ export default {
     if (authenticatedRole) {
       await grantPermissions(strapi, authenticatedRole.id, [
         'api::guild.guild.setup',
+        // Suppression de SA propre guilde (controller.delete vérifie l'ownership) — utilisé par le front
+        'api::guild.guild.delete',
         'api::character.character.create',
         'api::character.character.getCharacterIcons',
         'api::item.item.getItemIcons',
@@ -168,6 +170,8 @@ export default {
 
       // Admin dashboard specific endpoints
       const adminOnlyActions = [
+        // Mode debug (désactive le geofence) — strictement réservé aux admins (anti-triche)
+        'api::guild.guild.toggleDebugMode',
         'api::admin-dashboard.admin-dashboard.check',
         'api::admin-dashboard.admin-dashboard.getOverview',
         'api::admin-dashboard.admin-dashboard.getPlayers',

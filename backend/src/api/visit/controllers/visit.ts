@@ -158,19 +158,26 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
       });
     }
 
-    // 5. Vérifier cooldown (24h)
-    if (visit.last_opened_at) {
-      const lastOpenedTime = new Date(visit.last_opened_at).getTime();
-      const now = Date.now();
-      const cooldownMs = 24 * 60 * 60 * 1000;
-      const elapsed = now - lastOpenedTime;
-
-      if (elapsed < cooldownMs) {
-        const remainingMs = cooldownMs - elapsed;
-        const hours = Math.floor(remainingMs / (60 * 60 * 1000));
-        const minutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
-        return ctx.badRequest(`Chest is on cooldown. Try again in ${hours}h ${minutes}m.`);
-      }
+    // 5. Cooldown (24h) — claim atomique : ne réussit que si le coffre n'a pas été ouvert
+    // dans les dernières 24h. Empêche le double-traitement (double loot/crédit) en cas de
+    // double-soumission concurrente.
+    const now = new Date();
+    const cooldownMs = 24 * 60 * 60 * 1000;
+    const cutoff = new Date(now.getTime() - cooldownMs);
+    const claim = await strapi.db.query('api::visit.visit').updateMany({
+      where: {
+        id: visit.id,
+        $or: [{ last_opened_at: { $null: true } }, { last_opened_at: { $lt: cutoff } }],
+      },
+      data: { last_opened_at: now },
+    });
+    if (!claim || claim.count === 0) {
+      // Toujours sur cooldown (ou ouverture concurrente) — temps restant pour l'UX
+      const lastOpenedTime = visit.last_opened_at ? new Date(visit.last_opened_at).getTime() : 0;
+      const remainingMs = Math.max(0, cooldownMs - (now.getTime() - lastOpenedTime));
+      const hours = Math.floor(remainingMs / (60 * 60 * 1000));
+      const minutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
+      return ctx.badRequest(`Chest is on cooldown. Try again in ${hours}h ${minutes}m.`);
     }
 
     // 6. Récupérer le maxFloor du joueur (palier maximum atteint)
@@ -201,7 +208,7 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
       documentId: visit.documentId,
       data: {
         open_count: visit.open_count + 1,
-        last_opened_at: new Date(),
+        // last_opened_at déjà posé par le claim atomique ci-dessus
         total_gold_earned: visit.total_gold_earned + gold,
         total_exp_earned: visit.total_exp_earned + exp
       },
