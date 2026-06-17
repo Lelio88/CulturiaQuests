@@ -139,6 +139,9 @@ export default {
         // NPC : contenu de jeu partagé (lecture, comme museum/poi)
         'api::npc.npc.find',
         'api::npc.npc.findOne',
+        // BFF httpOnly (#17) : /users/me-with-role peuple le role (le /users/me natif le strippe).
+        // Requis par useAuth/useAdmin côté front. L'Admin l'hérite via la copie des perms authenticated.
+        'plugin::users-permissions.user.meWithRole',
       ], 'Authenticated');
     }
 

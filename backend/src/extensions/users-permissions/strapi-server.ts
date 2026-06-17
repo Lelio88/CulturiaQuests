@@ -71,5 +71,38 @@ export default (plugin) => {
     }
   };
 
+  // --- meWithRole : /users/me-with-role qui PEUPLE le rôle ---
+  // Le /users/me natif retire ?populate=role au sanitizeQuery → user.role.type revient
+  // undefined, ce qui casse les checks admin côté front (useAdmin, desktop guard).
+  // On requête l'utilisateur avec son rôle puis on sanitize MANUELLEMENT (destructuring)
+  // pour CONSERVER role tout en retirant les champs sensibles.
+  plugin.controllers.user.meWithRole = async (ctx) => {
+    if (!ctx.state.user) {
+      return ctx.unauthorized();
+    }
+
+    const user = await strapi.db.query('plugin::users-permissions.user').findOne({
+      where: { id: ctx.state.user.id },
+      populate: { role: { select: ['id', 'name', 'type'] } },
+    });
+
+    if (!user) {
+      return ctx.notFound();
+    }
+
+    const { password, resetPasswordToken, confirmationToken, ...safe } = user;
+    ctx.body = safe;
+  };
+
+  plugin.routes['content-api'].routes.unshift({
+    method: 'GET',
+    path: '/users/me-with-role',
+    handler: 'user.meWithRole',
+    config: {
+      prefix: '',
+      policies: [],
+    },
+  });
+
   return plugin;
 };
