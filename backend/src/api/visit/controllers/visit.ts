@@ -26,9 +26,11 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
    */
   async find(ctx) {
     const user = ctx.state.user;
+    if (!user) return ctx.unauthorized();
     const sanitizedQuery = await this.sanitizeQuery(ctx);
 
-    if (user) {
+    // user garanti (early-return ci-dessus) : filtrage par guilde inconditionnel
+    {
       sanitizedQuery.filters = {
         ...(sanitizedQuery.filters as any || {}),
         guild: {
@@ -50,9 +52,11 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
   async findOne(ctx) {
     const user = ctx.state.user;
     const { id } = ctx.params;
+    if (!user) return ctx.unauthorized();
     const sanitizedQuery = await this.sanitizeQuery(ctx);
 
-    if (user) {
+    // user garanti (early-return ci-dessus) : filtrage par guilde inconditionnel
+    {
       sanitizedQuery.filters = {
         ...(sanitizedQuery.filters as any || {}),
         guild: {

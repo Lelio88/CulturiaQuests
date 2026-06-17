@@ -10,9 +10,11 @@ export default factories.createCoreController('api::progression.progression', ({
    */
   async find(ctx) {
     const user = ctx.state.user;
+    if (!user) return ctx.unauthorized();
     const sanitizedQuery = await this.sanitizeQuery(ctx);
 
-    if (user) {
+    // user garanti (early-return ci-dessus) : filtrage par guilde inconditionnel
+    {
       const userGuild = await strapi.db.query('api::guild.guild').findOne({
         where: { user: { id: user.id } },
         select: ['documentId'],
@@ -41,9 +43,11 @@ export default factories.createCoreController('api::progression.progression', ({
   async findOne(ctx) {
     const user = ctx.state.user;
     const { id } = ctx.params;
+    if (!user) return ctx.unauthorized();
     const sanitizedQuery = await this.sanitizeQuery(ctx);
 
-    if (user) {
+    // user garanti (early-return ci-dessus) : filtrage par guilde inconditionnel
+    {
       const userGuild = await strapi.db.query('api::guild.guild').findOne({
         where: { user: { id: user.id } },
         select: ['documentId'],
