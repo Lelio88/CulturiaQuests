@@ -1,4 +1,5 @@
 import { factories } from '@strapi/strapi';
+import { getParisDateKey } from '../../../utils/quiz-date';
 
 export default factories.createCoreController('api::quiz-session.quiz-session', ({ strapi }) => ({
   /**
@@ -10,7 +11,7 @@ export default factories.createCoreController('api::quiz-session.quiz-session', 
       const generator = strapi.service('api::quiz-session.quiz-generator');
       await generator.generateDailyQuiz();
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = getParisDateKey();
       const session = await strapi.db.query('api::quiz-session.quiz-session').findOne({
         where: { date: today },
         populate: {

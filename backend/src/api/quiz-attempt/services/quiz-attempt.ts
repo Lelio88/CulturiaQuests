@@ -1,4 +1,5 @@
 import { factories } from '@strapi/strapi';
+import { previousDateKey } from '../../../utils/quiz-date';
 
 // ============================================================================
 // Types
@@ -150,9 +151,10 @@ export default factories.createCoreService('api::quiz-attempt.quiz-attempt', ({ 
     let newStreak = 1;
 
     if (previousAttempt?.session?.date) {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      // « Hier » est défini relativement à la date de la session courante (clé
+      // calendaire Europe/Paris), et non à l'horloge UTC du serveur — sinon la
+      // fenêtre de continuité du streak est décalée de l'offset UTC/Paris.
+      const yesterdayStr = previousDateKey(todayDate);
 
       if (previousAttempt.session.date === yesterdayStr) {
         newStreak = (guild.quiz_streak || 0) + 1;

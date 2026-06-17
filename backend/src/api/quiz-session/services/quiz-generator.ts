@@ -8,6 +8,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { getParisDateKey } from '../../../utils/quiz-date';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -336,7 +337,7 @@ async function generateTimelineQuestions(count: number): Promise<GeneratedQuesti
 
 export default {
   async generateDailyQuiz() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getParisDateKey();
     strapi.log.info(`[quiz-generator] Démarrage de la génération du quiz pour ${today}`);
 
     // Vérifier si une session existe déjà pour aujourd'hui
