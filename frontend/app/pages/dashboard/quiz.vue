@@ -45,7 +45,7 @@
           icon="bx-trophy"
           label="Score moyen"
           :value="formatScore(adminStore.quizData.avgScore)"
-          sub="/ 2500"
+          sub="/ 2150"
           color="amber"
         />
         <DashboardKpiCard

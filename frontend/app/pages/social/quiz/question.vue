@@ -105,7 +105,7 @@
               variant="filled"
               color="indigo"
               class="w-full !mt-6"
-              :disabled="!quizStore.selectedAnswer"
+              :disabled="!quizStore.selectedAnswer || quizStore.submitting"
               @click="handleNext"
             >
               Valider
@@ -119,6 +119,7 @@
 
 <script setup lang="ts">
 import { useQuizStore } from '~/stores/quiz'
+import { QCM_MAX_POINTS, TIMELINE_MAX_POINTS } from '~/types/quiz'
 
 const router = useRouter()
 const quizStore = useQuizStore()
@@ -129,7 +130,10 @@ const progressPercentage = computed(() => quizStore.questions.length ? ((quizSto
 
 // Current Score Display (Potential score based on answers)
 const currentScoreDisplay = computed(() => {
-  return quizStore.answeredCount * 215
+  return quizStore.questions.reduce((sum, q) => {
+    if (!quizStore.answers[q.documentId]) return sum
+    return sum + (q.question_type === 'timeline' ? TIMELINE_MAX_POINTS : QCM_MAX_POINTS)
+  }, 0)
 }) 
 
 const formattedDate = computed(() => {
@@ -158,6 +162,7 @@ async function handleSelectAnswer(option: string) {
 }
 
 async function handleNext() {
+  if (quizStore.submitting) return
   if (isLastQuestion.value) {
     quizStore.finishedAt = Date.now()
     await quizStore.submitQuiz()

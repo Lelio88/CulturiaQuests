@@ -28,7 +28,7 @@
       "required": true,
       "default": 0,
       "min": 0,
-      "max": 2500
+      "max": 2150
     },
     "answers": {
       "type": "json",
@@ -43,6 +43,12 @@
     },
     "rewards": {
       "type": "json"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "unique": true,
+      "private": true,
+      "configurable": false
     }
   }
 }

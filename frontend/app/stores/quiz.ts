@@ -132,6 +132,8 @@ export const useQuizStore = defineStore('quiz', {
     },
 
     async submitQuiz() {
+      // Garde de réentrance : empêche un double-submit (double-clic / requêtes concurrentes)
+      if (this.submitting) return
       if (!this.sessionId) {
         this.error = 'Session non trouvée'
         return

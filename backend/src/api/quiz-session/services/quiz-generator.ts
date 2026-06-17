@@ -8,6 +8,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { normalizeAnswer } from '../../../utils/quiz-answer';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -291,10 +292,22 @@ function pickOpenQuizzDBQuestions(count: number): GeneratedQuestion[] {
     // Mélanger les propositions pour varier la position de la bonne réponse
     const shuffledOptions = shuffleArray(q.question.propositions);
 
+    // Aligner correct_answer sur la proposition EXACTE affichée : OpenQuizzDB peut
+    // fournir une `réponse` non byte-identique à une proposition (espaces/casse/accents),
+    // ce qui rendrait la bonne réponse inatteignable au scoring (égalité stricte).
+    const matched = shuffledOptions.find(
+      (opt) => normalizeAnswer(opt) === normalizeAnswer(q.question.réponse)
+    );
+    if (!matched) {
+      strapi.log.warn(
+        `[quiz-generator] Réponse absente des propositions (quiz ${q.quizId}, "${q.question.réponse}")`
+      );
+    }
+
     return {
       question_text: q.question.question,
       question_type: 'qcm' as const,
-      correct_answer: q.question.réponse,
+      correct_answer: matched || q.question.réponse,
       options: shuffledOptions,
       timeline_range: null,
       explanation: q.question.anecdote || '',
