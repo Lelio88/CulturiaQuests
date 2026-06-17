@@ -92,10 +92,9 @@ export default {
         'api::user-settings.user-settings.removeAvatar',
         'api::user-settings.user-settings.deleteAccount',
         // Quiz permissions
-        'api::quiz-session.quiz-session.find',
-        'api::quiz-session.quiz-session.findOne',
-        'api::quiz-question.quiz-question.find',
-        'api::quiz-question.quiz-question.findOne',
+        // NB: quiz-session/quiz-question find/findOne ne sont volontairement PAS exposés :
+        // ils divulgueraient correct_answer/explanation (triche). Le client passe par les
+        // endpoints custom quiz-attempt (getTodayQuiz strippe les réponses).
         'api::quiz-attempt.quiz-attempt.find',
         'api::quiz-attempt.quiz-attempt.findOne',
         'api::quiz-attempt.quiz-attempt.create',

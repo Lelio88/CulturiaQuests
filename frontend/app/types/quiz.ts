@@ -149,4 +149,8 @@ export function getTierLabel(tier: string): string {
   return TIER_LABELS[tier] || tier
 }
 
+// Pondération par type de question (source unique partagée avec le backend)
+export const QCM_MAX_POINTS = 200
+export const TIMELINE_MAX_POINTS = 250
+// Score max d'un quiz : 7 QCM × 200 + 3 timeline × 250 = 2150
 export const MAX_QUIZ_SCORE = 2150

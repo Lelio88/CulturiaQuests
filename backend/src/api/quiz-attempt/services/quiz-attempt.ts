@@ -1,5 +1,6 @@
 import { factories } from '@strapi/strapi';
 import { previousDateKey } from '../../../utils/quiz-date';
+import { normalizeAnswer } from '../../../utils/quiz-answer';
 
 // ============================================================================
 // Types
@@ -224,7 +225,9 @@ export default factories.createCoreService('api::quiz-attempt.quiz-attempt', ({ 
       let isCorrect = false;
 
       if (question.question_type === 'qcm') {
-        isCorrect = userAnswer.answer === question.correct_answer;
+        // Comparaison normalisée (trim/casse/accents) : filet de sécurité si la
+        // donnée en base n'est pas byte-identique à l'option (cf. alignement génération).
+        isCorrect = normalizeAnswer(userAnswer.answer) === normalizeAnswer(question.correct_answer);
         score = isCorrect ? QCM_POINTS : 0;
       } else if (question.question_type === 'timeline') {
         const correctYear = parseInt(question.correct_answer);

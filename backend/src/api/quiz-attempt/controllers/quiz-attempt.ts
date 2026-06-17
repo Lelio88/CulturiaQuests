@@ -135,24 +135,43 @@ export default factories.createCoreController('api::quiz-attempt.quiz-attempt', 
       }
     }
 
-    // Calculer score et générer récompenses
+    // Calculer le score (pur, sans effet de bord en base)
     const result = service.calculateScore(session.questions, answers);
-    const rewards = await service.generateRewards(guild.documentId, result.totalScore);
 
-    // Créer l'attempt
-    const attempt = await strapi.documents('api::quiz-attempt.quiz-attempt').create({
-      data: {
-        guild: guild.documentId,
-        session: sessionId,
-        score: result.totalScore,
-        answers: result.detailedAnswers,
-        completed_at: new Date().toISOString(),
-        time_spent_seconds: timeSpentSeconds || null,
-        rewards: rewards,
-      },
+    // Créer l'attempt EN PREMIER (garde-fou d'idempotence) AVANT toute génération
+    // d'items. Ainsi un double-submit concurrent perdant échoue ici sur la contrainte
+    // unique SANS avoir créé d'items orphelins (faille d'inventaire). idempotency_key
+    // unique = (guild, session).
+    let attempt: any;
+    try {
+      attempt = await strapi.documents('api::quiz-attempt.quiz-attempt').create({
+        data: {
+          guild: guild.documentId,
+          session: sessionId,
+          score: result.totalScore,
+          answers: result.detailedAnswers,
+          completed_at: new Date().toISOString(),
+          time_spent_seconds: timeSpentSeconds || null,
+          idempotency_key: `${guild.id}:${sessionId}`,
+        },
+      });
+    } catch (err) {
+      // Violation de la contrainte unique → une tentative concurrente a déjà été enregistrée
+      if (await service.hasExistingAttempt(guild.id, sessionId)) {
+        return ctx.badRequest('You have already completed this quiz');
+      }
+      throw err;
+    }
+
+    // À partir d'ici on a remporté la course : générer les récompenses (items persistés)
+    // est désormais sûr, puis on les enregistre sur l'attempt déjà créé.
+    const rewards = await service.generateRewards(guild.documentId, result.totalScore);
+    await strapi.documents('api::quiz-attempt.quiz-attempt').update({
+      documentId: attempt.documentId,
+      data: { rewards },
     });
 
-    // R2 — Utilise les méthodes du service pour appliquer rewards et streak
+    // R2 — Appliquer les récompenses (gold/exp) et mettre à jour le streak
     await service.applyRewardsToGuild(guild.documentId, guild.gold, guild.exp, rewards);
     const newStreak = await service.updateQuizStreak(guild, session.date);
 
