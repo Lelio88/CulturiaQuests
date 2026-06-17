@@ -52,7 +52,21 @@ export default (plugin) => {
       return ctx.badRequest('Vous devez avoir au moins 15 ans pour vous inscrire.');
     }
 
-    return originalRegister(ctx);
+    await originalRegister(ctx);
+
+    // Persister la date de naissance sur l'utilisateur créé : le register natif
+    // users-permissions ne sauvegarde que username/email/password, les champs
+    // additionnels (date_of_birth) sont sinon validés puis perdus.
+    if (ctx.body && ctx.body.user && ctx.body.user.id) {
+      try {
+        await strapi.db.query('plugin::users-permissions.user').update({
+          where: { id: ctx.body.user.id },
+          data: { date_of_birth },
+        });
+      } catch (err) {
+        strapi.log.warn('Failed to persist date_of_birth:', err.message);
+      }
+    }
   };
 
   return plugin;

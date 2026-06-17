@@ -1,0 +1,16 @@
+# Dépendances et artefacts (reconstruits dans l'image par `npm ci` / `npm run build`)
+node_modules
+.tmp
+.cache
+build
+dist
+
+# Secrets et VCS — NE JAMAIS copier dans l'image
+.env
+.env.*
+.git
+.gitignore
+
+# Divers
+*.log
+.DS_Store

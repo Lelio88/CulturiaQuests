@@ -1,0 +1,15 @@
+# Dépendances et artefacts de build (reconstruits dans l'image)
+node_modules
+.nuxt
+.output
+dist
+
+# Secrets et VCS — NE JAMAIS copier dans l'image
+.env
+.env.*
+.git
+.gitignore
+
+# Divers
+*.log
+.DS_Store

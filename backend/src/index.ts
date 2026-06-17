@@ -111,6 +111,14 @@ export default {
         'api::gdpr-request.gdpr-request.requestData',
         // Quest generation
         'api::quest.quest.generateDaily',
+        // Progression / fog-of-war (le controller filtre tout par la guilde de l'utilisateur)
+        'api::progression.progression.find',
+        'api::progression.progression.findOne',
+        'api::progression.progression.create',
+        'api::progression.progression.update',
+        // Friendship (legacy) — find/findOne filtrés par guild.user.id
+        'api::friendship.friendship.find',
+        'api::friendship.friendship.findOne',
       ], 'Authenticated');
     }
 

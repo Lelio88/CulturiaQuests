@@ -92,6 +92,10 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
     if (!poiId || userLat === undefined || userLng === undefined) {
       return ctx.badRequest('Missing required fields: poiId, userLat, userLng');
     }
+    // Rejeter les coordonnées non finies (NaN/Infinity) qui contourneraient le geofence
+    if (!Number.isFinite(userLat) || !Number.isFinite(userLng)) {
+      return ctx.badRequest('Invalid coordinates');
+    }
 
     // 1. Récupérer guild de l'utilisateur
     const guild = await strapi.db.query('api::guild.guild').findOne({
