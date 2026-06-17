@@ -182,8 +182,12 @@ export default factories.createCoreController('api::character.character', ({ str
       return ctx.badRequest('Cette icône est déjà utilisée par un autre personnage de votre guilde.');
     }
 
+    // Whitelist explicite (anti mass-assignment) : pas de ...data. firstname/lastname/icon
+    // ont déjà été validés ci-dessus ; guild est forcé sur la guilde de l'utilisateur.
     const characterData = {
-      ...data,
+      firstname: data.firstname,
+      lastname: data.lastname,
+      icon: data.icon,
       guild: userGuild.id,
       publishedAt: new Date(),
     };
