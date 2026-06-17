@@ -19,7 +19,19 @@ export default factories.createCoreController('api::quiz-attempt.quiz-attempt', 
       return ctx.notFound('Guild not found');
     }
 
-    const session = await strapi.service('api::quiz-session.quiz-session').getTodaySession();
+    let session = await strapi.service('api::quiz-session.quiz-session').getTodaySession();
+    if (!session) {
+      // Rattrapage : si le cron de minuit n'a pas tourné (serveur down, etc.), on génère
+      // le quiz du jour à la demande puis on relit. La génération est idempotente grâce à
+      // la contrainte unique sur quiz-session.date (pas de double session en cas de concurrence).
+      strapi.log.info('[quiz] Session du jour absente — génération à la demande');
+      try {
+        await strapi.service('api::quiz-session.quiz-generator').generateDailyQuiz();
+      } catch (err) {
+        strapi.log.error(`[quiz] Génération à la demande échouée : ${err instanceof Error ? err.message : err}`);
+      }
+      session = await strapi.service('api::quiz-session.quiz-session').getTodaySession();
+    }
     if (!session) {
       return ctx.notFound('No quiz available for today. Please try again later.');
     }
