@@ -14,7 +14,6 @@ export default defineNuxtConfig({
     '@pinia/nuxt',
     '@nuxtjs/tailwindcss',
     '@hypernym/nuxt-anime',
-    '@nuxtjs/strapi',
     'pinia-plugin-persistedstate/nuxt',
     '@nuxtjs/leaflet',
     'nuxt-charts',
@@ -65,21 +64,9 @@ export default defineNuxtConfig({
       allowDesktop: 'true', // Overridden by NUXT_PUBLIC_ALLOW_DESKTOP at runtime
     },
   },
-  strapi: {
-    prefix: '/api',
-    admin: '/admin',
-    version: 'v5',
-    auth: {
-      populate: ['role'],
-    },
-    cookie: {
-      path: '/',
-      maxAge: 14 * 24 * 60 * 60, // 14 jours
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-    },
-    cookieName: 'culturia_jwt',
-  },
+  // NB : @nuxtjs/strapi retiré (migration BFF httpOnly #17). L'auth passe par les routes
+  // serveur /api/auth/* + le proxy /api/strapi/* (cookie httpOnly cq_session). On conserve
+  // runtimeConfig.strapi.url (proxy SSR) et runtimeConfig.public.strapi.url (URLs média).
 
   // Configuration de la compilation
   build: {

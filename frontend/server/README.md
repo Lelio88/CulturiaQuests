@@ -44,17 +44,21 @@ curl -i -b jar.txt -X POST http://localhost:3000/api/auth/logout
 
 Vérifier que `cq_session` est bien **HttpOnly** (non lisible via `document.cookie` dans la console).
 
-## Phase 2 — migration (PRs suivantes, à faire une fois le socle validé)
+## Phase 2 — migration (RÉALISÉE)
 
-1. **Auth** : remplacer `useStrapiAuth().login/logout` et `useStrapiUser()` par des appels à
-   `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`. Mettre à jour `stores/guild.ts`,
-   les pages `account/login.vue`, `account/register.vue`, `useLogout.ts`, le middleware d'auth.
-2. **Appels API** : router `useStrapiClient()` (ou un nouveau composable `useApi()`) vers
-   `/api/strapi/<chemin>` au lieu de l'URL Strapi directe. ~18 stores + composables.
-3. **Consolidation** : une fois tout migré, supprimer la config cookie client de `@nuxtjs/strapi`
-   (ou retirer le module si plus utilisé) et, si souhaité, renommer `cq_session` → `culturia_jwt`.
-4. **Upload multipart** : traiter `uploadAvatar` (flux binaire) — le proxy actuel cible le JSON.
-5. **Durcissement complémentaire** : CSP stricte, `sameSite=strict` si compatible avec les flux.
+1. ✅ **Auth** : `account/login.vue`, `register.vue`, `useLogout.ts`, `useAdmin.ts`, middlewares →
+   `useAuth()` (`/api/auth/*`). Enforcement SSR activé (hydratation via `plugins/auth.ts`).
+2. ✅ **Appels API** : `useStrapiClient()` → `useApi()` (proxy `/api/strapi/*`) sur tous les
+   stores/composables/pages. `useApi` sérialise les params avec `qs` (notation Strapi) et le
+   proxy forwarde le query string brut.
+3. ✅ **Cutover** : `@nuxtjs/strapi` retiré de `nuxt.config.ts` (modules + bloc `strapi`),
+   nettoyage `culturia_jwt` (`storage.ts`, page RGPD). `runtimeConfig.strapi.url` (proxy SSR)
+   et `public.strapi.url` (média) conservés. Le paquet npm `@nuxtjs/strapi` reste en dépendance
+   dormante (non chargé) — sa désinstallation + promotion de `qs` en dépendance directe est un
+   nettoyage cosmétique trivial à part.
+4. **Upload avatar** : l'avatar est en base64-JSON (pas de multipart) → passe par le proxy tel quel.
+5. **Durcissement restant (optionnel)** : CSP stricte, `sameSite=strict` si compatible (à tester
+   sur deep-links + reset-password).
 
 ## ⚠️ Vérification
 
