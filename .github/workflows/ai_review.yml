@@ -22,12 +22,29 @@ jobs:
       pull-requests: write
 
     steps:
+      # Garde : si OPENAI_API_KEY n'est pas configurée, on saute proprement la review IA
+      # (workflow VERT, aucun coût OpenAI) au lieu d'échouer. La review reprend automatiquement
+      # dès que le secret est ajouté. (On n'expose pas la valeur, juste un booléen.)
+      - name: Vérifier la présence de la clé OpenAI
+        id: guard
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::OPENAI_API_KEY absente — review IA ignorée (workflow vert)."
+          else
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout code
+        if: steps.guard.outputs.has_key == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Setup Python
+        if: steps.guard.outputs.has_key == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -35,9 +52,11 @@ jobs:
           cache-dependency-path: 'scripts/requirements.txt'
 
       - name: Install dependencies
+        if: steps.guard.outputs.has_key == 'true'
         run: pip install -r scripts/requirements.txt
 
       - name: Run AI Code Review
+        if: steps.guard.outputs.has_key == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
