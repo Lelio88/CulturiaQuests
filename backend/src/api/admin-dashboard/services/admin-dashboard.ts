@@ -501,11 +501,6 @@ export default ({ strapi }) => ({
     const twelveWeeksAgo = new Date();
     twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 12 * 7);
 
-    const connections = await strapi.db.query('api::connection-log.connection-log').findMany({
-      where: { connected_at: { $gte: twelveWeeksAgo } },
-      select: ['connected_at'],
-    });
-
     // Weekly unique connections (group by ISO week)
     const weeklyMap: Record<string, Set<string>> = {};
     const hourCounts: Record<number, number> = {};
