@@ -1,4 +1,40 @@
 import type { Core } from '@strapi/strapi';
+import fs from 'fs';
+import path from 'path';
+
+/**
+ * Vérifie au démarrage que les données source du quiz quotidien sont présentes
+ * (selected-quizzes.json + au moins un openquizzdb_*.json). Si elles manquent, log une ERREUR
+ * explicite plutôt que de laisser la génération de minuit échouer silencieusement (#73).
+ * Non bloquant : on ne fait pas planter le boot, mais l'absence est visible dans les logs.
+ */
+function checkQuizDataPresence(strapi: Core.Strapi) {
+  const dataDir = path.join(process.cwd(), 'src', 'data', 'openquizzdb');
+  const selectedPath = path.join(dataDir, 'selected-quizzes.json');
+
+  if (!fs.existsSync(selectedPath)) {
+    strapi.log.error(
+      `[quiz] Données quiz ABSENTES : ${selectedPath} introuvable. La génération du quiz quotidien échouera. Vérifiez le build (Dockerfile « COPY . . » + backend/.dockerignore n'excluant pas src/data).`
+    );
+    return;
+  }
+
+  let sourceCount = 0;
+  try {
+    sourceCount = fs.readdirSync(dataDir).filter((f) => /^openquizzdb_\d+\.json$/.test(f)).length;
+  } catch {
+    sourceCount = 0;
+  }
+
+  if (sourceCount === 0) {
+    strapi.log.error(
+      `[quiz] Aucun fichier openquizzdb_*.json dans ${dataDir}. La génération des QCM échouera (la session du jour sera marquée "failed").`
+    );
+    return;
+  }
+
+  strapi.log.info(`[quiz] Données quiz présentes : selected-quizzes.json + ${sourceCount} fichiers openquizzdb.`);
+}
 
 /**
  * Helper: grants a list of permission actions to a role (idempotent)
@@ -228,5 +264,8 @@ export default {
 
     // Index DB custom (idempotent) — colonnes scalaires filtrées par des requêtes globales.
     await ensureCustomIndexes(strapi);
+
+    // Vérification des données source du quiz quotidien (log explicite si absentes). #73
+    checkQuizDataPresence(strapi);
   },
 };

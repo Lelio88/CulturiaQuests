@@ -1252,6 +1252,7 @@ export interface ApiQuizQuestionQuizQuestion
       'manyToOne',
       'api::quiz-session.quiz-session'
     >;
+    source_id: Schema.Attribute.String & Schema.Attribute.Private;
     tag: Schema.Attribute.Relation<'manyToOne', 'api::tag.tag'>;
     timeline_range: Schema.Attribute.JSON;
     updatedAt: Schema.Attribute.DateTime;
