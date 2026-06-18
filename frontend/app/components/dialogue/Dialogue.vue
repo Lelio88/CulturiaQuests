@@ -45,9 +45,9 @@
 defineOptions({ inheritAttrs: false })
 
 const EMOTION_MAP: Record<string, string> = {
-  quest_description: 'Quest.png',
-  expedition_fail: 'Echec.png',
-  quest_complete: 'Succes.png'
+  quest_description: 'Quest.webp',
+  expedition_fail: 'Echec.webp',
+  quest_complete: 'Succes.webp'
 }
 
 const props = withDefaults(defineProps<{
@@ -70,7 +70,7 @@ const playerName = computed(() => (user.value as any)?.username || 'Aventurier')
 
 const npcImage = computed(() => {
   const name = props.npcFirstname
-  const file = EMOTION_MAP[props.textType] || `${name}.png`
+  const file = EMOTION_MAP[props.textType] || `${name}.webp`
   return `/assets/npc/${name}/${file}`
 })
 

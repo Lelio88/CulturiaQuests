@@ -57,7 +57,7 @@ const getNpcImage = (npcRaw: any) => {
   const npcData = npcRaw?.data?.attributes || npcRaw?.attributes || npcRaw?.data || npcRaw
   if (!npcData?.firstname) return '/assets/npc/placeholder.png'
   const name = npcData.firstname
-  return `/assets/npc/${name}/${name}.png`
+  return `/assets/npc/${name}/${name}.webp`
 }
 
 const getNpcName = (npcRaw: any) => {
