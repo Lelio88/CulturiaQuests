@@ -1166,10 +1166,20 @@ export interface ApiQuizAttemptQuizAttempt extends Struct.CollectionTypeSchema {
   attributes: {
     answers: Schema.Attribute.JSON & Schema.Attribute.Required;
     completed_at: Schema.Attribute.DateTime & Schema.Attribute.Required;
+    correct_count: Schema.Attribute.Integer &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     guild: Schema.Attribute.Relation<'manyToOne', 'api::guild.guild'>;
+    idempotency_key: Schema.Attribute.String &
+      Schema.Attribute.Private &
+      Schema.Attribute.Unique;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -1182,7 +1192,7 @@ export interface ApiQuizAttemptQuizAttempt extends Struct.CollectionTypeSchema {
       Schema.Attribute.Required &
       Schema.Attribute.SetMinMax<
         {
-          max: 2500;
+          max: 2150;
           min: 0;
         },
         number

@@ -37,6 +37,35 @@ export function computeGeoJSONArea(geometry: any): number {
 }
 
 /**
+ * Bounding-box (lat/lng min/max) de l'anneau extérieur d'une géométrie GeoJSON.
+ * Comme isPointInGeoJSON ne teste que l'anneau extérieur, cette bbox est un SUR-ENSEMBLE
+ * exact de la zone testée → l'utiliser comme pré-filtre avant le ray-casting n'écarte
+ * aucun point réellement à l'intérieur (zéro faux négatif). #34
+ */
+export function computeGeoJSONBounds(
+  geometry: any
+): { minLat: number; maxLat: number; minLng: number; maxLng: number } | null {
+  if (!geometry) return null
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity
+  const scanRing = (ring: [number, number][]) => {
+    for (const [lng, lat] of ring) {
+      if (lat < minLat) minLat = lat
+      if (lat > maxLat) maxLat = lat
+      if (lng < minLng) minLng = lng
+      if (lng > maxLng) maxLng = lng
+    }
+  }
+  if (geometry.type === 'Polygon') {
+    scanRing(geometry.coordinates[0])
+  } else if (geometry.type === 'MultiPolygon') {
+    for (const poly of geometry.coordinates) scanRing(poly[0])
+  } else {
+    return null
+  }
+  return Number.isFinite(minLat) ? { minLat, maxLat, minLng, maxLng } : null
+}
+
+/**
  * Vérifie si un point [lat, lng] est à l'intérieur d'un polygone GeoJSON.
  * Algorithme Ray-Casting.
  */

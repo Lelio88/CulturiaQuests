@@ -162,6 +162,11 @@ export default factories.createCoreController('api::quiz-attempt.quiz-attempt', 
           session: sessionId,
           score: result.totalScore,
           answers: result.detailedAnswers,
+          // Compteur dénormalisé (#34) : évite de re-fetcher le JSON answers volumineux
+          // dans le leaderboard juste pour compter les bonnes réponses.
+          correct_count: Array.isArray(result.detailedAnswers)
+            ? result.detailedAnswers.filter((a: any) => a.isCorrect).length
+            : 0,
           completed_at: new Date().toISOString(),
           time_spent_seconds: timeSpentSeconds || null,
           idempotency_key: `${guild.id}:${sessionId}`,
@@ -247,7 +252,7 @@ export default factories.createCoreController('api::quiz-attempt.quiz-attempt', 
         session: { documentId: session.documentId },
         guild: { documentId: { $in: friendGuildIds } },
       },
-      select: ['id', 'documentId', 'score', 'answers'],
+      select: ['id', 'documentId', 'score', 'correct_count'],
       populate: {
         guild: {
           select: ['documentId', 'name', 'quiz_streak'],
@@ -265,9 +270,7 @@ export default factories.createCoreController('api::quiz-attempt.quiz-attempt', 
     const leaderboard = attempts.map((attempt: any, index: number) => {
       const avatarData = attempt.guild.user?.avatar;
       const avatarUrl = avatarData?.formats?.thumbnail?.url || avatarData?.url || null;
-      const correctCount = Array.isArray(attempt.answers)
-        ? attempt.answers.filter((a: any) => a.isCorrect).length
-        : 0;
+      const correctCount = attempt.correct_count ?? 0;
 
       return {
         rank: index + 1,
