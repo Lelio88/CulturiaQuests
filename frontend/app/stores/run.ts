@@ -163,9 +163,17 @@ export const useRunStore = defineStore('run', () => {
 
     try {
       const response = await client<any>('/runs/active', { method: 'GET' })
-      const run = response.data || response || response.run // Handle potential nesting
-      
-      if (run) {
+      // La forme peut varier (objet run brut renvoyé par le back, ou enveloppe { data } / { run }).
+      // On extrait explicitement avec `??` (et non `||` qui retombait sur l'enveloppe entière), puis
+      // on VALIDE que c'est un vrai run avec une date_start parsable — sinon `new Date(undefined)`
+      // donnait NaN et cassait le timer côté expedition.vue. #80
+      const run = response?.data ?? response?.run ?? response
+
+      const isValidRun =
+        run && typeof run === 'object' &&
+        run.date_start && !Number.isNaN(new Date(run.date_start).getTime())
+
+      if (isValidRun) {
          const index = runs.value.findIndex(r => r.documentId === run.documentId || r.id === run.id)
          if (index !== -1) {
             runs.value[index] = run

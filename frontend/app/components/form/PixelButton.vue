@@ -1,8 +1,10 @@
 <template>
-  <button 
+  <button
+    :disabled="disabled"
     :class="[
       'p-[4px] pixel-notch group active:scale-95 transition-transform mx-auto block mt-6 select-none',
-      outerColorClass
+      outerColorClass,
+      disabled ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''
     ]"
   >
     <div 
@@ -38,6 +40,12 @@ const props = defineProps({
     type: String,
     default: 'indigo',
     validator: (v) => ['indigo', 'red', 'darker-red'].includes(v)
+  },
+  // Désactive le bouton : bloque le clic (attribut natif + pointer-events) et applique un
+  // feedback visuel (opacité). Sert notamment à empêcher la double-soumission. #75
+  disabled: {
+    type: Boolean,
+    default: false
   }
 });
 
