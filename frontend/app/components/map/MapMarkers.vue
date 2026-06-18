@@ -39,6 +39,9 @@ const isActive = ref(true)
 
 // LayerGroup natif pour les performances
 let markersLayer: L.LayerGroup | null = null
+// Marqueurs vivants indexés par clé stable (id + état) → mise à jour incrémentale (diff)
+// au lieu de clearLayers()+recréation complète à chaque fix GPS.
+const markerById = new Map<string, L.Marker>()
 
 // --- ICONS CACHE ---
 const iconCache = new Map<string, L.Icon>()
@@ -67,52 +70,49 @@ function getChestIconUrl(poi: Poi): string {
 const renderMarkers = () => {
   const rawMap = toRaw(props.map)
   if (!rawMap) return
+  if (!markersLayer) markersLayer = L.layerGroup().addTo(rawMap)
 
-  // LayerGroup persistant : on vide et on re-remplit
-  if (!markersLayer) {
-    markersLayer = L.layerGroup().addTo(rawMap)
-  } else {
-    try {
-      markersLayer.clearLayers()
-    } catch (_) {
-      // Les marqueurs DOM peuvent être stale après un remount — on recrée le layer
-      try { rawMap.removeLayer(markersLayer) } catch (_) { /* ignore */ }
-      markersLayer = L.layerGroup().addTo(rawMap)
-    }
+  // Zoom trop faible : on retire tout (une seule fois)
+  if (props.zoom < 11) {
+    if (markerById.size) { markersLayer.clearLayers(); markerById.clear() }
+    return
   }
 
-  if (props.zoom < 11) return
-
-  // 3. Peuplage (Filtre Distance 10km)
   const RADIUS_KM = 10
+  const desired = new Set<string>()
+
+  // Crée le marqueur seulement s'il n'existe pas déjà (diff incrémental).
+  const ensure = (key: string, lat: number, lng: number, iconUrl: string, onClick: () => void) => {
+    desired.add(key)
+    if (markerById.has(key)) return
+    const marker = L.marker([lat, lng], { icon: getIcon(iconUrl, [32, 24], [16, 12]) })
+    marker.on('click', onClick)
+    markersLayer!.addLayer(marker)
+    markerById.set(key, marker)
+  }
 
   props.museums.forEach(m => {
     if (!m.lat || !m.lng) return
-    
-    // Distance check
     if (calculateDistance(props.userLat, props.userLng, m.lat, m.lng) > RADIUS_KM) return
-
     const iconUrl = `/assets/map/museum/${m.tags?.[0]?.name || 'Art'}.webp`
-    const marker = L.marker([m.lat, m.lng], {
-      icon: getIcon(iconUrl, [32, 24], [16, 12])
-    })
-    marker.on('click', () => emit('select-museum', m))
-    markersLayer!.addLayer(marker)
+    ensure(`m-${m.id}`, m.lat, m.lng, iconUrl, () => emit('select-museum', m))
   })
 
   props.pois.forEach(p => {
     if (!p.lat || !p.lng) return
-
-    // Distance check
     if (calculateDistance(props.userLat, props.userLng, p.lat, p.lng) > RADIUS_KM) return
-
-    const iconUrl = getChestIconUrl(p)
-    const marker = L.marker([p.lat, p.lng], {
-      icon: getIcon(iconUrl, [32, 24], [16, 12])
-    })
-    marker.on('click', () => emit('select-poi', p))
-    markersLayer!.addLayer(marker)
+    // L'état du coffre fait partie de la clé → ouverture/fermeture = nouveau marqueur (bonne icône)
+    const available = visitStore.isChestAvailable(p.id || p.documentId)
+    ensure(`p-${p.id}-${available ? 1 : 0}`, p.lat, p.lng, getChestIconUrl(p), () => emit('select-poi', p))
   })
+
+  // Retirer uniquement les marqueurs qui ne sont plus voulus (sortis du rayon / coffre changé)
+  for (const [key, marker] of markerById) {
+    if (!desired.has(key)) {
+      markersLayer!.removeLayer(marker)
+      markerById.delete(key)
+    }
+  }
 }
 
 // --- LIFECYCLE ---
@@ -127,6 +127,7 @@ function cleanup() {
     try { rawMap.removeLayer(markersLayer) } catch (_) { /* ignore */ }
     markersLayer = null
   }
+  markerById.clear()
 }
 
 defineExpose({ cleanup })
