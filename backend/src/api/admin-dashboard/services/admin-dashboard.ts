@@ -454,14 +454,15 @@ export default ({ strapi }) => ({
       select: ['score', 'time_spent_seconds'],
     });
 
-    const scoreRanges = { '0-500': 0, '501-1000': 0, '1001-1500': 0, '1501-2000': 0, '2001-2500': 0 };
+    // Borne haute = MAX_QUIZ_SCORE (2150), pas 2500. Clé alignée avec le front (dashboard/quiz.vue). #76
+    const scoreRanges = { '0-500': 0, '501-1000': 0, '1001-1500': 0, '1501-2000': 0, '2001-2150': 0 };
     for (const a of allAttempts) {
       const s = a.score || 0;
       if (s <= 500) scoreRanges['0-500']++;
       else if (s <= 1000) scoreRanges['501-1000']++;
       else if (s <= 1500) scoreRanges['1001-1500']++;
       else if (s <= 2000) scoreRanges['1501-2000']++;
-      else scoreRanges['2001-2500']++;
+      else scoreRanges['2001-2150']++;
     }
 
     // Global leaderboard (top 20)

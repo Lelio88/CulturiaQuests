@@ -189,7 +189,7 @@
               class="bg-gray-800/50 rounded-lg p-3 text-xs font-onest"
             >
               <div class="flex justify-between">
-                <span class="text-gray-300">Score : {{ attempt.score }}/2500</span>
+                <span class="text-gray-300">Score : {{ attempt.score }}/{{ MAX_QUIZ_SCORE }}</span>
                 <span class="text-gray-500">{{ attempt.time_spent_seconds }}s</span>
               </div>
               <p class="text-gray-500 mt-1">
@@ -205,6 +205,8 @@
 </template>
 
 <script setup lang="ts">
+import { MAX_QUIZ_SCORE } from '~/types/quiz'
+
 definePageMeta({
   layout: 'dashboard',
   middleware: ['admin'],

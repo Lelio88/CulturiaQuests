@@ -1,6 +1,7 @@
 import { factories } from '@strapi/strapi';
 import { previousDateKey } from '../../../utils/quiz-date';
 import { normalizeAnswer } from '../../../utils/quiz-answer';
+import { addExp } from '../../../utils/guild-exp';
 
 // ============================================================================
 // Types
@@ -180,20 +181,13 @@ export default factories.createCoreService('api::quiz-attempt.quiz-attempt', ({ 
     currentExp: string | number,
     rewards: { gold: number; exp: number }
   ): Promise<void> {
-    // Valider et nettoyer currentExp
-    let expValue: bigint;
-    try {
-      expValue = BigInt(currentExp || 0);
-    } catch (err) {
-      strapi.log.warn(`[QuizAttempt] Invalid exp value for guild ${guildDocumentId}, resetting to 0`);
-      expValue = BigInt(0);
-    }
-
+    // exp = biginteger : addition via le helper partagé addExp (BigInt) pour préserver la précision
+    // au-delà de 2^53 et homogénéiser le crédit d'exp avec les autres chemins. #68
     await strapi.documents('api::guild.guild').update({
       documentId: guildDocumentId,
       data: {
         gold: (currentGold || 0) + rewards.gold,
-        exp: String(expValue + BigInt(rewards.exp)),
+        exp: addExp(currentExp, rewards.exp),
       },
     });
   },

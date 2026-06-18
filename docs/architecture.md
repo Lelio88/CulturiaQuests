@@ -81,7 +81,7 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 |---|---|
 | `quiz-session` | 1 session par jour. Statut : `pending` / `generating` / `completed` / `failed`. Générée par cron à minuit Europe/Paris. |
 | `quiz-question` | 10 questions par session, mélangées. Timeline Ollama **best-effort** (0 à 3 selon disponibilité), QCM OpenQuizzDB complètent pour toujours atteindre 10. `source_id` (privé) = clé d'anti-répétition persistée en base. |
-| `quiz-attempt` | Tentative joueur. Score 0-2500. Tier : bronze < 1000 < silver < 1400 < gold < 1800 ≤ platinum. |
+| `quiz-attempt` | Tentative joueur. Score 0-2150 (MAX_QUIZ_SCORE = 200 × QCM + 250 × timeline). Tier : bronze < 1000 < silver < 1400 < gold < 1800 ≤ platinum. |
 
 ### Social, admin, GDPR
 

@@ -247,7 +247,7 @@ const scoreRanges = computed(() => {
     { label: '501 - 1000', key: '501-1000', barColor: 'bg-orange-400' },
     { label: '1001 - 1500', key: '1001-1500', barColor: 'bg-amber-400' },
     { label: '1501 - 2000', key: '1501-2000', barColor: 'bg-emerald-400' },
-    { label: '2001 - 2150', key: '2001-2500', barColor: 'bg-blue-400' },
+    { label: '2001 - 2150', key: '2001-2150', barColor: 'bg-blue-400' },
   ]
 
   const total = ranges.reduce((sum, r) => sum + (dist[r.key] ?? 0), 0)
