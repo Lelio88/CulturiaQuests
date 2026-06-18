@@ -24,6 +24,33 @@ async function grantPermissions(strapi: Core.Strapi, roleId: number, actions: st
   }
 }
 
+/**
+ * Crée (idempotent) les index DB custom non gérés par les schemas Strapi.
+ * Ces colonnes scalaires sont filtrées/triées par des requêtes GLOBALES (analytics du
+ * dashboard admin, filtres d'expédition) — là où l'index évite un seq scan à la croissance
+ * des données. Les relations (guild/session/poi…) sont déjà indexées par Strapi via les
+ * tables de liaison `_lnk`, inutile de les redoubler.
+ * Réf : EPIC-PERF #20, story #21.
+ */
+async function ensureCustomIndexes(strapi: Core.Strapi) {
+  const statements = [
+    // getConnectionAnalytics : WHERE connected_at >= (12 dernières semaines)
+    'CREATE INDEX IF NOT EXISTS idx_connection_logs_connected_at ON connection_logs (connected_at)',
+    // run.controller : run active (date_end IS NULL) / terminées + analytics expéditions
+    'CREATE INDEX IF NOT EXISTS idx_runs_date_end ON runs (date_end)',
+    // dashboard économie/expéditions : séries temporelles par date_start
+    'CREATE INDEX IF NOT EXISTS idx_runs_date_start ON runs (date_start)',
+  ];
+  for (const sql of statements) {
+    try {
+      await strapi.db.connection.raw(sql);
+    } catch (err) {
+      strapi.log.warn(`ensureCustomIndexes: échec « ${sql} » -> ${err}`);
+    }
+  }
+  strapi.log.info('Custom DB indexes ensured (perf #21)');
+}
+
 export default {
   /**
    * An asynchronous register function that runs before
@@ -198,5 +225,8 @@ export default {
 
       await grantPermissions(strapi, adminRole.id, allAdminActions, 'Admin');
     }
+
+    // Index DB custom (idempotent) — colonnes scalaires filtrées par des requêtes globales.
+    await ensureCustomIndexes(strapi);
   },
 };
