@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { calculateDistance } from '~/utils/geolocation'
 import { isPointInGeoJSON } from '~/utils/geometry'
+import { createDebouncedStorage } from '~/utils/debouncedStorage'
 
 // Grille ~200m × 200m (en degrés) — source unique de vérité
 export const GRID_LAT_STEP = 0.0018
@@ -145,6 +146,9 @@ export const useFogStore = defineStore('fog', () => {
   }
 }, {
   persist: {
-    pick: ['discoveredPoints', 'visitedGridCells', 'totalGridCells']
+    pick: ['discoveredPoints', 'visitedGridCells', 'totalGridCells'],
+    // Anti write-storm (#23) : l'état mute à chaque fix GPS mais on n'écrit dans
+    // localStorage qu'au plus toutes les ~1,2 s (flush immédiat sur pagehide).
+    storage: createDebouncedStorage(1200),
   }
 })
