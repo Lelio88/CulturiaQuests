@@ -85,7 +85,8 @@ services:
     volumes:
       - ollama-data:/root/.ollama
     ports:
-      - "11434:11434"
+      # Ollama (API LLM sans auth) : loopback uniquement, jamais sur le LAN. #2
+      - "127.0.0.1:11434:11434"
     networks:
       - app-network
 
