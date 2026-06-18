@@ -198,14 +198,13 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
       .service('api::visit.visit')
       .generateChestLoot(guild.documentId, visit.documentId, maxFloor);
 
-    // 8. Mettre à jour guild (gold et exp)
-    await strapi.documents('api::guild.guild').update({
-      documentId: guild.documentId,
-      data: {
-        gold: guild.gold + gold,
-        exp: String(BigInt(guild.exp || 0) + BigInt(exp))
-      }
-    });
+    // 8. Crédit ATOMIQUE du gold/exp de la guilde (UPDATE ... SET x = x + delta) : évite la
+    // perte/duplication de récompenses en concurrence — plus de read-modify-write.
+    // guild draftAndPublish=false → document_id unique. #12
+    await strapi.db.connection.raw(
+      'UPDATE guilds SET gold = gold + ?, exp = exp + ? WHERE document_id = ?',
+      [gold, exp, guild.documentId]
+    );
 
     // 9. Mettre à jour visit
     const updatedVisit = await strapi.documents('api::visit.visit').update({
