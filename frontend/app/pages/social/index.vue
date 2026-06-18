@@ -125,7 +125,7 @@ const getMuseumImageByTag = (museum) => {
     
     if (firstTag && availableTags.includes(firstTag)) {
         const capitalizedTag = firstTag.charAt(0).toUpperCase() + firstTag.slice(1);
-        return `/assets/map/museum/${capitalizedTag}.png`;
+        return `/assets/map/museum/${capitalizedTag}.webp`;
     }
     return '/assets/musee.png';
 };
