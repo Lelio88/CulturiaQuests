@@ -6,7 +6,7 @@ import { useMuseumStore } from '~/stores/museum'
 import { usePOIStore } from '~/stores/poi'
 import { useVisitStore } from '~/stores/visit'
 import { useRunStore } from '~/stores/run'
-import { isPointInGeoJSON, computeGeoJSONArea } from '~/utils/geometry'
+import { isPointInGeoJSON, computeGeoJSONArea, computeGeoJSONBounds } from '~/utils/geometry'
 
 const COMPLETION_THRESHOLD = 0.5 // 50%
 
@@ -156,15 +156,21 @@ export function useZoneCompletion() {
 
     if (progressionStore.isComcomCompleted(docId)) return
 
+    // Pré-filtre bbox (exact, zéro faux négatif) AVANT le ray-casting coûteux : on évite
+    // de tester isPointInGeoJSON sur les ~5000 POI à chaque coffre/fin d'expédition. #34
+    const b = computeGeoJSONBounds(comcom.geometry)
+    const inBounds = (lat: number, lng: number) =>
+      !b || (lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng)
+
     // POI dans cette comcom
     const poisInComcom = poiStore.pois.filter(p =>
-      p.lat !== undefined && p.lng !== undefined &&
+      p.lat !== undefined && p.lng !== undefined && inBounds(p.lat, p.lng) &&
       isPointInGeoJSON([p.lat, p.lng], comcom.geometry)
     )
 
     // Musées dans cette comcom
     const museumsInComcom = museumStore.museums.filter(m =>
-      m.lat !== undefined && m.lng !== undefined &&
+      m.lat !== undefined && m.lng !== undefined && inBounds(m.lat, m.lng) &&
       isPointInGeoJSON([m.lat, m.lng], comcom.geometry)
     )
 

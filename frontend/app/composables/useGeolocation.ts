@@ -74,6 +74,11 @@ export function useGeolocation(options: GeolocationOptions = {}) {
   const onFirstPosition = ref<((lat: number, lng: number) => void) | null>(null)
   const onDistanceThresholdReached = ref<((distance: number) => void) | null>(null)
 
+  // useNotifications() doit être résolu dans le scope du composable (pendant le setup),
+  // pas dans startTracking/stopTracking qui s'exécutent plus tard, hors setup → risque de
+  // fuite/avertissement si rappelés plusieurs fois. #34
+  const { showGeoNotification, hideGeoNotification } = useNotifications()
+
   /**
    * Démarre le tracking de position en temps réel.
    * Utilise navigator.geolocation.watchPosition() pour un suivi continu.
@@ -86,8 +91,6 @@ export function useGeolocation(options: GeolocationOptions = {}) {
 
     geolocLoading.value = true
     geolocError.value = null
-
-    const { showGeoNotification } = useNotifications()
 
     watchId.value = navigator.geolocation.watchPosition(
       (position: GeolocationPosition) => {
@@ -165,7 +168,6 @@ export function useGeolocation(options: GeolocationOptions = {}) {
       navigator.geolocation.clearWatch(watchId.value)
       watchId.value = null
       isTracking.value = false
-      const { hideGeoNotification } = useNotifications()
       hideGeoNotification()
       console.log('📍 Location tracking stopped')
     }
