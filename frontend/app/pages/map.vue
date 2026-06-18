@@ -486,7 +486,9 @@ onMounted(async () => {
   const leafletModule = await import('leaflet')
   L = leafletModule.default || leafletModule
 
-  await guildStore.fetchAll()
+  // Garde : la guilde est chargée au login (et persistée) → pas de re-fetch profond à
+  // chaque arrivée sur la carte (navigation). On ne (re)charge que si elle est absente.
+  if (!guildStore.guild) await guildStore.fetchAll()
   await fetchAllLocations() // Chargement global au démarrage
   
   // Optimisation Fog: Nettoyage des points dans les régions complétées

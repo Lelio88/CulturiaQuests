@@ -98,8 +98,8 @@ export function useZoneCompletion() {
         }
       })
 
-      // Refresh les progressions pour mettre à jour le FogLayer
-      await guildStore.fetchAll()
+      // Refresh CIBLÉ des progressions (au lieu du fetchAll() profond) pour le FogLayer
+      await guildStore.fetchProgressions()
 
       // Nettoyer les points GPS et les données de grille de la comcom
       const comcom = zoneStore.comcoms.find(
