@@ -456,6 +456,51 @@ function sanitizeForPrompt(value: unknown, maxLen = 200): string {
     .slice(0, maxLen);
 }
 
+const ACCESS_TYPES: AIResult['accessType'][] = ['gratuit', 'payant', 'inconnu'];
+const DEFAULT_RADIUS_METERS = 50;
+const MIN_RADIUS_METERS = 10;
+const MAX_RADIUS_METERS = 2000;
+
+/**
+ * Valide et normalise la sortie JSON du LLM (non fiable) contre le contrat AIResult AVANT import. #70
+ *
+ * Le modèle peut renvoyer des catégories hors-liste, un radiusMeters non numérique/aberrant, un
+ * accessType inattendu ou des champs manquants. On filtre/contraint chaque champ pour ne jamais
+ * propager de données invalides dans la base (tags fantaisistes, rayon corrompu) :
+ * - categories : uniquement les valeurs de GAME_CATEGORIES (1-2 max) ;
+ * - accessType : enum {gratuit, payant, inconnu}, défaut 'inconnu' ;
+ * - radiusMeters : entier fini borné [MIN, MAX], défaut 50 ;
+ * - isPubliclyAccessible : true strict (toute autre valeur → rejet, côté sûr).
+ */
+export function normalizeAIResult(raw: unknown, placeName = ''): AIResult {
+  const obj = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
+
+  const rawCategories = Array.isArray(obj.categories) ? obj.categories : [];
+  const categories = rawCategories
+    .filter((c): c is string => typeof c === 'string' && GAME_CATEGORIES.includes(c))
+    .slice(0, 2);
+  if (categories.length === 0 && rawCategories.length > 0) {
+    console.warn(`  ⚠️ Catégories LLM hors-liste ignorées [${placeName}]: ${JSON.stringify(rawCategories).slice(0, 80)}`);
+  }
+
+  const accessType = ACCESS_TYPES.includes(obj.accessType as AIResult['accessType'])
+    ? (obj.accessType as AIResult['accessType'])
+    : 'inconnu';
+
+  const r = Number(obj.radiusMeters);
+  const radiusMeters = Number.isFinite(r)
+    ? Math.min(MAX_RADIUS_METERS, Math.max(MIN_RADIUS_METERS, Math.round(r)))
+    : DEFAULT_RADIUS_METERS;
+
+  return {
+    categories,
+    reasoning: typeof obj.reasoning === 'string' ? obj.reasoning : '',
+    isPubliclyAccessible: obj.isPubliclyAccessible === true,
+    accessType,
+    radiusMeters,
+  };
+}
+
 export async function categorizeWithAI(place: Record<string, unknown>, details: PlaceDetails): Promise<AIResult> {
   const tags = (place.tags || {}) as Record<string, string>;
 
@@ -516,7 +561,8 @@ Réponds UNIQUEMENT avec du JSON valide:
         options: { temperature: 0.3 },
       });
 
-      const data = JSON.parse(res.data.response);
+      // La réponse du LLM est non fiable : on valide/normalise contre AIResult avant tout usage. #70
+      const data = normalizeAIResult(JSON.parse(res.data.response), place.name as string);
 
       if (!data.isPubliclyAccessible) {
         console.error(`❌ REJET [${place.name}]: ${data.reasoning}`);
