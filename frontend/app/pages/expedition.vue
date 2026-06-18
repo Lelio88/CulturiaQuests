@@ -196,9 +196,11 @@ const stopExpedition = async () => {
 
 // --- LIFECYCLE ---
 onMounted(async () => {
-    await characterStore.fetchCharacters();
-    
-    // Fetch active run
+    // Le roster (firstname/lastname/icon/items) n'a aucune stat mutable et est déjà hydraté
+    // au login → pas de re-fetch à chaque entrée sur l'écran d'expédition (lecture seule).
+    if (!characterStore.characters.length) await characterStore.fetchCharacters();
+
+    // Fetch active run (TOUJOURS frais : c'est l'état de jeu critique)
     const run = await runStore.fetchActiveRun();
     
     if (!run) {
