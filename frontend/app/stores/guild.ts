@@ -200,6 +200,31 @@ export const useGuildStore = defineStore('guild', () => {
   }
 
   /**
+   * Refresh CIBLÉ des progressions (fog-of-war) — requête /progressions légère (filtrée
+   * par guilde côté serveur) au lieu du fetchAll() profond. Utilisé après complétion d'une
+   * zone ; capture aussi d'éventuelles complétions en cascade (region/department).
+   */
+  async function fetchProgressions() {
+    const client = useApi()
+    try {
+      const res = await client<any>('/progressions', {
+        method: 'GET',
+        params: {
+          populate: {
+            region: { fields: ['documentId', 'name'] },
+            department: { fields: ['documentId', 'name'] },
+            comcom: { fields: ['documentId', 'name'] },
+          },
+        },
+      })
+      const progressions = res.data || res || []
+      useProgressionStore().setProgressions(Array.isArray(progressions) ? progressions : [])
+    } catch (e: any) {
+      console.error('Failed to fetch progressions:', e)
+    }
+  }
+
+  /**
    * Refetch only the guild stats (gold, exp, scrap, debug_mode)
    */
   async function refetchStats() {
@@ -316,6 +341,7 @@ export const useGuildStore = defineStore('guild', () => {
     clearAll,
     fetchGuild,
     fetchAll,
+    fetchProgressions,
     refetchStats,
     createGuildSetup,
     deleteGuild,
