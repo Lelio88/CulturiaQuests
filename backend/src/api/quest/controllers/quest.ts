@@ -3,6 +3,7 @@
  */
 
 import { factories } from '@strapi/strapi';
+import { withAdvisoryLock } from '../../../utils/db-lock';
 
 export default factories.createCoreController('api::quest.quest', ({ strapi }) => ({
   /**
@@ -87,30 +88,47 @@ export default factories.createCoreController('api::quest.quest', ({ strapi }) =
 
     const questService = strapi.service('api::quest.quest');
 
-    // Vérifier si des quêtes existent déjà aujourd'hui
-    const existingQuests = await questService.getTodayQuestsForGuild(guild.id);
-    if (existingQuests.length > 0) {
-      return ctx.send({ data: existingQuests, alreadyGenerated: true });
+    // Génération sérialisée (#67) : deux appels concurrents (double-tap, double montage de page)
+    // ne doivent PAS créer deux jeux de quêtes pour la même guilde le même jour. Le verrou
+    // (guild, jour) sérialise le check-then-create ; le second appel voit les quêtes déjà créées
+    // par le premier (committées) et renvoie alreadyGenerated. La clé reprend la fenêtre "jour"
+    // de getTodayQuestsForGuild (UTC) pour rester cohérente.
+    const today = new Date().toISOString().split('T')[0];
+    const result = await withAdvisoryLock(
+      strapi,
+      `daily-quests:${guild.id}:${today}`,
+      async () => {
+        // Vérifier si des quêtes existent déjà aujourd'hui
+        const existingQuests = await questService.getTodayQuestsForGuild(guild.id);
+        if (existingQuests.length > 0) {
+          return { quests: existingQuests, alreadyGenerated: true as const };
+        }
+
+        // Calculer combien de quêtes on peut créer (max 4, limité par les POIs fournis)
+        const questCount = Math.min(4, Math.floor(poiDocumentIds.length / 2));
+
+        // Sélectionner les NPCs (logique prioritaire côté back)
+        const selectedNpcs = await questService.selectNpcs(guild.id, questCount);
+        if (selectedNpcs.length === 0) {
+          return { error: 'No NPCs available for quests' as const };
+        }
+
+        const actualCount = Math.min(questCount, selectedNpcs.length);
+        const npcDocumentIds = selectedNpcs.slice(0, actualCount).map((n: any) => n.documentId);
+        const usedPoiIds = poiDocumentIds.slice(0, actualCount * 2);
+
+        // Créer les quêtes
+        await questService.createDailyQuests(guild.documentId, npcDocumentIds, usedPoiIds);
+
+        // Retourner les quêtes avec populate
+        const populatedQuests = await questService.getTodayQuestsForGuild(guild.id);
+        return { quests: populatedQuests, alreadyGenerated: false as const };
+      }
+    );
+
+    if ('error' in result) {
+      return ctx.badRequest(result.error);
     }
-
-    // Calculer combien de quêtes on peut créer (max 4, limité par les POIs fournis)
-    const questCount = Math.min(4, Math.floor(poiDocumentIds.length / 2));
-
-    // Sélectionner les NPCs (logique prioritaire côté back)
-    const selectedNpcs = await questService.selectNpcs(guild.id, questCount);
-    if (selectedNpcs.length === 0) {
-      return ctx.badRequest('No NPCs available for quests');
-    }
-
-    const actualCount = Math.min(questCount, selectedNpcs.length);
-    const npcDocumentIds = selectedNpcs.slice(0, actualCount).map((n: any) => n.documentId);
-    const usedPoiIds = poiDocumentIds.slice(0, actualCount * 2);
-
-    // Créer les quêtes
-    await questService.createDailyQuests(guild.documentId, npcDocumentIds, usedPoiIds);
-
-    // Retourner les quêtes avec populate
-    const populatedQuests = await questService.getTodayQuestsForGuild(guild.id);
-    return ctx.send({ data: populatedQuests, alreadyGenerated: false });
+    return ctx.send({ data: result.quests, alreadyGenerated: result.alreadyGenerated });
   },
 }));
