@@ -80,7 +80,7 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 | Content-type | Rôle |
 |---|---|
 | `quiz-session` | 1 session par jour. Statut : `pending` / `generating` / `completed` / `failed`. Générée par cron à minuit Europe/Paris. |
-| `quiz-question` | 10 questions par session (7 QCM OpenQuizzDB + 3 timeline Ollama, mélangées). |
+| `quiz-question` | 10 questions par session, mélangées. Timeline Ollama **best-effort** (0 à 3 selon disponibilité), QCM OpenQuizzDB complètent pour toujours atteindre 10. `source_id` (privé) = clé d'anti-répétition persistée en base. |
 | `quiz-attempt` | Tentative joueur. Score 0-2500. Tier : bronze < 1000 < silver < 1400 < gold < 1800 ≤ platinum. |
 
 ### Social, admin, GDPR
@@ -110,7 +110,7 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 | `config/server.ts`, `admin.ts`, `api.ts`, `plugins.ts` | Configs Strapi standard. |
 | `src/index.ts` | **Bootstrap permissions**. Idempotent (vérifie avant create). Définit `public`, `authenticated`, `admin`. Le rôle `admin` est cloné depuis `authenticated` + endpoints `admin-dashboard.*`. |
 | `src/api/<name>/` | Un content-type par dossier (29 au total). |
-| `src/data/openquizzdb/` | Banque de QCM offline (fichiers JSON par thème) + `selected-quizzes.json` (config) + `used-questions.json` (anti-répétition). |
+| `src/data/openquizzdb/` | Banque de QCM offline (fichiers JSON par thème) + `selected-quizzes.json` (config). Anti-répétition persistée en base via `quiz_questions.source_id` (plus de fichier `used-questions.json` qui était perdu à chaque redeploy). Présence des données vérifiée au bootstrap (log d'erreur explicite si absentes). |
 
 ### Frontend (`frontend/app/`)
 
@@ -223,7 +223,7 @@ Objectif : soustraire le JWT au JavaScript. À terme le token vit dans un cookie
 - ❌ **Mutation d'un objet store Pinia depuis un composant** — toujours passer par une action du store (immutabilité du state public).
 - ❌ **Hardcoder un endpoint Strapi avec `http://localhost:1337`** côté SSR — utiliser `useRuntimeConfig().strapi.url`. Idem côté browser avec `.public.strapi.url`.
 - ❌ **Importer un module Capacitor (`@capacitor/*`) au top-level d'un store Pinia** — casse le SSR. Importer dans une action, après un check `process.client`.
-- ❌ **Régénérer un quiz session existant sans `--force`** — le cron skip si une session existe déjà pour la date du jour, même en statut `failed`. Le re-run manuel impose `--force`.
+- ❌ **Supposer qu'une session `completed` peut être régénérée par le cron/rattrapage** — `generateDailyQuiz` skip une session `completed`, mais **recycle** automatiquement une session `failed`/`pending` ou `generating` zombie (> 5 min) via un claim atomique (rattrapage si le serveur était down à minuit, #74). Le re-run manuel via `generate-quiz-questions.ts --force` reste pour forcer une régénération d'une session `completed`.
 - ❌ **Migration de schéma sans `npm run build`** — l'admin panel cesse de fonctionner avec l'erreur cryptique « reading 'tours' undefined ». Solution : `rm -rf backend/{.strapi,dist,node_modules}` puis `npm install && npm run build`.
 
 ## 9. Stratégie de test
@@ -252,8 +252,8 @@ Hors deploy : `.github/workflows/ai_review.yml` poste une review IA sur Discord 
 | Dépendance | Usage | Risque & mitigation |
 |---|---|---|
 | **OpenStreetMap (Overpass API)** | Import POI via `scripts/pois_importer/`. | Rate limit côté Overpass — l'import est offline, déclenché à la main. Ne **jamais** appeler Overpass depuis Strapi en runtime. |
-| **OpenQuizzDB** | Banque de QCM (fichiers JSON locaux dans `backend/src/data/openquizzdb/`). | Fichiers commités dans le repo. Anti-répétition via `used-questions.json`. Reset auto quand toutes les questions ont été tirées. |
-| **Ollama (LLM local)** | Génération des 3 questions timeline du quiz quotidien + catégorisation POI à l'import. | Si Ollama indisponible : le service `quiz-generator` skip les timeline (3 retries avec backoff exponentiel), le quiz du jour ne contient que les 7 QCM. Aucune dépendance bloquante en runtime API. |
+| **OpenQuizzDB** | Banque de QCM (fichiers JSON locaux dans `backend/src/data/openquizzdb/`). | Fichiers commités dans le repo. Anti-répétition persistée en base (`quiz_questions.source_id`, survit aux redeploys). Repioche dans l'ensemble complet quand le corpus est presque épuisé. |
+| **Ollama (LLM local)** | Génération des questions timeline du quiz quotidien (best-effort) + catégorisation POI à l'import. | Si Ollama indisponible : le service `quiz-generator` skip les timeline (3 retries avec backoff exponentiel) et **complète à 10 QCM** OpenQuizzDB — le quiz reste complet, jamais dégradé. Aucune dépendance bloquante en runtime API. |
 | **Etalab (GeoJSON France)** | Source des géométries région / département / comcom. | Import offline via `scripts/zones_importer`. Données stables. |
 | **Capacitor (Android)** | Packaging mobile. | App ID `fr.briceledanois.culturiaquests`. Scheme HTTPS. Build via Gradle standard. |
 | **Discord webhook** | Notifications CI/CD. | `DISCORD_WEBHOOK_URL` en secret GitHub. Pas critique — si down, pas d'impact prod. |

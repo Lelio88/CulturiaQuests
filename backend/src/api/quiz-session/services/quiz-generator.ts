@@ -4,7 +4,18 @@
  * - 10 questions au total (TOTAL_QUESTIONS).
  * - Timeline générées par Ollama (best-effort : 0 à 3 selon disponibilité).
  * - QCM piochés dans OpenQuizzDB (fichiers JSON locaux) pour compléter jusqu'à 10.
- * - Historique anti-répétition via used-questions.json (écriture atomique).
+ * - Historique anti-répétition PERSISTÉ EN BASE (quiz_questions.source_id) : survit à un
+ *   rebuild/redeploy du conteneur, contrairement à l'ancien fichier used-questions.json qui
+ *   vivait dans la couche image éphémère et était réinitialisé à chaque déploiement (#73).
+ * - Rattrapage robuste (#74) : une session 'failed' ou 'generating' zombie (process tué avant
+ *   complétion) est recyclée à la demande via un claim atomique, au lieu de bloquer le quiz
+ *   toute la journée.
+ *
+ * Invariants :
+ * - 1 seule session par jour (contrainte UNIQUE sur quiz_sessions.date) ; getTodaySession ne
+ *   renvoie qu'une session 'completed'.
+ * - source_id n'est renseigné QUE sur les QCM OpenQuizzDB (clé de déduplication). Les timeline
+ *   Ollama ont source_id = null.
  */
 
 import fs from 'fs';
@@ -46,11 +57,6 @@ interface OpenQuizzDBFile {
   };
 }
 
-interface UsedQuestionsData {
-  lastReset: string;
-  usedIds: string[];
-}
-
 interface GeneratedQuestion {
   question_text: string;
   question_type: 'qcm' | 'timeline';
@@ -59,6 +65,8 @@ interface GeneratedQuestion {
   timeline_range: { min: number; max: number } | null;
   explanation: string;
   tagName: string;
+  // Clé de déduplication persistée : ID de la question source OpenQuizzDB (QCM) ou null (timeline Ollama).
+  source_id: string | null;
 }
 
 // ─── Constantes ──────────────────────────────────────────────────────
@@ -66,7 +74,6 @@ interface GeneratedQuestion {
 // process.cwd() = racine du backend (/opt/app en Docker, ./backend en local)
 const DATA_DIR = path.join(process.cwd(), 'src', 'data', 'openquizzdb');
 const SELECTED_QUIZZES_PATH = path.join(DATA_DIR, 'selected-quizzes.json');
-const USED_QUESTIONS_PATH = path.join(DATA_DIR, 'used-questions.json');
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral:7b';
@@ -74,6 +81,12 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral:7b';
 // Nombre total de questions par quiz quotidien. Les questions timeline (Ollama) sont
 // best-effort ; les QCM (OpenQuizzDB) complètent pour toujours atteindre ce total.
 const TOTAL_QUESTIONS = 10;
+
+// Au-delà de ce délai, une session restée en statut 'generating' est considérée ZOMBIE
+// (process tué/redémarré avant complétion) et peut être recyclée par le rattrapage. La fenêtre
+// de génération réelle est de ~40s au pire (3 retries Ollama × 8s + backoff 2s+4s), 5 min couvre
+// largement sans risquer de doubler une génération réellement en cours. #74
+const STALE_GENERATING_MS = 5 * 60 * 1000;
 
 const TIMELINE_PROMPT = `Génère exactement 3 questions de type "timeline" culturelles en français.
 Pour chaque question, l'utilisateur doit deviner une année.
@@ -107,19 +120,22 @@ function loadSelectedQuizzes(): SelectedQuizzesConfig {
   return JSON.parse(fs.readFileSync(SELECTED_QUIZZES_PATH, 'utf-8'));
 }
 
-function loadUsedQuestions(): UsedQuestionsData {
-  if (!fs.existsSync(USED_QUESTIONS_PATH)) {
-    return { lastReset: getParisDateKey(), usedIds: [] };
-  }
-  return JSON.parse(fs.readFileSync(USED_QUESTIONS_PATH, 'utf-8'));
-}
-
-function saveUsedQuestions(data: UsedQuestionsData): void {
-  // Écriture atomique (temp + rename) : évite un fichier corrompu si deux générations
-  // s'exécutent en parallèle ou si le process est interrompu en plein écriture.
-  const tmp = `${USED_QUESTIONS_PATH}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
-  fs.renameSync(tmp, USED_QUESTIONS_PATH);
+/**
+ * Charge l'ensemble des IDs de questions source OpenQuizzDB déjà utilisées, dérivé directement
+ * de la base (quiz_questions.source_id non nul). Remplace l'ancien used-questions.json : cet
+ * historique est désormais persistant (survit à un rebuild/redeploy) puisqu'il vit dans la même
+ * table que les questions générées. #73
+ */
+async function loadUsedSourceIds(): Promise<Set<string>> {
+  const rows = await strapi.db.query('api::quiz-question.quiz-question').findMany({
+    where: { source_id: { $notNull: true } },
+    select: ['source_id'],
+  });
+  return new Set(
+    rows
+      .map((r: { source_id: string | null }) => r.source_id)
+      .filter((id): id is string => Boolean(id))
+  );
 }
 
 /**
@@ -221,9 +237,8 @@ async function callOllama(prompt: string, retries = 3): Promise<unknown> {
 
 // ─── Fonctions principales ───────────────────────────────────────────
 
-function pickOpenQuizzDBQuestions(count: number): GeneratedQuestion[] {
+function pickOpenQuizzDBQuestions(count: number, usedIds: Set<string>): GeneratedQuestion[] {
   const config = loadSelectedQuizzes();
-  const usedData = loadUsedQuestions();
 
   // Collecter toutes les questions disponibles depuis les quiz sélectionnés
   interface AvailableQuestion {
@@ -279,26 +294,19 @@ function pickOpenQuizzDBQuestions(count: number): GeneratedQuestion[] {
     throw new Error('Aucune question OpenQuizzDB disponible. Vérifiez les fichiers téléchargés et selected-quizzes.json.');
   }
 
-  // Filtrer les questions déjà utilisées
-  const usedSet = new Set(usedData.usedIds);
-  let available = allQuestions.filter((q) => !usedSet.has(q.id));
+  // Filtrer les questions déjà utilisées (historique persistant en base, #73). Les source_id
+  // des picks sont écrits sur les quiz_questions créées par generateDailyQuiz → pas d'écriture ici.
+  let available = allQuestions.filter((q) => !usedIds.has(q.id));
 
-  // Si toutes les questions ont été utilisées, reset l'historique
+  // Corpus presque épuisé : on repioche dans l'ensemble complet (cycle). La répétition devient
+  // alors inévitable mais le tirage reste aléatoire chaque jour.
   if (available.length < count) {
-    strapi.log.info(`[quiz-generator] Toutes les questions utilisées (${usedData.usedIds.length}), reset de l'historique`);
-    usedData.usedIds = [];
-    usedData.lastReset = getParisDateKey();
+    strapi.log.info(`[quiz-generator] Corpus presque épuisé (${usedIds.size} questions déjà vues / ${allQuestions.length} disponibles), repioche dans l'ensemble complet`);
     available = allQuestions;
   }
 
   // Piocher aléatoirement
   const picked = shuffleArray(available).slice(0, count);
-
-  // Enregistrer les questions utilisées
-  for (const q of picked) {
-    usedData.usedIds.push(q.id);
-  }
-  saveUsedQuestions(usedData);
 
   // Transformer au format quiz-question Strapi
   return picked.map((q) => {
@@ -325,6 +333,7 @@ function pickOpenQuizzDBQuestions(count: number): GeneratedQuestion[] {
       timeline_range: null,
       explanation: q.question.anecdote || '',
       tagName: q.tag,
+      source_id: q.id,
     };
   });
 }
@@ -355,6 +364,7 @@ async function generateTimelineQuestions(count: number): Promise<GeneratedQuesti
     timeline_range: q.timelineRange || { min: 1800, max: 2025 },
     explanation: q.explanation || '',
     tagName: validTags.includes(q.tag) ? q.tag : 'History',
+    source_id: null,
   }));
 }
 
@@ -370,38 +380,74 @@ export default {
       where: { date: today },
     });
 
-    if (existingSession) {
-      strapi.log.info(`[quiz-generator] Une session existe déjà pour ${today} (status: ${existingSession.generation_status}), skip`);
-      return;
-    }
-
-    // Créer la session en status "generating". La colonne `date` est UNIQUE : si une
-    // génération concurrente (cron + rattrapage à la demande) la crée au même moment,
-    // la seconde lève une violation de contrainte → on s'arrête proprement.
     let session: any;
-    try {
-      session = await strapi.documents('api::quiz-session.quiz-session').create({
-        data: {
-          date: today,
-          generation_status: 'generating',
-        },
-      });
-    } catch (err) {
-      // La création peut échouer car une génération concurrente a déjà créé la session
-      // (contrainte unique sur `date`). On ne traite ce cas comme "skip" QUE si une session
-      // existe désormais ; sinon c'est une vraie erreur qu'on propage.
-      const concurrent = await strapi.db.query('api::quiz-session.quiz-session').findOne({
-        where: { date: today },
-        select: ['id'],
-      });
-      if (concurrent) {
-        strapi.log.info(`[quiz-generator] Génération concurrente détectée pour ${today}, skip`);
+
+    if (existingSession) {
+      if (existingSession.generation_status === 'completed') {
+        strapi.log.info(`[quiz-generator] Session déjà complétée pour ${today}, skip`);
         return;
       }
-      throw err;
+
+      // Rattrapage (#74) : une session 'failed' / 'pending', ou 'generating' ZOMBIE (process tué
+      // avant complétion, ex. downtime couvrant minuit), doit être recyclée — sinon getTodaySession
+      // renvoie null toute la journée (404 permanent). Claim ATOMIQUE : la session n'est recyclée
+      // que si elle est 'failed'/'pending' OU 'generating' périmée. Deux rattrapages concurrents se
+      // sérialisent (un seul obtient count === 1) ; une génération réellement en cours (statut
+      // 'generating' frais) n'est jamais doublée.
+      const staleCutoff = new Date(Date.now() - STALE_GENERATING_MS);
+      const claim = await strapi.db.query('api::quiz-session.quiz-session').updateMany({
+        where: {
+          id: existingSession.id,
+          $or: [
+            { generation_status: { $in: ['failed', 'pending'] } },
+            { generation_status: 'generating', updatedAt: { $lt: staleCutoff } },
+          ],
+        },
+        data: { generation_status: 'generating', generation_error: null },
+      });
+
+      if (!claim || claim.count === 0) {
+        strapi.log.info(`[quiz-generator] Session ${today} en statut "${existingSession.generation_status}" non recyclable (génération active ou concurrente), skip`);
+        return;
+      }
+
+      strapi.log.info(`[quiz-generator] Recyclage de la session ${today} (statut précédent : ${existingSession.generation_status})`);
+      // Purger les questions partielles/orphelines de la tentative précédente avant de régénérer.
+      await strapi.db.query('api::quiz-question.quiz-question').deleteMany({
+        where: { session: { id: existingSession.id } },
+      });
+      session = existingSession;
+    } else {
+      // Créer la session en status "generating". La colonne `date` est UNIQUE : si une
+      // génération concurrente (cron + rattrapage à la demande) la crée au même moment,
+      // la seconde lève une violation de contrainte → on s'arrête proprement.
+      try {
+        session = await strapi.documents('api::quiz-session.quiz-session').create({
+          data: {
+            date: today,
+            generation_status: 'generating',
+          },
+        });
+      } catch (err) {
+        // La création peut échouer car une génération concurrente a déjà créé la session
+        // (contrainte unique sur `date`). On ne traite ce cas comme "skip" QUE si une session
+        // existe désormais ; sinon c'est une vraie erreur qu'on propage.
+        const concurrent = await strapi.db.query('api::quiz-session.quiz-session').findOne({
+          where: { date: today },
+          select: ['id'],
+        });
+        if (concurrent) {
+          strapi.log.info(`[quiz-generator] Génération concurrente détectée pour ${today}, skip`);
+          return;
+        }
+        throw err;
+      }
     }
 
     try {
+      // Historique anti-répétition persistant (#73) : dérivé de la base (source_id), jamais d'un fichier.
+      const usedIds = await loadUsedSourceIds();
+
       // 1. Questions timeline via Ollama (best-effort : 0 à 3 selon disponibilité)
       const timelineQuestions = await generateTimelineQuestions(3);
       strapi.log.info(`[quiz-generator] ${timelineQuestions.length} timeline générées via Ollama`);
@@ -409,7 +455,7 @@ export default {
       // 2. QCM OpenQuizzDB : compléter pour TOUJOURS atteindre TOTAL_QUESTIONS. Si Ollama
       // est indisponible (0 timeline), on pioche d'autant plus de QCM plutôt que de livrer
       // un quiz dégradé à 7 questions au score maximal incohérent.
-      const qcmQuestions = pickOpenQuizzDBQuestions(TOTAL_QUESTIONS - timelineQuestions.length);
+      const qcmQuestions = pickOpenQuizzDBQuestions(TOTAL_QUESTIONS - timelineQuestions.length, usedIds);
       strapi.log.info(`[quiz-generator] ${qcmQuestions.length} QCM piochés depuis OpenQuizzDB`);
 
       // Combiner et mélanger
@@ -443,6 +489,7 @@ export default {
             explanation: q.explanation,
             session: session.documentId,
             tag: tagDocumentId,
+            source_id: q.source_id,
           },
         });
       }
