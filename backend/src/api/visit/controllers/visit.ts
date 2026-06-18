@@ -3,6 +3,7 @@
  */
 
 import { factories } from '@strapi/strapi';
+import { withAdvisoryLock } from '../../../utils/db-lock';
 
 /**
  * Calculate distance between two points using Haversine formula
@@ -137,18 +138,23 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
       strapi.log.info('[DEBUG] Distance check bypassed (debug mode enabled)');
     }
 
-    // 4. Récupérer ou créer visit
-    let visit = await strapi.db.query('api::visit.visit').findOne({
-      where: {
-        guild: { id: guild.id },
-        poi: { documentId: poiId }
-      },
-      select: ['id', 'documentId', 'open_count', 'last_opened_at', 'total_gold_earned', 'total_exp_earned']
-    });
+    // 4. Récupérer ou créer visit — section critique sérialisée (#66) : deux PREMIÈRES ouvertures
+    // concurrentes du même POI par la même guilde ne doivent créer qu'UNE seule visit. Sans cette
+    // sérialisation, le read-then-create crée deux lignes distinctes ; le claim de cooldown ci-dessous
+    // portant sur `visit.id`, chacune passerait son propre claim → DOUBLE loot/gold/exp à la première
+    // ouverture. Le verrou (guild, poi) garantit un get-or-create atomique.
+    const visit = await withAdvisoryLock(strapi, `visit:${guild.id}:${poiId}`, async () => {
+      const existing = await strapi.db.query('api::visit.visit').findOne({
+        where: {
+          guild: { id: guild.id },
+          poi: { documentId: poiId }
+        },
+        select: ['id', 'documentId', 'open_count', 'last_opened_at', 'total_gold_earned', 'total_exp_earned']
+      });
+      if (existing) return existing;
 
-    if (!visit) {
       // Première visite - créer
-      visit = await strapi.documents('api::visit.visit').create({
+      return strapi.documents('api::visit.visit').create({
         data: {
           guild: guild.documentId,
           poi: poiId,
@@ -158,7 +164,7 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
           publishedAt: new Date()
         }
       });
-    }
+    });
 
     // 5. Cooldown (24h) — claim atomique : ne réussit que si le coffre n'a pas été ouvert
     // dans les dernières 24h. Empêche le double-traitement (double loot/crédit) en cas de
