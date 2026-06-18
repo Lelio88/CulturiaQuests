@@ -1,6 +1,9 @@
 name: Deploy to Production
 
-on:
+# "on" quoté volontairement : non quoté, YAML l'interprète comme le booléen true, ce qui
+# génère des exécutions "startup_failure" fantômes (croix rouge cosmétique) sur les pushs
+# hors `release`. Quoté, GitHub lit correctement le déclencheur.
+"on":
   push:
     branches: [release]
 
