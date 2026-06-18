@@ -89,9 +89,10 @@ export default factories.createCoreController('api::run.run', ({ strapi }) => ({
     if (!museumDocumentId) {
       return ctx.badRequest('Missing parameters');
     }
-    // Number.isFinite accepte 0 (coordonnée valide, ex. équateur/Greenwich) et
-    // rejette NaN/Infinity/undefined qui contourneraient le contrôle de distance.
-    if (!Number.isFinite(userLat) || !Number.isFinite(userLng)) {
+    // Number.isFinite accepte 0 (coordonnée valide, ex. équateur/Greenwich) et rejette
+    // NaN/Infinity/undefined ; on rejette aussi les coordonnées hors bornes. #6
+    if (!Number.isFinite(userLat) || userLat < -90 || userLat > 90 ||
+        !Number.isFinite(userLng) || userLng < -180 || userLng > 180) {
       return ctx.badRequest('Invalid coordinates');
     }
 

@@ -96,8 +96,10 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
     if (!poiId || userLat === undefined || userLng === undefined) {
       return ctx.badRequest('Missing required fields: poiId, userLat, userLng');
     }
-    // Rejeter les coordonnées non finies (NaN/Infinity) qui contourneraient le geofence
-    if (!Number.isFinite(userLat) || !Number.isFinite(userLng)) {
+    // Rejeter NaN/Infinity (qui contourneraient le geofence) ET les coordonnées hors bornes.
+    // Number.isFinite accepte 0 (équateur/Greenwich = coordonnées valides). #6
+    if (!Number.isFinite(userLat) || userLat < -90 || userLat > 90 ||
+        !Number.isFinite(userLng) || userLng < -180 || userLng > 180) {
       return ctx.badRequest('Invalid coordinates');
     }
 

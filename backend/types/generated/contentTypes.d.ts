@@ -1221,11 +1221,13 @@ export interface ApiQuizQuestionQuizQuestion
     draftAndPublish: false;
   };
   attributes: {
-    correct_answer: Schema.Attribute.String & Schema.Attribute.Required;
+    correct_answer: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Private;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    explanation: Schema.Attribute.Text;
+    explanation: Schema.Attribute.Text & Schema.Attribute.Private;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
