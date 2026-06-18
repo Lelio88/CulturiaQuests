@@ -42,7 +42,8 @@ services:
       - backend_node_modules:/opt/app/node_modules
     ports:
       - "${PORT:-1337}:1337"
-      - "5173:5173"
+      # Vite (HMR du panel admin Strapi) : loopback uniquement, pas sur le LAN en dev
+      - "127.0.0.1:5173:5173"
     depends_on:
       database:
         condition: service_healthy  # ✅ Attend que Postgres soit prêt
@@ -68,7 +69,8 @@ services:
       - frontend_node_modules:/src/node_modules
     ports:
       - "${NUXT_PORT:-3000}:3000"
-      - "24678:24678"
+      # HMR Nuxt : loopback uniquement, pas sur le LAN en dev
+      - "127.0.0.1:24678:24678"
     depends_on:
       - backend
     networks:
