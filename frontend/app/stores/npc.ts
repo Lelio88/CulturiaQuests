@@ -145,7 +145,7 @@ export const useNpcStore = defineStore('npc', () => {
       const safeName = firstName.trim()
       const realImage = (firstName === 'Inconnu' || !firstName) 
         ? '/assets/default-avatar.png' 
-        : `/assets/npc/${safeName}/${safeName}.png`
+        : `/assets/npc/${safeName}/${safeName}.webp`
 
       return {
         id: npcId,

@@ -16,7 +16,7 @@
       <div class="pt-12 px-6 text-center">
         <div class="w-24 h-24 mx-auto mb-4 bg-indigo-900/50 rounded-full flex items-center justify-center border-2 border-indigo-400">
           <img
-            :src="`/assets/npc/${npcFirstname}/${npcFirstname}.png`"
+            :src="`/assets/npc/${npcFirstname}/${npcFirstname}.webp`"
             :alt="npcName"
             class="w-full h-full object-cover rounded-full"
           >

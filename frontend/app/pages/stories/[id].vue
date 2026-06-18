@@ -103,7 +103,7 @@ onMounted(async () => {
         details.value = {
             fullName: `${firstname} ${lastname}`,
             job: npc?.nickname,
-            image: `/assets/npc/${safeName}/${safeName}.png`,
+            image: `/assets/npc/${safeName}/${safeName}.webp`,
             level: currentLevel,
             maxLevel: maxLevel,
             entries: entries
