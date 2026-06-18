@@ -13,10 +13,10 @@ export default defineNuxtConfig({
     '@nuxt/icon',
     '@pinia/nuxt',
     '@nuxtjs/tailwindcss',
-    // @hypernym/nuxt-anime retiré des modules (#26) : son plugin global ($anime/v-anime)
-    // n'était PAS utilisé. animejs est consommé par imports directs (chest/expedition),
-    // route-splittés → plus de plugin anime global dans le bundle initial. Le paquet reste
-    // en dépendance (il fournit animejs). TODO propre : promouvoir animejs en dép directe.
+    // Pas de module Nuxt pour les animations : animejs (v3) est une dépendance DIRECTE,
+    // consommée par imports directs route-splittés (chest/expedition). Le module
+    // @hypernym/nuxt-anime a été retiré (modules #26, puis paquet), son plugin global
+    // $anime/v-anime n'étant pas utilisé → rien d'anime dans le bundle initial.
     'pinia-plugin-persistedstate/nuxt',
     '@nuxtjs/leaflet',
     'nuxt-charts',
