@@ -11,6 +11,10 @@ jobs:
   deploy:
     name: Deploy to server
     runs-on: ubuntu-latest
+    # Le contexte `secrets` est INTERDIT dans les conditions `if:` (c'est ce qui provoquait le
+    # startup_failure du workflow). On mappe le webhook en variable d'env (autorisée dans `if:`).
+    env:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -67,7 +71,7 @@ jobs:
             echo "Strapi is ready!"
 
       - name: Notify Discord (success)
-        if: success() && secrets.DISCORD_WEBHOOK_URL != ''
+        if: success() && env.DISCORD_WEBHOOK_URL != ''
         uses: appleboy/discord-action@v1
         with:
           webhook_id: ${{ secrets.DISCORD_WEBHOOK_ID }}
@@ -75,7 +79,7 @@ jobs:
           message: "CulturiaQuests deployed successfully from `release` branch."
 
       - name: Notify Discord (failure)
-        if: failure() && secrets.DISCORD_WEBHOOK_URL != ''
+        if: failure() && env.DISCORD_WEBHOOK_URL != ''
         uses: appleboy/discord-action@v1
         with:
           webhook_id: ${{ secrets.DISCORD_WEBHOOK_ID }}
