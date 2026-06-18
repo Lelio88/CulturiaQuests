@@ -181,13 +181,15 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
     }
 
     // 6. Récupérer le maxFloor du joueur (palier maximum atteint)
-    const runs = await strapi.db.query('api::run.run').findMany({
+    // maxFloor = palier max atteint : on ne récupère que LA run au plus haut palier
+    // (1 ligne via orderBy+limit) au lieu de charger tous les runs de la guilde.
+    const topRun = await strapi.db.query('api::run.run').findMany({
       where: { guild: { id: guild.id } },
-      select: ['threshold_reached']
+      select: ['threshold_reached'],
+      orderBy: { threshold_reached: 'desc' },
+      limit: 1,
     });
-    const maxFloor = runs.reduce((max, run) => {
-      return run.threshold_reached && run.threshold_reached > max ? run.threshold_reached : max;
-    }, 1);
+    const maxFloor = Math.max(1, topRun[0]?.threshold_reached || 0);
 
     // 7. Générer loot (avec maxFloor pour le level des items)
     const { items, gold, exp } = await strapi

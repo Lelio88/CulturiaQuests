@@ -167,8 +167,10 @@ export default factories.createCoreController('api::run.run', ({ strapi }) => ({
     if (hasNpc) {
         // Fetch all NPCs to pick one randomly
         // Optimization: Could count first or just fetch IDs
+        // Seul le dialogue expedition_appear est utilisé → on filtre le populate au lieu de
+        // charger TOUS les dialogues de TOUS les NPCs. (.find() ci-dessous reste correct.)
         const allNpcs = await strapi.documents('api::npc.npc').findMany({
-            populate: ['dialogs']
+            populate: { dialogs: { filters: { text_type: { $eq: 'expedition_appear' } } } }
         });
         
         if (allNpcs && allNpcs.length > 0) {
