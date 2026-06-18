@@ -86,6 +86,29 @@ export const useBadgeStore = defineStore('badge', () => {
       .filter(b => b.visible)
   })
 
+  // Index pré-calculés (une passe O(n)) pour éviter le re-scan de TOUS les comcoms par
+  // zone dans departmentBadges/regionBadges (qui était O(departments × comcoms)). #31
+  const comcomsByDept = computed<Map<string, any[]>>(() => {
+    const m = new Map<string, any[]>()
+    for (const c of useZoneStore().comcoms) {
+      const d = c.department?.documentId
+      if (!d) continue
+      if (!m.has(d)) m.set(d, [])
+      m.get(d)!.push(c)
+    }
+    return m
+  })
+  const deptDocIdsByRegion = computed<Map<string, string[]>>(() => {
+    const m = new Map<string, string[]>()
+    for (const d of useZoneStore().departments) {
+      const r = d.region?.documentId
+      if (!r || !d.documentId) continue
+      if (!m.has(r)) m.set(r, [])
+      m.get(r)!.push(d.documentId)
+    }
+    return m
+  })
+
   // Computed : badges départements
   const departmentBadges = computed<ZoneBadge[]>(() => {
     if (import.meta.server) return []
@@ -95,9 +118,7 @@ export const useBadgeStore = defineStore('badge', () => {
 
     return zoneStore.departments.map(dept => {
       // % = comcoms complétées dans ce dept / total comcoms dans ce dept
-      const comcomsInDept = zoneStore.comcoms.filter(
-        c => c.department?.documentId === dept.documentId
-      )
+      const comcomsInDept = comcomsByDept.value.get(dept.documentId) || []
       const totalComcoms = comcomsInDept.length
       if (totalComcoms === 0) {
         return {
@@ -150,14 +171,8 @@ export const useBadgeStore = defineStore('badge', () => {
 
     return zoneStore.regions.filter(r => !EXCLUDED_REGIONS.has(r.name)).map(region => {
       // % = comcoms complétées dans cette région / total comcoms dans cette région
-      const deptIdsInRegion = new Set(
-        zoneStore.departments
-          .filter(d => d.region?.documentId === region.documentId)
-          .map(d => d.documentId)
-      )
-      const comcomsInRegion = zoneStore.comcoms.filter(
-        c => c.department?.documentId && deptIdsInRegion.has(c.department.documentId)
-      )
+      const comcomsInRegion = (deptDocIdsByRegion.value.get(region.documentId) || [])
+        .flatMap(deptId => comcomsByDept.value.get(deptId) || [])
       const totalComcoms = comcomsInRegion.length
       if (totalComcoms === 0) {
         const tier = 'none' as const
