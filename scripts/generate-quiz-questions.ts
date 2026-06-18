@@ -34,6 +34,9 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral:7b';
 
 const TAGS = ['Art', 'History', 'Make', 'Nature', 'Science', 'Society'];
 
+// NB : divergence ASSUMÉE avec le cron de production. Ce script de debug génère TOUT via Ollama
+// (7 QCM + 3 timeline) et crée la session directement en 'completed'. Le cron, lui, pioche les QCM
+// dans OpenQuizzDB et n'utilise Ollama que pour les timeline (best-effort). Cf. quiz-generator.ts. #82
 const PROMPT = `Génère 10 questions de quiz culturel variées en français sur l'histoire, l'art, les sciences, la nature, la société et le savoir-faire.
 
 Exigences:

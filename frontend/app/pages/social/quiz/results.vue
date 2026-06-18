@@ -119,7 +119,7 @@
               <div class="flex items-center gap-2">
                 <p class="text-xs text-gray-400 font-bold uppercase w-20">Ta réponse</p>
                 <p class="text-sm font-bold" :class="ans.isCorrect ? 'text-green-600' : 'text-red-600'">
-                  {{ ans.userAnswer || 'Aucune' }}
+                  {{ ans.userAnswer != null && ans.userAnswer !== '' ? ans.userAnswer : 'Aucune' }}
                 </p>
               </div>
               <div v-if="!ans.isCorrect" class="flex items-center gap-2">

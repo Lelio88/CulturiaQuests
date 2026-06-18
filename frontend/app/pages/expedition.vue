@@ -26,9 +26,6 @@
                 <h2 class="font-power text-2xl sm:text-3xl leading-tight">
                     {{ museumName }}
                 </h2>
-                <div v-if="globalMultiplier > 1" class="mt-2 inline-block bg-green-900/30 border border-green-500/30 px-2 py-0.5 rounded text-[10px] text-green-400 font-bold uppercase tracking-wider">
-                    Bonus Synergie x{{ globalMultiplier }}
-                </div>
             </div>
 
             <div class="flex items-end justify-center gap-3 sm:gap-4 h-20 sm:h-24 shrink-0 w-full z-10">
@@ -130,13 +127,9 @@ const formattedCharacters = computed(() => {
     });
 });
 
-// We assume Synergy is already factored into `run.dps`. 
-// If we want to display it, we'd need to re-calculate it or fetch it.
-// For now, setting to 1 or removing the badge logic if we don't know it.
-// But the user likes seeing "Bonus Synergie".
-// Ideally `run` should have `synergy_bonus` field?
-// Or we re-calculate it just for display.
-const globalMultiplier = ref(1); // Placeholder
+// NB : la synergie est déjà intégrée dans `run.dps`. Le badge « Bonus Synergie » a été retiré
+// (multiplicateur figé à 1 en placeholder → jamais affiché et trompeur). À réintroduire seulement
+// si le run expose un vrai champ de synergie à afficher. #82
 
 // --- HELPERS ---
 const getImageUrl = (imgData) => {
