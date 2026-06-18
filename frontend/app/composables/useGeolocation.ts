@@ -84,7 +84,8 @@ export function useGeolocation(options: GeolocationOptions = {}) {
    * Utilise navigator.geolocation.watchPosition() pour un suivi continu.
    */
   function startTracking() {
-    if (!navigator.geolocation) {
+    // Guard SSR : navigator n'existe pas côté serveur (accès non gardé → crash au rendu). #81
+    if (!import.meta.client || !navigator.geolocation) {
       console.warn('Geolocation not supported, using default position')
       return
     }
@@ -164,7 +165,7 @@ export function useGeolocation(options: GeolocationOptions = {}) {
    * Nettoie le watchPosition et réinitialise l'état.
    */
   function stopTracking() {
-    if (watchId.value !== null) {
+    if (import.meta.client && watchId.value !== null) {
       navigator.geolocation.clearWatch(watchId.value)
       watchId.value = null
       isTracking.value = false

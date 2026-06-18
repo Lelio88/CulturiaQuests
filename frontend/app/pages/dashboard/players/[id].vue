@@ -231,15 +231,23 @@ onMounted(() => {
 
 async function handleToggleBlock() {
   if (!player.value || isSelf.value) return
-  await adminStore.toggleBlockPlayer(player.value.id)
-  adminStore.fetchPlayerDetail(playerId)
+  try {
+    await adminStore.toggleBlockPlayer(player.value.id)
+    await adminStore.fetchPlayerDetail(playerId)
+  } catch (e) {
+    console.error('Failed to toggle block:', e)
+  }
 }
 
 async function handleToggleAdmin() {
   if (!player.value || isSelf.value) return
   const newRole = player.value.role?.type === 'admin' ? 'authenticated' : 'admin'
-  await adminStore.changePlayerRole(player.value.id, newRole)
-  adminStore.fetchPlayerDetail(playerId)
+  try {
+    await adminStore.changePlayerRole(player.value.id, newRole)
+    await adminStore.fetchPlayerDetail(playerId)
+  } catch (e) {
+    console.error('Failed to change player role:', e)
+  }
 }
 
 function formatNumber(n: number): string {
