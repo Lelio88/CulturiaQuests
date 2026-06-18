@@ -1,8 +1,15 @@
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, type PluginListenerHandle } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
 
 const QUIZ_NOTIFICATION_ID = 1001
 const GEO_NOTIFICATION_ID = 1002
+
+// Handle du listener de tap, conservé au scope MODULE (et non dans le composable) afin de survivre
+// aux ré-instanciations de useNotifications() et de garantir un listener UNIQUE. Le contexte natif
+// LocalNotifications survit à la WebView : sans cette déduplication, chaque appel à
+// setupNotificationListeners() empilerait un listener supplémentaire → un seul tap déclencherait
+// plusieurs navigations. #79
+let actionListenerHandle: PluginListenerHandle | null = null
 
 /**
  * Composable pour gérer les notifications locales (quiz quotidien + géolocalisation active).
@@ -138,19 +145,39 @@ export function useNotifications() {
 
   /**
    * Écoute les taps sur les notifications et navigue vers la route associée.
+   * Idempotent : retire le listener précédent avant d'en réenregistrer un, donc un seul listener
+   * reste actif quel que soit le nombre d'appels (un tap = exactement une navigation). #79
    */
   async function setupNotificationListeners(): Promise<void> {
     if (!isNative) return
 
-    await LocalNotifications.addListener('localNotificationActionPerformed', (notification) => {
-      const route = notification.notification.extra?.route
-      if (route) {
-        console.log(`[Notifications] Navigating to ${route}`)
-        navigateTo(route)
+    if (actionListenerHandle) {
+      await actionListenerHandle.remove()
+      actionListenerHandle = null
+    }
+
+    actionListenerHandle = await LocalNotifications.addListener(
+      'localNotificationActionPerformed',
+      (notification) => {
+        const route = notification.notification.extra?.route
+        if (route) {
+          console.log(`[Notifications] Navigating to ${route}`)
+          navigateTo(route)
+        }
       }
-    })
+    )
 
     console.log('[Notifications] Listeners registered')
+  }
+
+  /**
+   * Retire le listener de tap (à appeler dans onUnmounted du composant racine si besoin).
+   */
+  async function removeNotificationListeners(): Promise<void> {
+    if (actionListenerHandle) {
+      await actionListenerHandle.remove()
+      actionListenerHandle = null
+    }
   }
 
   return {
@@ -160,5 +187,6 @@ export function useNotifications() {
     showGeoNotification,
     hideGeoNotification,
     setupNotificationListeners,
+    removeNotificationListeners,
   }
 }
