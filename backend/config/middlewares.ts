@@ -7,7 +7,7 @@ export default [
       contentSecurityPolicy: {
         useDefaults: true,
         directives: {
-          'connect-src': ["'self'", 'https:', 'http:'],
+          'connect-src': ["'self'", 'https:'],
           'script-src': [
             "'self'",
             "'unsafe-inline'",
@@ -55,7 +55,7 @@ export default [
       keepHeaderOnError: true,
     },
   },
-  'strapi::poweredBy',
+  // 'strapi::poweredBy' retiré (#19) : n'émet plus l'en-tête X-Powered-By: Strapi (fingerprinting).
   'strapi::query',
   {
     name: 'strapi::body',
