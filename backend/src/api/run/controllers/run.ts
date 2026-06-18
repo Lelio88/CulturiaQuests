@@ -325,18 +325,13 @@ export default factories.createCoreController('api::run.run', ({ strapi }) => ({
       }
     });
 
-    // 6. Update Guild
-    const fullGuild = await strapi.documents('api::guild.guild').findOne({
-      documentId: guild.documentId
-    });
-
-    await strapi.documents('api::guild.guild').update({
-      documentId: guild.documentId,
-      data: {
-        gold: (fullGuild.gold || 0) + gold,
-        exp: (Number(fullGuild.exp) || 0) + xp
-      }
-    });
+    // 6. Crédit ATOMIQUE du gold/exp de la guilde (UPDATE ... SET x = x + delta) : évite la
+    // perte/duplication de récompenses en concurrence (double-tap, retry) — plus de
+    // read-modify-write. guild draftAndPublish=false → document_id unique. #12
+    await strapi.db.connection.raw(
+      'UPDATE guilds SET gold = gold + ?, exp = exp + ? WHERE document_id = ?',
+      [gold, xp, guild.documentId]
+    );
 
     return {
       run: updatedRun,
