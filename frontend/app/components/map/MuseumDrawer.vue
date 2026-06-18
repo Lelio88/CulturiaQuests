@@ -3,7 +3,7 @@
     <!-- Card Musée -->
     <div class="bg-white p-4 rounded-2xl grid grid-cols-2 gap-2">
       <img
-        :src="`/assets/map/museum/${firstTag}.png`"
+        :src="`/assets/map/museum/${firstTag}.webp`"
         :alt="museum.name"
         class="w-full h-36 object-contain"
       />

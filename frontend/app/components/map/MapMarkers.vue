@@ -92,7 +92,7 @@ const renderMarkers = () => {
     // Distance check
     if (calculateDistance(props.userLat, props.userLng, m.lat, m.lng) > RADIUS_KM) return
 
-    const iconUrl = `/assets/map/museum/${m.tags?.[0]?.name || 'Art'}.png`
+    const iconUrl = `/assets/map/museum/${m.tags?.[0]?.name || 'Art'}.webp`
     const marker = L.marker([m.lat, m.lng], {
       icon: getIcon(iconUrl, [32, 24], [16, 12])
     })
