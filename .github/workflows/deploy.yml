@@ -40,6 +40,7 @@ jobs:
             ADMIN_JWT_SECRET=${{ secrets.ADMIN_JWT_SECRET }}
             TRANSFER_TOKEN_SALT=${{ secrets.TRANSFER_TOKEN_SALT }}
             JWT_SECRET=${{ secrets.JWT_SECRET }}
+            ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
             OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
             ENVEOF
 
