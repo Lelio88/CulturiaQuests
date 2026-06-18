@@ -33,7 +33,8 @@
     },
     "correct_answer": {
       "type": "string",
-      "required": true
+      "required": true,
+      "private": true
     },
     "options": {
       "type": "json"
@@ -42,7 +43,8 @@
       "type": "json"
     },
     "explanation": {
-      "type": "text"
+      "type": "text",
+      "private": true
     },
     "session": {
       "type": "relation",
