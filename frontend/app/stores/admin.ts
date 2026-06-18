@@ -42,6 +42,8 @@ export const useAdminStore = defineStore('admin', () => {
   const socialData = ref<any>(null)
   const connectionData = ref<any>(null)
   const gdprRequests = ref<any[]>([])
+  const gdprPagination = ref({ page: 1, pageSize: 10, pageCount: 0, total: 0 })
+  const gdprPendingCount = ref(0)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -143,11 +145,16 @@ export const useAdminStore = defineStore('admin', () => {
     finally { loading.value = false }
   }
 
-  async function fetchGdprRequests() {
+  async function fetchGdprRequests(page = 1) {
     const client = useApi()
     try {
-      const res = await client<{ requests: any[] }>('/admin-dashboard/gdpr-requests', { method: 'GET' })
+      const res = await client<{ requests: any[]; pendingCount: number; pagination: typeof gdprPagination.value }>(
+        '/admin-dashboard/gdpr-requests',
+        { method: 'GET', params: { page, pageSize: gdprPagination.value.pageSize } }
+      )
       gdprRequests.value = res.requests
+      gdprPendingCount.value = res.pendingCount
+      gdprPagination.value = res.pagination
     } catch (e: any) { error.value = e?.message || 'Failed to fetch GDPR requests' }
   }
 
@@ -155,7 +162,11 @@ export const useAdminStore = defineStore('admin', () => {
     const client = useApi()
     await client(`/admin-dashboard/gdpr-requests/${id}/process`, { method: 'PUT' })
     const req = gdprRequests.value.find(r => r.id === id)
-    if (req) req.status = 'processed'
+    if (req && req.status === 'pending') {
+      req.status = 'processed'
+      // Le compteur global vient du serveur : on le décrémente localement pour rester réactif.
+      gdprPendingCount.value = Math.max(0, gdprPendingCount.value - 1)
+    }
   }
 
   function clearAdmin() {
@@ -163,13 +174,14 @@ export const useAdminStore = defineStore('admin', () => {
     pagination.value = { page: 1, pageSize: 25, pageCount: 0, total: 0 }
     mapData.value = null; economyData.value = null; expeditionsData.value = null
     quizData.value = null; socialData.value = null; connectionData.value = null
-    gdprRequests.value = []; error.value = null
+    gdprRequests.value = []; gdprPendingCount.value = 0
+    gdprPagination.value = { page: 1, pageSize: 10, pageCount: 0, total: 0 }; error.value = null
   }
 
   return {
     overview, players, playerDetail, pagination, mapData, economyData, expeditionsData, quizData, socialData, connectionData, loading, error,
     fetchOverview, fetchPlayers, fetchPlayerDetail, toggleBlockPlayer, changePlayerRole,
     fetchMapData, fetchEconomy, fetchExpeditions, fetchQuiz, fetchSocial, fetchConnections,
-    gdprRequests, fetchGdprRequests, markGdprProcessed, clearAdmin,
+    gdprRequests, gdprPagination, gdprPendingCount, fetchGdprRequests, markGdprProcessed, clearAdmin,
   }
 })
