@@ -565,12 +565,24 @@ export default ({ strapi }) => ({
 
   // ─── GDPR ──────────────────────────────────────────────────
 
-  async getGdprRequests() {
-    const requests = await strapi.db.query('api::gdpr-request.gdpr-request').findMany({
-      orderBy: { createdAt: 'desc' },
-      populate: { user: { select: ['id', 'username', 'email'] } },
-    });
-    return { requests };
+  async getGdprRequests({ page = 1, pageSize = 10 } = {}) {
+    // Paginé (au lieu d'un findMany non borné sur une table RGPD qui grossit). Le compteur
+    // `pendingCount` est calculé GLOBALEMENT côté serveur pour rester juste hors de la page.
+    const [requests, total, pendingCount] = await Promise.all([
+      strapi.db.query('api::gdpr-request.gdpr-request').findMany({
+        orderBy: { createdAt: 'desc' },
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+        populate: { user: { select: ['id', 'username', 'email'] } },
+      }),
+      strapi.db.query('api::gdpr-request.gdpr-request').count(),
+      strapi.db.query('api::gdpr-request.gdpr-request').count({ where: { status: 'pending' } }),
+    ]);
+    return {
+      requests,
+      pendingCount,
+      pagination: { page, pageSize, pageCount: Math.ceil(total / pageSize), total },
+    };
   },
 
   // ─── SOCIAL ────────────────────────────────────────────────

@@ -226,8 +226,12 @@ export default {
 
   async getGdprRequests(ctx) {
     if (!(await verifyAdminRole(ctx))) return ctx.forbidden('Admin role required');
+    const { page = 1, pageSize = 10 } = ctx.query;
     try {
-      return ctx.send(await svc().getGdprRequests());
+      return ctx.send(await svc().getGdprRequests({
+        page: Math.max(1, Number(page)),
+        pageSize: Math.max(1, Math.min(Number(pageSize), 100)),
+      }));
     } catch (error) {
       strapi.log.error('Admin dashboard - getGdprRequests failed:', error);
       return ctx.internalServerError('Failed to fetch GDPR requests');

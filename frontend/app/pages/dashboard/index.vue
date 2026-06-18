@@ -222,6 +222,26 @@
             </tbody>
           </table>
         </div>
+        <div
+          v-if="adminStore.gdprPagination.pageCount > 1"
+          class="flex items-center justify-between mt-3 text-sm font-onest text-gray-400"
+        >
+          <button
+            :disabled="adminStore.gdprPagination.page <= 1"
+            class="px-3 py-1 rounded bg-gray-800 disabled:opacity-40 hover:bg-gray-700 transition-colors"
+            @click="adminStore.fetchGdprRequests(adminStore.gdprPagination.page - 1)"
+          >
+            Précédent
+          </button>
+          <span>Page {{ adminStore.gdprPagination.page }} / {{ adminStore.gdprPagination.pageCount }} · {{ adminStore.gdprPagination.total }} demandes</span>
+          <button
+            :disabled="adminStore.gdprPagination.page >= adminStore.gdprPagination.pageCount"
+            class="px-3 py-1 rounded bg-gray-800 disabled:opacity-40 hover:bg-gray-700 transition-colors"
+            @click="adminStore.fetchGdprRequests(adminStore.gdprPagination.page + 1)"
+          >
+            Suivant
+          </button>
+        </div>
       </div>
 
       <!-- Secondary KPIs -->
@@ -367,8 +387,8 @@ const peakHoursXFormatter = (tick: number): string => {
   return entry?.label ?? ''
 }
 
-// GDPR
-const pendingGdprCount = computed(() => adminStore.gdprRequests.filter(r => r.status === 'pending').length)
+// GDPR — compteur global (toutes pages) fourni par le serveur, pas calculé sur la page courante
+const pendingGdprCount = computed(() => adminStore.gdprPendingCount)
 
 async function handleMarkGdprProcessed(id: number) {
   await adminStore.markGdprProcessed(id)
