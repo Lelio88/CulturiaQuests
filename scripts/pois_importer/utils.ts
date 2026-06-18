@@ -441,15 +441,39 @@ export async function testOllamaConnection(): Promise<boolean> {
   }
 }
 
+/**
+ * Neutralise une chaîne issue d'OSM (texte libre, éditable publiquement) avant interpolation
+ * dans un prompt LLM : retire sauts de ligne et chevrons (pour ne pas casser le wrapping
+ * <lieu>...</lieu> ni injecter d'instructions), compacte les espaces, tronque. #19
+ */
+function sanitizeForPrompt(value: unknown, maxLen = 200): string {
+  if (value == null) return '';
+  return String(value)
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/[<>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLen);
+}
+
 export async function categorizeWithAI(place: Record<string, unknown>, details: PlaceDetails): Promise<AIResult> {
   const tags = (place.tags || {}) as Record<string, string>;
 
+  // Sanitisation anti prompt-injection des champs OSM (texte libre, éditable publiquement). #19
+  const safeName = sanitizeForPrompt(place.name);
+  const safeTags = sanitizeForPrompt(formatOsmTags(tags));
+  const rawAddress = tags['addr:street']
+    ? `${tags['addr:housenumber'] || ''} ${tags['addr:street']}, ${tags['addr:city'] || ''}`.trim()
+    : 'N/A';
+  const safeAddress = sanitizeForPrompt(rawAddress);
+  const safeHours = details.openingHours ? sanitizeForPrompt(details.openingHours.join(' | ')) : 'Non spécifiés';
+
   const prompt = `Analyse ce lieu pour un jeu RPG culturel géolocalisé.
 
-Lieu: "${place.name}" (${formatOsmTags(tags)})
-Adresse: ${tags['addr:street'] ? `${tags['addr:housenumber'] || ''} ${tags['addr:street']}, ${tags['addr:city'] || ''}`.trim() : 'N/A'}
+Lieu: <lieu>${safeName}</lieu> (${safeTags})
+Adresse: ${safeAddress}
 Département: ${place._sourceDept}
-Horaires: ${details.openingHours ? details.openingHours.join(' | ') : 'Non spécifiés'}
+Horaires: ${safeHours}
 Rayon estimé: ${details.baseRadiusMeters || 'N/A'} m
 
 Tes missions :
