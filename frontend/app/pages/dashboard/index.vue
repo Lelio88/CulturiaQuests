@@ -270,10 +270,18 @@ definePageMeta({
 
 const adminStore = useAdminStore()
 
-onMounted(() => {
-  adminStore.fetchOverview()
-  adminStore.fetchConnections()
-  adminStore.fetchGdprRequests()
+onMounted(async () => {
+  // Chargement initial parallèle, attendu et protégé : une promesse rejetée ne doit pas remonter
+  // non gérée. Les stores positionnent déjà error.value en interne ; le catch est une ceinture. #81
+  try {
+    await Promise.all([
+      adminStore.fetchOverview(),
+      adminStore.fetchConnections(),
+      adminStore.fetchGdprRequests(),
+    ])
+  } catch (e) {
+    console.error('Dashboard initial load failed:', e)
+  }
 })
 
 // KPI data
@@ -391,7 +399,11 @@ const peakHoursXFormatter = (tick: number): string => {
 const pendingGdprCount = computed(() => adminStore.gdprPendingCount)
 
 async function handleMarkGdprProcessed(id: number) {
-  await adminStore.markGdprProcessed(id)
+  try {
+    await adminStore.markGdprProcessed(id)
+  } catch (e) {
+    console.error('Failed to mark GDPR request as processed:', e)
+  }
 }
 
 function formatDate(dateStr: string): string {

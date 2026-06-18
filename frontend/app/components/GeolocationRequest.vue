@@ -50,6 +50,9 @@ const GEOLOC_CHOICE_KEY = 'culturia_geoloc_choice'
 
 // Vérifier l'état de la permission de géolocalisation
 async function checkGeolocationPermission(): Promise<void> {
+  // Guard SSR : localStorage / navigator.* n'existent pas côté serveur. #81
+  if (!import.meta.client) return
+
   // 1. Vérifier si un choix a déjà été fait localement
   const savedChoice = localStorage.getItem(GEOLOC_CHOICE_KEY)
   if (savedChoice === 'allow') {

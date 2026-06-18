@@ -160,12 +160,19 @@ export const useAdminStore = defineStore('admin', () => {
 
   async function markGdprProcessed(id: number) {
     const client = useApi()
-    await client(`/admin-dashboard/gdpr-requests/${id}/process`, { method: 'PUT' })
-    const req = gdprRequests.value.find(r => r.id === id)
-    if (req && req.status === 'pending') {
-      req.status = 'processed'
-      // Le compteur global vient du serveur : on le décrémente localement pour rester réactif.
-      gdprPendingCount.value = Math.max(0, gdprPendingCount.value - 1)
+    // try/catch + error.value comme les autres actions du store : sur échec API, l'erreur est
+    // exposée et la mutation locale (statut + compteur) n'est PAS appliquée (l'await précède). #81
+    try {
+      await client(`/admin-dashboard/gdpr-requests/${id}/process`, { method: 'PUT' })
+      const req = gdprRequests.value.find(r => r.id === id)
+      if (req && req.status === 'pending') {
+        req.status = 'processed'
+        // Le compteur global vient du serveur : on le décrémente localement pour rester réactif.
+        gdprPendingCount.value = Math.max(0, gdprPendingCount.value - 1)
+      }
+    } catch (e: any) {
+      error.value = e?.message || 'Failed to mark GDPR request as processed'
+      throw e
     }
   }
 

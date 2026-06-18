@@ -55,7 +55,8 @@ async function generateQuests() {
 
 function getCurrentPosition(): Promise<{ lat: number; lng: number }> {
     return new Promise((resolve) => {
-        if (!navigator.geolocation) {
+        // Guard SSR + absence d'API : repli sur la position par défaut (Saint-Lô). #81
+        if (!import.meta.client || !navigator.geolocation) {
             resolve({ lat: 49.1167, lng: -1.0833 })
             return
         }
