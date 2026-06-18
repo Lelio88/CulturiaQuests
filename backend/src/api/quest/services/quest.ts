@@ -31,7 +31,10 @@ export default factories.createCoreService('api::quest.quest', ({ strapi }) => (
 
   async selectNpcs(guildId: number, count: number) {
     const allNpcs = await strapi.db.query('api::npc.npc').findMany({
-      populate: { dialogs: true },
+      // On ne teste que l'EXISTENCE d'un dialogue quest_description → on filtre le populate
+      // au lieu de charger TOUS les dialogues de chaque NPC. (select text_type conservé pour
+      // que le .some() ci-dessous reste correct même si le filtre de populate est ignoré.)
+      populate: { dialogs: { where: { text_type: 'quest_description' }, select: ['text_type'] } },
     });
 
     const friendships = await strapi.db.query('api::friendship.friendship').findMany({
