@@ -108,21 +108,38 @@ export default ({ strapi }) => ({
       strapi.db.query('plugin::users-permissions.user').count({ where }),
     ]);
 
-    const usersWithGuilds = await Promise.all(
-      users.map(async (user) => {
-        const guild = await strapi.db.query('api::guild.guild').findOne({
-          where: { user: { id: user.id } },
+    // Guildes des utilisateurs de la page en 1 requête (au lieu d'un findOne par utilisateur),
+    // puis comptages personnages/items groupés (2 requêtes au lieu de 2 × pageSize).
+    const userIds = users.map((u) => u.id);
+    const guilds = userIds.length
+      ? await strapi.db.query('api::guild.guild').findMany({
+          where: { user: { id: { $in: userIds } } },
           select: ['id', 'documentId', 'name', 'gold', 'exp', 'scrap', 'debug_mode'],
-        });
-        const characterCount = guild ? await strapi.db.query('api::character.character').count({ where: { guild: guild.id } }) : 0;
-        const itemCount = guild ? await strapi.db.query('api::item.item').count({ where: { guild: guild.id } }) : 0;
+          populate: { user: { select: ['id'] } },
+        })
+      : [];
+    const guildByUser = new Map<number, any>();
+    for (const g of guilds) if (g.user?.id) guildByUser.set(g.user.id, g);
 
-        return {
-          id: user.id, username: user.username, email: user.email, blocked: user.blocked, createdAt: user.createdAt, role: user.role,
-          guild: guild ? { id: guild.id, documentId: guild.documentId, name: guild.name, gold: guild.gold, exp: guild.exp, scrap: guild.scrap, debug_mode: guild.debug_mode, level: Math.floor(Math.sqrt(Number(guild.exp) / 75)) + 1, characterCount, itemCount } : null,
-        };
-      })
-    );
+    const guildIds = guilds.map((g) => g.id);
+    const charCountByGuild = new Map<number, number>();
+    const itemCountByGuild = new Map<number, number>();
+    if (guildIds.length) {
+      const [chars, items] = await Promise.all([
+        strapi.db.query('api::character.character').findMany({ where: { guild: { id: { $in: guildIds } } }, select: ['id'], populate: { guild: { select: ['id'] } } }),
+        strapi.db.query('api::item.item').findMany({ where: { guild: { id: { $in: guildIds } } }, select: ['id'], populate: { guild: { select: ['id'] } } }),
+      ]);
+      for (const c of chars) { const gid = c.guild?.id; if (gid) charCountByGuild.set(gid, (charCountByGuild.get(gid) || 0) + 1); }
+      for (const it of items) { const gid = it.guild?.id; if (gid) itemCountByGuild.set(gid, (itemCountByGuild.get(gid) || 0) + 1); }
+    }
+
+    const usersWithGuilds = users.map((user) => {
+      const guild = guildByUser.get(user.id);
+      return {
+        id: user.id, username: user.username, email: user.email, blocked: user.blocked, createdAt: user.createdAt, role: user.role,
+        guild: guild ? { id: guild.id, documentId: guild.documentId, name: guild.name, gold: guild.gold, exp: guild.exp, scrap: guild.scrap, debug_mode: guild.debug_mode, level: Math.floor(Math.sqrt(Number(guild.exp) / 75)) + 1, characterCount: charCountByGuild.get(guild.id) || 0, itemCount: itemCountByGuild.get(guild.id) || 0 } : null,
+      };
+    });
 
     return { data: usersWithGuilds, pagination: { page, pageSize, pageCount: Math.ceil(total / pageSize), total } };
   },
@@ -179,53 +196,58 @@ export default ({ strapi }) => ({
   // ─── MAP / GEOLOCATION ─────────────────────────────────────
 
   async getMapData() {
-    const [pois, museums] = await Promise.all([
-      strapi.db.query('api::poi.poi').findMany({
-        select: ['id', 'documentId', 'name', 'lat', 'lng'],
-      }),
+    // 1 requête par type relié, puis agrégation EN MÉMOIRE (Map) — au lieu d'une boucle
+    // findMany/count PAR POI (×5073) et PAR musée (×405) qui générait ~10 500 requêtes.
+    const [pois, museums, allVisits, allRuns, allQuests] = await Promise.all([
+      strapi.db.query('api::poi.poi').findMany({ select: ['id', 'documentId', 'name', 'lat', 'lng'] }),
       strapi.db.query('api::museum.museum').findMany({
         select: ['id', 'documentId', 'name', 'lat', 'lng', 'radius'],
         populate: { tags: { select: ['id', 'name'] } },
       }),
+      strapi.db.query('api::visit.visit').findMany({ select: ['open_count', 'total_gold_earned'], populate: { poi: { select: ['id'] } } }),
+      strapi.db.query('api::run.run').findMany({ select: ['gold_earned', 'threshold_reached', 'date_start', 'date_end'], populate: { museum: { select: ['id'] } } }),
+      strapi.db.query('api::quest.quest').findMany({ select: ['id'], populate: { poi_a: { select: ['id'] }, poi_b: { select: ['id'] } } }),
     ]);
 
-    // Visit stats per POI
-    const poisWithStats = await Promise.all(
-      pois.map(async (poi) => {
-        const visits = await strapi.db.query('api::visit.visit').findMany({
-          where: { poi: poi.id },
-          select: ['open_count', 'total_gold_earned'],
-        });
-        const totalVisits = visits.reduce((sum, v) => sum + (v.open_count || 0), 0);
-        const uniqueVisitors = visits.length;
-        const totalGold = visits.reduce((sum, v) => sum + (v.total_gold_earned || 0), 0);
-        const questCount = await strapi.db.query('api::quest.quest').count({
-          where: { $or: [{ poi_a: poi.id }, { poi_b: poi.id }] },
-        });
-        return { ...poi, totalVisits, uniqueVisitors, totalGold, questCount };
-      })
-    );
+    // Visites agrégées par POI
+    const visitStats = new Map<number, { totalVisits: number; uniqueVisitors: number; totalGold: number }>();
+    for (const v of allVisits) {
+      const pid = v.poi?.id;
+      if (!pid) continue;
+      const s = visitStats.get(pid) || { totalVisits: 0, uniqueVisitors: 0, totalGold: 0 };
+      s.totalVisits += v.open_count || 0;
+      s.uniqueVisitors += 1;
+      s.totalGold += v.total_gold_earned || 0;
+      visitStats.set(pid, s);
+    }
+    // Quêtes comptées par POI (poi_a OU poi_b)
+    const questCounts = new Map<number, number>();
+    for (const q of allQuests) {
+      for (const pid of [q.poi_a?.id, q.poi_b?.id]) {
+        if (pid) questCounts.set(pid, (questCounts.get(pid) || 0) + 1);
+      }
+    }
+    const poisWithStats = pois.map((poi) => {
+      const s = visitStats.get(poi.id) || { totalVisits: 0, uniqueVisitors: 0, totalGold: 0 };
+      return { ...poi, totalVisits: s.totalVisits, uniqueVisitors: s.uniqueVisitors, totalGold: s.totalGold, questCount: questCounts.get(poi.id) || 0 };
+    });
 
-    // Run stats per museum
-    const museumsWithStats = await Promise.all(
-      museums.map(async (museum) => {
-        const runs = await strapi.db.query('api::run.run').findMany({
-          where: { museum: museum.id },
-          select: ['gold_earned', 'xp_earned', 'threshold_reached', 'date_start', 'date_end'],
-        });
-        const totalRuns = runs.length;
-        const totalGold = runs.reduce((sum, r) => sum + (r.gold_earned || 0), 0);
-        const maxFloor = runs.reduce((max, r) => Math.max(max, r.threshold_reached || 0), 0);
-        let totalDuration = 0;
-        for (const r of runs) {
-          if (r.date_start && r.date_end) {
-            totalDuration += new Date(r.date_end).getTime() - new Date(r.date_start).getTime();
-          }
-        }
-        const avgDuration = totalRuns > 0 ? Math.round(totalDuration / totalRuns) : 0;
-        return { ...museum, totalRuns, totalGold, maxFloor, avgDuration };
-      })
-    );
+    // Runs agrégés par musée
+    const runStats = new Map<number, { totalRuns: number; totalGold: number; maxFloor: number; totalDuration: number }>();
+    for (const r of allRuns) {
+      const mid = r.museum?.id;
+      if (!mid) continue;
+      const s = runStats.get(mid) || { totalRuns: 0, totalGold: 0, maxFloor: 0, totalDuration: 0 };
+      s.totalRuns += 1;
+      s.totalGold += r.gold_earned || 0;
+      s.maxFloor = Math.max(s.maxFloor, r.threshold_reached || 0);
+      if (r.date_start && r.date_end) s.totalDuration += new Date(r.date_end).getTime() - new Date(r.date_start).getTime();
+      runStats.set(mid, s);
+    }
+    const museumsWithStats = museums.map((museum) => {
+      const s = runStats.get(museum.id) || { totalRuns: 0, totalGold: 0, maxFloor: 0, totalDuration: 0 };
+      return { ...museum, totalRuns: s.totalRuns, totalGold: s.totalGold, maxFloor: s.maxFloor, avgDuration: s.totalRuns > 0 ? Math.round(s.totalDuration / s.totalRuns) : 0 };
+    });
 
     return { pois: poisWithStats, museums: museumsWithStats };
   },
@@ -300,30 +322,42 @@ export default ({ strapi }) => ({
   // ─── EXPEDITIONS & QUESTS ──────────────────────────────────
 
   async getExpeditions() {
-    // Per-museum stats
-    const museums = await strapi.db.query('api::museum.museum').findMany({ select: ['id', 'name'] });
-    const museumStats = await Promise.all(
-      museums.map(async (m) => {
-        const runs = await strapi.db.query('api::run.run').findMany({
-          where: { museum: m.id },
-          select: ['gold_earned', 'xp_earned', 'threshold_reached', 'date_start', 'date_end', 'dps'],
-        });
-        const completed = runs.filter((r) => r.date_end).length;
-        const totalGold = runs.reduce((s, r) => s + (r.gold_earned || 0), 0);
-        const maxFloor = runs.reduce((mx, r) => Math.max(mx, r.threshold_reached || 0), 0);
-        const avgDps = runs.length > 0 ? Math.round(runs.reduce((s, r) => s + (r.dps || 0), 0) / runs.length) : 0;
-        let totalTime = 0;
-        for (const r of runs) {
-          if (r.date_start && r.date_end) totalTime += new Date(r.date_end).getTime() - new Date(r.date_start).getTime();
-        }
-        return { name: m.name, totalRuns: runs.length, completed, totalGold, maxFloor, avgDps, avgDuration: runs.length > 0 ? Math.round(totalTime / runs.length) : 0 };
-      })
-    );
+    // Une seule requête runs (populate museum+npc) agrégée en mémoire, au lieu d'une boucle
+    // findMany PAR musée (×405) + count PAR npc (×7).
+    const [museums, npcs, allRuns, quests] = await Promise.all([
+      strapi.db.query('api::museum.museum').findMany({ select: ['id', 'name'] }),
+      strapi.db.query('api::npc.npc').findMany({ select: ['id', 'firstname', 'lastname', 'nickname'] }),
+      strapi.db.query('api::run.run').findMany({
+        select: ['gold_earned', 'threshold_reached', 'date_start', 'date_end', 'dps'],
+        populate: { museum: { select: ['id'] }, npc: { select: ['id'] } },
+      }),
+      strapi.db.query('api::quest.quest').findMany({
+        select: ['is_poi_a_completed', 'is_poi_b_completed', 'gold_earned', 'date_start', 'date_end'],
+        populate: { npc: { select: ['id', 'firstname', 'lastname', 'nickname'] } },
+      }),
+    ]);
 
-    // Quest stats
-    const quests = await strapi.db.query('api::quest.quest').findMany({
-      select: ['is_poi_a_completed', 'is_poi_b_completed', 'gold_earned', 'date_start', 'date_end'],
-      populate: { npc: { select: ['id', 'firstname', 'lastname', 'nickname'] } },
+    // Runs agrégés par musée + comptage par NPC (en un seul passage)
+    type MStat = { count: number; completed: number; totalGold: number; maxFloor: number; totalDps: number; totalTime: number };
+    const byMuseum = new Map<number, MStat>();
+    const runCountByNpc = new Map<number, number>();
+    for (const r of allRuns) {
+      const npcId = r.npc?.id;
+      if (npcId) runCountByNpc.set(npcId, (runCountByNpc.get(npcId) || 0) + 1);
+      const mid = r.museum?.id;
+      if (!mid) continue;
+      const s = byMuseum.get(mid) || { count: 0, completed: 0, totalGold: 0, maxFloor: 0, totalDps: 0, totalTime: 0 };
+      s.count += 1;
+      if (r.date_end) s.completed += 1;
+      s.totalGold += r.gold_earned || 0;
+      s.maxFloor = Math.max(s.maxFloor, r.threshold_reached || 0);
+      s.totalDps += r.dps || 0;
+      if (r.date_start && r.date_end) s.totalTime += new Date(r.date_end).getTime() - new Date(r.date_start).getTime();
+      byMuseum.set(mid, s);
+    }
+    const museumStats = museums.map((m) => {
+      const s = byMuseum.get(m.id) || { count: 0, completed: 0, totalGold: 0, maxFloor: 0, totalDps: 0, totalTime: 0 };
+      return { name: m.name, totalRuns: s.count, completed: s.completed, totalGold: s.totalGold, maxFloor: s.maxFloor, avgDps: s.count > 0 ? Math.round(s.totalDps / s.count) : 0, avgDuration: s.count > 0 ? Math.round(s.totalTime / s.count) : 0 };
     });
 
     const totalQuests = quests.length;
@@ -343,15 +377,11 @@ export default ({ strapi }) => ({
     }
     const npcRanking = Object.values(npcMap).sort((a, b) => b.questCount - a.questCount);
 
-    // NPC expedition rankings
-    const npcs = await strapi.db.query('api::npc.npc').findMany({ select: ['id', 'firstname', 'lastname', 'nickname'] });
-    const npcExpeditionStats = await Promise.all(
-      npcs.map(async (npc) => {
-        const runCount = await strapi.db.query('api::run.run').count({ where: { npc: npc.id } });
-        return { name: `${npc.firstname} ${npc.lastname}`, nickname: npc.nickname, expeditionCount: runCount };
-      })
-    );
-    const npcExpeditionRanking = npcExpeditionStats.filter((n) => n.expeditionCount > 0).sort((a, b) => b.expeditionCount - a.expeditionCount);
+    // NPC expedition rankings (depuis runCountByNpc — plus de count par NPC)
+    const npcExpeditionRanking = npcs
+      .map((npc) => ({ name: `${npc.firstname} ${npc.lastname}`, nickname: npc.nickname, expeditionCount: runCountByNpc.get(npc.id) || 0 }))
+      .filter((n) => n.expeditionCount > 0)
+      .sort((a, b) => b.expeditionCount - a.expeditionCount);
 
     return {
       museumStats,
@@ -371,37 +401,49 @@ export default ({ strapi }) => ({
       select: ['id', 'date', 'generation_status', 'generation_error', 'generated_at'],
     });
 
-    const sessionHistory = await Promise.all(
-      sessions.map(async (s) => {
-        const attemptCount = await strapi.db.query('api::quiz-attempt.quiz-attempt').count({ where: { session: s.id } });
-        const attempts = await strapi.db.query('api::quiz-attempt.quiz-attempt').findMany({
-          where: { session: s.id },
+    // Tentatives des 30 sessions en 1 requête, agrégées par session (au lieu de 2 × 30 requêtes)
+    const sessionIds = sessions.map((s) => s.id);
+    const sessionAttempts = sessionIds.length
+      ? await strapi.db.query('api::quiz-attempt.quiz-attempt').findMany({
+          where: { session: { id: { $in: sessionIds } } },
           select: ['score', 'time_spent_seconds'],
-        });
-        const avgScore = attempts.length > 0 ? Math.round(attempts.reduce((sum, a) => sum + (a.score || 0), 0) / attempts.length) : 0;
-        const avgTime = attempts.length > 0 ? Math.round(attempts.reduce((sum, a) => sum + (a.time_spent_seconds || 0), 0) / attempts.length) * 1000 : 0;
-        return {
-          id: s.id,
-          date: s.date,
-          status: s.generation_status,
-          participants: attemptCount,
-          avgScore,
-          avgTime,
-        };
-      })
-    );
+          populate: { session: { select: ['id'] } },
+        })
+      : [];
+    const bySession = new Map<number, { count: number; sumScore: number; sumTime: number }>();
+    for (const a of sessionAttempts) {
+      const sid = a.session?.id;
+      if (!sid) continue;
+      const agg = bySession.get(sid) || { count: 0, sumScore: 0, sumTime: 0 };
+      agg.count += 1;
+      agg.sumScore += a.score || 0;
+      agg.sumTime += a.time_spent_seconds || 0;
+      bySession.set(sid, agg);
+    }
+    const sessionHistory = sessions.map((s) => {
+      const agg = bySession.get(s.id) || { count: 0, sumScore: 0, sumTime: 0 };
+      return {
+        id: s.id,
+        date: s.date,
+        status: s.generation_status,
+        participants: agg.count,
+        avgScore: agg.count > 0 ? Math.round(agg.sumScore / agg.count) : 0,
+        avgTime: agg.count > 0 ? Math.round(agg.sumTime / agg.count) * 1000 : 0,
+      };
+    });
 
-    // Difficulty by tag
+    // Difficulty by tag — 1 requête questions + comptage par tag (au lieu d'un findMany par tag)
     const tags = await strapi.db.query('api::tag.tag').findMany({ select: ['id', 'name'] });
-    const questionsByTag = await Promise.all(
-      tags.map(async (tag) => {
-        const questions = await strapi.db.query('api::quiz-question.quiz-question').findMany({
-          where: { tag: tag.id },
-          select: ['id', 'correct_answer'],
-        });
-        return { name: tag.name, count: questions.length };
-      })
-    );
+    const allQuestions = await strapi.db.query('api::quiz-question.quiz-question').findMany({
+      select: ['id'],
+      populate: { tag: { select: ['id'] } },
+    });
+    const questionCountByTag = new Map<number, number>();
+    for (const qq of allQuestions) {
+      const qTags = Array.isArray(qq.tag) ? qq.tag : qq.tag ? [qq.tag] : [];
+      for (const t of qTags) if (t?.id) questionCountByTag.set(t.id, (questionCountByTag.get(t.id) || 0) + 1);
+    }
+    const questionsByTag = tags.map((tag) => ({ name: tag.name, count: questionCountByTag.get(tag.id) || 0 }));
 
     // Difficulty by type
     const qcmCount = await strapi.db.query('api::quiz-question.quiz-question').count({ where: { question_type: 'qcm' } });
