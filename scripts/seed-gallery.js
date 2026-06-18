@@ -56,12 +56,20 @@ const SUFFIXES = ['du Loup', 'de la Nuit', 'du Roi', 'des Ombres', 'de Feu', 'de
 
 // --- 3. FONCTIONS ---
 
+// Mélange uniforme (Fisher-Yates) sur une COPIE : ne mute pas la constante TAG_IDS (sort() trie
+// en place) et évite le biais du comparateur `() => 0.5 - Math.random()`. #72
+function shuffleArray(array) {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+}
+
 // Fonction qui pioche 'count' tags au hasard
 function getRandomTags(count) {
-    // Mélange le tableau des tags
-    const shuffled = TAG_IDS.sort(() => 0.5 - Math.random());
-    // Retourne les 'count' premiers
-    return shuffled.slice(0, count);
+    return shuffleArray(TAG_IDS).slice(0, count);
 }
 
 async function fetchImagesByKeyword(categoryKey) {

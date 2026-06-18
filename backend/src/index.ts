@@ -180,6 +180,7 @@ export default {
         'api::progression.progression.findOne',
         'api::progression.progression.create',
         'api::progression.progression.update',
+        'api::progression.progression.delete',
         // Friendship (legacy) — find/findOne filtrés par guild.user.id
         'api::friendship.friendship.find',
         'api::friendship.friendship.findOne',
