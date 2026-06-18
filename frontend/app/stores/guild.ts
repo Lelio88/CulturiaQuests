@@ -242,13 +242,15 @@ export const useGuildStore = defineStore('guild', () => {
       const guildData = Array.isArray(guilds) ? guilds[0] : guilds
 
       if (guildData && guild.value) {
+        // Repli final sur la valeur courante du store : si une réponse inattendue n'expose ni la
+        // clé directe ni `attributes.*`, on NE remplace PAS la stat existante par `undefined`. #80
         guild.value = {
           ...guild.value,
-          gold: guildData.gold ?? guildData.attributes?.gold,
-          exp: guildData.exp ?? guildData.attributes?.exp,
-          scrap: guildData.scrap ?? guildData.attributes?.scrap,
-          debug_mode: guildData.debug_mode ?? guildData.attributes?.debug_mode,
-          quiz_streak: guildData.quiz_streak ?? guildData.attributes?.quiz_streak,
+          gold: guildData.gold ?? guildData.attributes?.gold ?? guild.value.gold,
+          exp: guildData.exp ?? guildData.attributes?.exp ?? guild.value.exp,
+          scrap: guildData.scrap ?? guildData.attributes?.scrap ?? guild.value.scrap,
+          debug_mode: guildData.debug_mode ?? guildData.attributes?.debug_mode ?? guild.value.debug_mode,
+          quiz_streak: guildData.quiz_streak ?? guildData.attributes?.quiz_streak ?? guild.value.quiz_streak,
         }
       }
     } catch (e: any) {

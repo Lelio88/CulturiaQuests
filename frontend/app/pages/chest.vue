@@ -29,6 +29,7 @@
           color="indigo"
           variant="filled"
           class="w-full"
+          :disabled="opening"
           @click="openChest"
         >
           Suivant
@@ -70,6 +71,8 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const loot = ref<ChestLoot | null>(null)
 const chestOpened = ref(false)
+// Garde anti double-clic : désactive le bouton et court-circuite un 2e appel pendant l'ouverture. #75
+const opening = ref(false)
 
 // Template refs
 const chestContainer = ref<HTMLElement>()
@@ -85,6 +88,10 @@ function goBack() {
 }
 
 async function openChest() {
+  // Empêche tout 2e déclenchement tant que l'ouverture est en cours (la fenêtre est élargie par
+  // l'animation bounce ci-dessous qui précède l'appel API). #75
+  if (opening.value) return
+  opening.value = true
   try {
     // 1. Animate chest bounce
     if (chestImage.value) {
@@ -123,6 +130,8 @@ async function openChest() {
   } catch (e) {
     console.error('Failed to open chest:', e)
     error.value = e instanceof Error ? e.message : 'Impossible d\'ouvrir le coffre'
+  } finally {
+    opening.value = false
   }
 }
 
