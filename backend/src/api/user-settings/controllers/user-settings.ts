@@ -10,6 +10,23 @@ const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const ALLOWED_IMAGE_FORMATS = ['png', 'jpeg', 'webp'];
 const AVATAR_SIZE = 256;
 
+// Rate-limit léger en mémoire : max 5 uploads d'avatar par utilisateur et par minute. #16
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const avatarUploadHits = new Map<number, number[]>();
+
+function isAvatarUploadAllowed(userId: number): boolean {
+  const now = Date.now();
+  const recent = (avatarUploadHits.get(userId) || []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+  if (recent.length >= RATE_LIMIT_MAX) {
+    avatarUploadHits.set(userId, recent);
+    return false;
+  }
+  recent.push(now);
+  avatarUploadHits.set(userId, recent);
+  return true;
+}
+
 export default {
   /**
    * Receive a base64-encoded image, resize to 256x256 WebP,
@@ -19,6 +36,12 @@ export default {
     const user = ctx.state.user;
     if (!user) {
       return ctx.unauthorized('You must be logged in');
+    }
+
+    // Rate-limit (#16) : protège l'endpoint d'upload (décodage Sharp coûteux).
+    if (!isAvatarUploadAllowed(user.id)) {
+      const msg = 'Trop d\'uploads d\'avatar. Réessayez dans une minute.';
+      return ctx.tooManyRequests ? ctx.tooManyRequests(msg) : ctx.throw(429, msg);
     }
 
     const { base64 } = ctx.request.body;
