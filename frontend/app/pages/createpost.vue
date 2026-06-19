@@ -161,10 +161,14 @@ import { useRouter } from 'vue-router';
 import { useDamageCalculator } from '~/composables/useDamageCalculator';
 import { formatCompactNumber, formatTimeAgo, formatDurationHMS } from '~/utils/format';
 import { getMuseumImageByTag } from '~/utils/strapiHelpers';
+import { useRunStore } from '~/stores/run';
+import { useSocialStore } from '~/stores/social';
 import Alert from '~/components/form/Alert.vue';
 
 const router = useRouter();
 const { calculateItemPower } = useDamageCalculator();
+const runStore = useRunStore();
+const socialStore = useSocialStore();
 
 // --- ÉTATS ---
 const isLoading = ref(true);
@@ -197,16 +201,10 @@ const getDurationSeconds = (start, end) => {
 const fetchRecentRuns = async () => {
     isLoading.value = true;
     try {
-        const response = await useApi()('/runs', {
-            params: {
-                populate: ['museum', 'museum.tags', 'items', 'items.rarity', 'items.icon'],
-                sort: 'createdAt:desc',
-                pagination: { limit: 5 },
-                filters: { date_end: { $null: false } }
-            }
-        });
-        
-        recentRuns.value = (response.data || []).map(run => {
+        // Appel API centralisé dans le store run (#36) ; le mapping view-model reste local à la page.
+        const runs = await runStore.fetchRecentRuns(5);
+
+        recentRuns.value = runs.map(run => {
             let bestItem = null;
             let maxPower = -1;
             if (run.items && run.items.length > 0) {
@@ -275,7 +273,6 @@ const publishPost = async () => {
     
     isPublishing.value = true;
     publishError.value = '';
-    const client = useApi();
 
     try {
         const payload = {
@@ -287,11 +284,8 @@ const publishPost = async () => {
             }
         };
 
-        const response = await client('/posts', {
-            method: 'POST',
-            body: payload
-        });
-        
+        const response = await socialStore.createPost(payload);
+
         if (response) {
             router.push('/social');
         }

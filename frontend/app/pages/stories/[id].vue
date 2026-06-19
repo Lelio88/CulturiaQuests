@@ -17,10 +17,18 @@
 <script setup>
 import { useRoute, useRouter } from 'vue-router';
 import { onMounted, ref } from 'vue';
-import { useApi } from '#imports';
+import { useFriendshipStore } from '~/stores/friendship';
+import { useNpcStore } from '~/stores/npc';
+
+// #47.2 / #36 : la page ne fait plus d'appel API direct. La friendship est lue dans le store
+// friendship (déjà normalisé) ; les dialogues du PNJ — non peuplés par le store (populate ['npc']
+// seulement) — sont récupérés par un fetch CIBLÉ d'un seul PNJ via npcStore.fetchNpcByDocumentId.
 
 const route = useRoute();
 const router = useRouter();
+const friendshipStore = useFriendshipStore();
+const npcStore = useNpcStore();
+const { formatNpcName, npcImagePath } = useNpcPresentation();
 const friendshipId = route.params.id;
 
 const details = ref(null);
@@ -32,56 +40,37 @@ const goBack = () => {
 };
 
 onMounted(async () => {
-    const client = useApi();
-
     try {
         const idToSearch = Number(friendshipId);
-        const response = await client('/friendships', {
-            method: 'GET',
-            params: {
-                populate: {
-                    npc: {
-                        populate: ['dialogs']
-                    }
-                }
-            }
-        });
 
-        const rawData = response.data || response;
-        const list = Array.isArray(rawData) ? rawData : (rawData.data || []);
+        // 1. Charger les friendships si nécessaire, puis retrouver celle demandée
+        if (!friendshipStore.hasFriendships) {
+            await friendshipStore.fetchFriendships();
+        }
 
-        const foundFriendship = list.find(item => {
-            const fId = item.id || item.attributes?.id;
-            return fId == idToSearch;
-        });
-
-        if (!foundFriendship) {
+        const friendship = friendshipStore.friendships.find(f => f.id === idToSearch);
+        if (!friendship) {
             error.value = "Journal introuvable";
             return;
         }
 
-        // --- Transformation des données ---
-        const f = foundFriendship.attributes || foundFriendship;
-        const npc = f.npc?.attributes || f.npc;
+        const currentLevel = (friendship.quests_entry_unlocked || 0) + (friendship.expedition_entry_unlocked || 0);
 
-        const firstname = npc?.firstname || 'Inconnu';
-        const lastname = npc?.lastname || '';
-        const safeName = firstname.trim();
+        // 2. Récupérer le PNJ AVEC ses dialogues (fetch ciblé d'un seul PNJ)
+        const npc = friendship.npcDocumentId
+            ? await npcStore.fetchNpcByDocumentId(friendship.npcDocumentId, true)
+            : null;
 
         const maxLevel = (npc?.quests_entry_available || 0) + (npc?.expedition_entry_available || 0) || 4;
-        const currentLevel = (f.quests_entry_unlocked || 0) + (f.expedition_entry_unlocked || 0);
 
-        // Traitement des dialogues
+        // 3. Traitement des dialogues : uniquement le type "journal_entries"
         const rawDialogs = npc?.dialogs?.data || npc?.dialogs || [];
-
-        // Filtrer uniquement les dialogues de type "journal_entries"
         const journalDialogs = rawDialogs.filter((dObj) => {
             const d = dObj.attributes || dObj;
             return d.text_type === 'journal_entries';
         });
 
         const entries = [];
-
         journalDialogs.forEach((dObj) => {
             const d = dObj.attributes || dObj;
             const texts = d.dialogues || [];
@@ -101,9 +90,9 @@ onMounted(async () => {
         entries.sort((a, b) => b.index - a.index);
 
         details.value = {
-            fullName: `${firstname} ${lastname}`,
+            fullName: formatNpcName(npc?.firstname, npc?.lastname),
             job: npc?.nickname,
-            image: `/assets/npc/${safeName}/${safeName}.webp`,
+            image: npcImagePath(npc?.firstname),
             level: currentLevel,
             maxLevel: maxLevel,
             entries: entries

@@ -53,20 +53,20 @@
       </div>
     </header>
     <main class="px-4 space-y-4 pt-2">
-        <div v-if="isLoading" class="flex flex-col items-center justify-center py-20">
+        <div v-if="socialStore.loading" class="flex flex-col items-center justify-center py-20">
             <div class="w-10 h-10 border-4 border-[#4D4DFF] border-t-transparent rounded-full animate-spin"></div>
             <p class="mt-4 text-gray-400 font-bold">Chargement des aventures...</p>
         </div>
 
         <template v-else>
-            <PostCard 
-                v-for="post in posts" 
-                :key="post.id" 
-                :post="post" 
-                @refresh="fetchPosts"
+            <PostCard
+                v-for="post in socialStore.posts"
+                :key="post.id"
+                :post="post"
+                @refresh="socialStore.fetchPosts"
             />
-            
-            <div v-if="posts.length === 0" class="text-center py-10 text-gray-400">
+
+            <div v-if="socialStore.posts.length === 0" class="text-center py-10 text-gray-400">
                 <p>Aucun post pour le moment...</p>
                 <p class="text-sm mt-1">Soyez le premier à partager une aventure !</p>
             </div>
@@ -88,16 +88,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import PostCard from '~/components/social/PostCard.vue';
-import { formatCompactNumber, formatTimeAgo, formatDurationHMS } from '~/utils/format';
-import { getImageUrl, getMuseumImageByTag } from '~/utils/strapiHelpers';
+import { useSocialStore } from '~/stores/social';
 import { usePlayerFriendshipStore } from '~/stores/playerFriendship';
 import { useQuizStore } from '~/stores/quiz';
 import { useGuildStore } from '~/stores/guild';
 
 const router = useRouter();
+const socialStore = useSocialStore();
 const playerFriendshipStore = usePlayerFriendshipStore();
 const quizStore = useQuizStore();
 const guildStore = useGuildStore();
@@ -106,87 +106,9 @@ const guildStore = useGuildStore();
 const isQuizDone = computed(() => quizStore.alreadyCompleted);
 const quizStreak = computed(() => guildStore.quizStreak);
 
-// --- RÉCUPÉRATION DES POSTS ---
-const posts = ref([]);
-const isLoading = ref(true);
-const client = useApi();
-
-const formatValue = (num) => formatCompactNumber(num);
-
-const getDurationSeconds = (start, end) => {
-    if(!start || !end) return 0;
-    return Math.floor((new Date(end) - new Date(start)) / 1000);
-};
-
-const fetchPosts = async () => {
-    isLoading.value = true;
-    try {
-        const response = await client('/posts', {
-            params: {
-                populate: {
-                    author: { populate: ['avatar'] },
-                    run_history: { populate: ['museum', 'museum.tags'] },
-                    best_loot: { populate: ['rarity', 'icon'] },
-                    likes: true
-                }
-            }
-        });
-        
-        posts.value = (response.data || []).map(post => {
-            const author = post.author || {};
-            const run = post.run_history || {};
-            const museum = run.museum || {};
-            const bestLoot = post.best_loot || {};
-            
-            const avatarUrl = author.avatar ? getImageUrl(author.avatar) : '/assets/user/placeholder_pdp.jpg';
-
-            const durationSeconds = getDurationSeconds(run.date_start, run.date_end);
-            const totalDamage = (run.dps || 0) * durationSeconds;
-
-            return {
-                id: post.documentId || post.id,
-                authorId: author.documentId || author.id,
-                authorName: author.username || "Explorateur",
-                authorAvatar: avatarUrl,
-                location: museum.name || "Lieu inconnu",
-                timeAgo: formatTimeAgo(post.createdAt),
-                museumName: museum.name || "Lieu inconnu",
-                museumImage: getMuseumImageByTag(museum),
-                
-                bestLootName: bestLoot.name || "Aucun loot",
-                bestLootImage: getImageUrl(bestLoot.icon),
-                bestLootRarity: bestLoot.rarity?.name || "common",
-                bestLootDamage: bestLoot.index_damage || 0,
-                bestLootLevel: bestLoot.level || 1,
-                bestLootId: bestLoot.documentId || bestLoot.id,
-                showLoot: post.show_loot !== false,
-                
-                duration: formatDurationHMS(durationSeconds),
-                rawDuration: durationSeconds,
-                tier: run.threshold_reached || 0,
-                
-                totalDamage: formatValue(totalDamage),
-                xp: formatValue(run.xp_earned),
-                gold: formatValue(run.gold_earned),
-                
-                rawTotalDamage: totalDamage,
-                rawXp: run.xp_earned || 0,
-                rawGold: run.gold_earned || 0,
-                
-                tags: post.tags || [],
-                likes: post.likes || 0,
-                hasLiked: post.hasLiked || false
-            };
-        });
-    } catch (error) {
-        console.error("Erreur lors de la récupération des posts :", error);
-    } finally {
-        isLoading.value = false;
-    }
-};
-
+// --- RÉCUPÉRATION DES POSTS (centralisée dans le store social, #36) ---
 onMounted(() => {
-    fetchPosts();
+    socialStore.fetchPosts();
     playerFriendshipStore.fetchFriendships();
     quizStore.fetchTodayQuiz();
     guildStore.refetchStats();
