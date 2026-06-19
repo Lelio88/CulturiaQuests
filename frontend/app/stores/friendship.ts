@@ -51,6 +51,30 @@ function normalizeFriendship(raw: any): NormalizedFriendship {
   }
 }
 
+/**
+ * Store Pinia des amitiés joueur-NPC (legacy) : progression relationnelle avec
+ * les personnages non-joueurs (quêtes et expéditions débloquées par NPC).
+ *
+ * Choix non-évidents :
+ * - `normalizeFriendship` aplatit en un format unique les réponses Strapi v4
+ *   (`{ data: { attributes } }`) et v5 (relation plate ou simple ID), pour que
+ *   le reste de l'app n'ait jamais à connaître la forme brute de l'API.
+ * - On expose deux accesseurs par NPC : `getFriendshipByNpcDocumentId` est à
+ *   privilégier car le `documentId` Strapi v5 reste stable entre environnements,
+ *   contrairement à l'`id` numérique (`getFriendshipByNpc`).
+ *
+ * Invariants :
+ * - PAS de persistance (volontaire) : les friendships embarquent des données NPC
+ *   imbriquées qui gonflaient le stockage ; le serveur est la source de vérité et
+ *   les recharge via `guildStore.fetchAll()`. Ne pas réactiver `persist`.
+ * - L'isolation utilisateur est garantie côté backend (relation `guild.user`) ;
+ *   `fetchFriendships` ne filtre pas côté client.
+ *
+ * @example
+ * const store = useFriendshipStore()
+ * await store.fetchFriendships()
+ * const f = store.getFriendshipByNpcDocumentId('abc123')
+ */
 export const useFriendshipStore = defineStore('friendship', () => {
   // State
   const friendships = ref<NormalizedFriendship[]>([])

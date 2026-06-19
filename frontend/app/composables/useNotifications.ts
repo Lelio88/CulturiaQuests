@@ -12,8 +12,29 @@ const GEO_NOTIFICATION_ID = 1002
 let actionListenerHandle: PluginListenerHandle | null = null
 
 /**
- * Composable pour gérer les notifications locales (quiz quotidien + géolocalisation active).
- * Toutes les fonctions sont no-op sur web/desktop.
+ * Gère les notifications locales Capacitor : rappel du quiz quotidien et bandeau persistant de
+ * géolocalisation active. Toutes les fonctions sont no-op hors plateforme native (web/desktop),
+ * via le garde `Capacitor.isNativePlatform()`.
+ *
+ * Détails non-évidents :
+ * - Deux canaux Android distincts : `quiz-channel` (importance DEFAULT, son + vibration) et
+ *   `geo-channel` (importance LOW, silencieux). Les canaux n'existent que sur Android (no-op iOS).
+ * - Le quiz est reprogrammé au prochain 00h01 local ; `scheduleQuizNotification` annule toujours
+ *   l'occurrence précédente (ID fixe QUIZ_NOTIFICATION_ID) avant de replanifier.
+ *
+ * Invariant à préserver :
+ * - Listener de tap UNIQUE : le handle (`actionListenerHandle`) est conservé au scope MODULE
+ *   (et non dans le composable) afin de survivre aux ré-instanciations de `useNotifications()`.
+ *   `setupNotificationListeners` retire systématiquement le listener précédent avant d'en
+ *   réenregistrer un, garantissant qu'un tap = exactement une navigation (#79). Ne jamais
+ *   déplacer ce handle dans le scope de la fonction.
+ *
+ * @example
+ * const notif = useNotifications()
+ * await notif.requestPermission()
+ * await notif.createChannels()
+ * await notif.setupNotificationListeners()
+ * await notif.scheduleQuizNotification()
  */
 export function useNotifications() {
   const isNative = Capacitor.isNativePlatform()

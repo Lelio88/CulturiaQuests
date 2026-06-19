@@ -8,6 +8,40 @@ import { createDebouncedStorage } from '~/utils/debouncedStorage'
 export const GRID_LAT_STEP = 0.0018
 export const GRID_LNG_STEP = 0.0027
 
+/**
+ * Store du fog-of-war : mémorise les positions GPS découvertes par le joueur et
+ * la couverture de chaque comcom (intercommunalité) sur une grille spatiale.
+ *
+ * Deux jeux de données coexistent :
+ * - `discoveredPoints` : trace brute des positions visitées (pour révéler la
+ *   carte), dédupliquée par seuil de 20 m entre deux fixes successifs.
+ * - `visitedGridCells` / `totalGridCells` : couverture par comcom, exprimée en
+ *   cellules d'une grille ~200 m × 200 m (GRID_LAT_STEP = 0.0018,
+ *   GRID_LNG_STEP = 0.0027), pour piloter l'auto-complétion à 50 %.
+ *
+ * Choix non-évidents :
+ * - `gridSetsCache` (Map de Set hors state réactif) double `visitedGridCells`
+ *   pour offrir un lookup O(1) ; il est reconstruit lazily depuis l'array
+ *   persisté et doit rester synchronisé à chaque écriture (cf. `addGridCell`).
+ * - Persistance débattue (`createDebouncedStorage(1200)`) : l'état mute à chaque
+ *   fix GPS, mais on n'écrit dans localStorage qu'au plus toutes les ~1,2 s
+ *   (flush immédiat sur pagehide) pour éviter le write-storm.
+ *
+ * Invariants à préserver :
+ * - Persistance en localStorage uniquement (jamais cookie) — seuls
+ *   `discoveredPoints`, `visitedGridCells`, `totalGridCells` sont persistés.
+ * - Plafond MAX_DISCOVERED_POINTS = 5000 : au-delà, éviction des plus anciens
+ *   points par lots de EVICT_BATCH_SIZE = 500 (FIFO via splice en tête).
+ * - Toute mutation de `visitedGridCells[comcom]` doit aussi mettre à jour
+ *   l'entrée correspondante de `gridSetsCache` (et inversement), faute de quoi
+ *   le ratio de couverture devient faux.
+ *
+ * @example
+ * const fog = useFogStore()
+ * fog.addPosition(48.86, 2.35)            // révèle un point
+ * fog.addGridCell(comcomDocId, 48.86, 2.35) // marque la cellule visitée
+ * const ratio = fog.getCoverageRatio(comcomDocId) // 0 → 1
+ */
 export const useFogStore = defineStore('fog', () => {
   // State
   const discoveredPoints = ref<{ lat: number; lng: number }[]>([])

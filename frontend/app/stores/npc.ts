@@ -3,6 +3,34 @@ import type { Npc } from '~/types/npc'
 import type { StrapiListResponse, StrapiSingleResponse } from '~/types/strapi'
 import { useFriendshipStore } from './friendship'
 
+/**
+ * Store des PNJ (NPCs) et de leurs journaux/histoires affichés au joueur.
+ *
+ * Croise le catalogue des NPCs (chargé via API) avec les friendships du joueur
+ * (store `friendship`) pour calculer l'état « découvert » : un NPC est découvert
+ * dès que le total `quests_entry_unlocked + expedition_entry_unlocked` de sa
+ * friendship est > 0.
+ *
+ * Choix non-évidents :
+ * - Le matching NPC ↔ friendship se fait par `documentId` (plus stable que l'id
+ *   numérique après recréation/migration côté Strapi v5), pas par `id`.
+ * - `sortedJournals` est un getter de présentation : il dérive nom/image affichés
+ *   (les NPCs non découverts sont masqués en « ??? » + avatar par défaut), trie
+ *   les découverts selon `storiesSortMethod` ('alpha' = nom, 'entries' = niveau
+ *   décroissant) et place toujours les inconnus en fin de liste. Le chemin image
+ *   suit la convention `/assets/npc/{prénom}/{prénom}.webp`.
+ *
+ * Invariants à préserver :
+ * - Seule la préférence `storiesSortMethod` est persistée (~10 bytes) ; la liste
+ *   des NPCs n'est JAMAIS persistée car volumineuse → causait l'erreur 431
+ *   (Request Header Fields Too Large). Elle est rechargée via API.
+ * - Les inconnus restent toujours en fin de `sortedJournals`, quel que soit le tri.
+ *
+ * @example
+ * const npcStore = useNpcStore()
+ * await npcStore.fetchNpcs(true)        // charge NPCs + relations
+ * const journals = npcStore.sortedJournals // liste prête pour l'affichage
+ */
 export const useNpcStore = defineStore('npc', () => {
   // State
   const npcs = ref<Npc[]>([])

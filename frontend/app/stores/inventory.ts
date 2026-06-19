@@ -1,6 +1,28 @@
 import { defineStore } from 'pinia'
 import type { Item } from '~/types/item'
 
+/**
+ * Store de l'inventaire du joueur (items de la guilde) + catalogue d'icônes d'items.
+ *
+ * Détient les items rattachés à la guilde de l'utilisateur courant (filtrés côté serveur) et
+ * expose des getters de tri/filtre : par slot (`weapon` | `helmet` | `charm`), par rareté,
+ * items recyclés (`scrappedItems`) vs équipables (`equippableItems`).
+ *
+ * Choix non-évidents :
+ * - Les getters tolèrent les deux formes de payload Strapi (champ direct ou `attributes.*`,
+ *   `rarity` ou `rarity.data.attributes`) car les items arrivent via `fetchAll()` (populate profond)
+ *   et via `fetchItems()`.
+ * - `updateItem(itemId, updates)` applique une mise à jour IMMUABLE : remplace l'entrée par un
+ *   nouvel objet `{ ...ancien, ...updates }` au lieu de muter en place.
+ *
+ * Invariant : store NON persisté — rechargé via `useGuildStore().fetchAll()` (cf. note en bas de
+ * fichier) car les items imbriquent beaucoup de relations (rarity, tags, icon, character) ;
+ * les persister en cookie déclencherait l'erreur 431 (Request Header Fields Too Large).
+ *
+ * @example
+ * const inventory = useInventoryStore()
+ * inventory.updateItem(item.id, { isScrapped: true }) // marque recyclé sans muter l'item d'origine
+ */
 export const useInventoryStore = defineStore('inventory', () => {
   // State
   const items = ref<Item[]>([])

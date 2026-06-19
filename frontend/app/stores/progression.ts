@@ -10,6 +10,29 @@ export interface Progression {
   comcom?: { documentId: string; id: number }
 }
 
+/**
+ * Store Pinia de la progression géographique (fog-of-war) : suit les zones
+ * complétées par le joueur à trois échelles — région, département, comcom.
+ *
+ * Choix non-évidents :
+ * - Pour chaque échelle, un `computed` projette les progressions en un `Set` de
+ *   `documentId` complétés ; les tests d'appartenance (`isRegionCompleted`, etc.)
+ *   sont alors en O(1), ce qui compte car ils sont appelés en masse lors du rendu
+ *   de la carte (fog).
+ * - On indexe par `documentId` Strapi v5 (stable entre environnements) plutôt que
+ *   par `id` numérique.
+ *
+ * Invariants :
+ * - Seules les progressions avec `is_completed === true` ET un `documentId` de
+ *   zone défini alimentent les Sets ; une zone sans `documentId` est ignorée.
+ * - Persistance `localStorage` limitée à `progressions` (jamais cookie, cf.
+ *   garde-fou projet) ; les Sets dérivés ne sont pas persistés (recalculés).
+ *
+ * @example
+ * const store = useProgressionStore()
+ * store.setProgressions(data)
+ * if (store.isComcomCompleted('abc123')) revealZone()
+ */
 export const useProgressionStore = defineStore('progression', () => {
   const progressions = ref<Progression[]>([])
 

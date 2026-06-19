@@ -18,6 +18,28 @@ export interface GuildStatistics {
   accountDays: number
 }
 
+/**
+ * Store des statistiques agrégées du joueur courant : récupère un résumé pré-calculé côté
+ * serveur via l'endpoint `/statistics/summary` (expéditions, temps de jeu, dégâts, visites POI,
+ * objets, économie, ancienneté du compte) et expose des getters formatés pour l'affichage.
+ *
+ * Choix non-évidents :
+ * - Les chiffres sont calculés côté backend (et non plus client-side comme avant) pour éviter
+ *   un recalcul lourd à chaque chargement ; le store ne fait que stocker et formater.
+ * - Chaque stat est un `ref` individuel (plutôt qu'un seul objet) pour une réactivité fine.
+ * - `totalTime` est stocké en millisecondes ; `formattedTotalTime` le convertit en `Xh Ym`.
+ * - `formattedTotalDamage` / `formattedTotalExp` abrègent les grands nombres (k, M).
+ *
+ * Invariants :
+ * - L'endpoint renvoie déjà les données du seul joueur authentifié (isolation par `guild.user`
+ *   côté backend) ; aucune donnée cross-utilisateur ne transite ici.
+ * - `clearStatistics()` doit remettre toutes les valeurs à zéro au logout/changement de compte.
+ *
+ * Exemple :
+ *   const stats = useStatisticsStore()
+ *   await stats.fetchStatistics()
+ *   console.log(stats.formattedTotalTime) // ex: "12h 34m"
+ */
 export const useStatisticsStore = defineStore('statistics', () => {
   // --- State ---
   const isLoading = ref(false)

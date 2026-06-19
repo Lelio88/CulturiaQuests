@@ -24,6 +24,32 @@ function normalizeMuseum(raw: any): Museum {
   }
 }
 
+/**
+ * Store des musées, qui servent de points de départ d'expédition.
+ *
+ * Charge l'intégralité du catalogue des musées (donnée de référence, non
+ * spécifique au joueur) et le met en cache local pour éviter de re-télécharger
+ * à chaque démarrage.
+ *
+ * Choix non-évidents :
+ * - Cache via IndexedDB (`idb-keyval`) plutôt que la persistance Pinia : le
+ *   volume des musées dépasserait la limite raisonnable de `localStorage`.
+ *   `init()` réutilise le cache uniquement si `DB_VERSION_KEY` correspond à
+ *   `CURRENT_DATA_VERSION`, sinon il refetch tout (mécanisme d'invalidation
+ *   par bump de version).
+ * - `fetchAll()` pagine côté Strapi (pageSize 100) avec un garde-fou
+ *   `MAX_PAGES` pour éviter toute boucle infinie si la pagination renvoie des
+ *   métadonnées incohérentes.
+ * - `normalizeMuseum()` aplatit la forme Strapi (gère `attributes` v4 et accès
+ *   direct v5) vers un objet `Museum` stable.
+ *
+ * Invariant : `isInitialized` garantit l'idempotence de `init()` (un seul
+ * chargement par session).
+ *
+ * @example
+ * const museumStore = useMuseumStore()
+ * await museumStore.init() // cache IndexedDB ou fetch selon la version
+ */
 export const useMuseumStore = defineStore('museum', () => {
   const museums = ref<Museum[]>([])
   const loading = ref(false)

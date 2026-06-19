@@ -2,6 +2,25 @@ import { defineStore } from 'pinia'
 import type { Character, CharacterFormData } from '~/types/character'
 import type { StrapiMedia } from '~/types/strapi'
 
+/**
+ * Store des personnages de la guilde du joueur (CRUD + icônes).
+ *
+ * Gère la liste des personnages (rattachés à la guilde de l'utilisateur courant côté serveur)
+ * et le catalogue d'icônes disponibles. Le nombre de personnages est plafonné par le niveau de
+ * la guilde : `useGuildStore().canAddCharacter` compare `characterCount` à `maxCharacters`.
+ *
+ * Choix non-évidents :
+ * - Les getters tolèrent les deux formes de payload Strapi (champ direct ou `attributes.*`,
+ *   `icon` ou `icon.data`) car la même donnée transite par `fetchAll()` (populate profond) et
+ *   par `fetchCharacters()` (populate ciblé).
+ * - `filteredAvailableIcons` exclut les icônes déjà prises (`usedIconIds`) pour éviter les doublons
+ *   visuels entre personnages.
+ * - `createCharacter` / `saveCharacter` refont un `fetchCharacters()` après écriture pour resynchroniser
+ *   l'état (les icônes peuplées ne sont pas renvoyées par le POST/PUT).
+ *
+ * Invariant : store NON persisté — rechargé via `useGuildStore().fetchAll()` (cf. note en bas de
+ * fichier) pour éviter les données obsolètes en cas d'édition multi-appareils.
+ */
 export const useCharacterStore = defineStore('character', () => {
   // State
   const characters = ref<Character[]>([])
