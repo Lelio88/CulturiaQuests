@@ -118,7 +118,7 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 |---|---|
 | `pages/` | Routing fichier-based. Routes publiques : `/`, `/account/login`, `/account/register`, `/CGU`, `/mentions-legales`, `/politique-confidentialite`. Toutes les autres exigent auth. Dashboard admin sous `/dashboard/`. |
 | `stores/` | 18 stores Pinia (guild, character, inventory, run, quest, visit, friendship, fog, progression, zone, museum, npc, poi, quiz, statistics, admin, badge, playerFriendship). Tous persistent en `localStorage` via `persist: { pick: [...] }`. |
-| `composables/` | 15 composables : `useGeolocation`, `useMapInteraction`, `useDrawerLogic`, `useExpeditionLogic`, `useDamageCalculator`, `useChestState`, `useChestAnimation`, `useFooterVisibility`, `useUserAvatar`, `useAdmin`, `useLogout`, `useZoneCompletion`, `useDeleteAccount`, `useGdprRequest`, `useNotifications`. |
+| `composables/` | 14 composables : `useGeolocation`, `useMapInteraction`, `useDrawerLogic`, `useDamageCalculator`, `useChestState`, `useChestAnimation`, `useFooterVisibility`, `useUserAvatar`, `useAdmin`, `useLogout`, `useZoneCompletion`, `useDeleteAccount`, `useGdprRequest`, `useNotifications`. |
 | `middleware/00-device-check.global.ts` | **Global**. Redirige desktop → page d'accueil sauf si `NUXT_PUBLIC_ALLOW_DESKTOP=true` ou route `/dashboard/*`. Vérifie aussi auth pour les routes non publiques (redirige vers `/account/login`). |
 | `middleware/admin.ts` | Garde-route admin (vérifie le rôle via `useStrapiUser().role`). |
 | `layouts/` | `default` (header/footer game), `blank` (login/register), `dashboard` (admin), `test` (pages dev). |
