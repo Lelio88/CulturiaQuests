@@ -291,9 +291,10 @@ export default factories.createCoreController('api::run.run', ({ strapi }) => ({
           entryUnlocked = true;
 
           if (friendship) {
-            // Mettre à jour la friendship existante
-            await strapi.db.query('api::friendship.friendship').update({
-              where: { id: friendship.id },
+            // Mettre à jour la friendship existante via le Document Service (cohérent avec le
+            // create ci-dessous ; documentId déjà disponible, le findOne n'a pas de select). #42
+            await strapi.documents('api::friendship.friendship').update({
+              documentId: friendship.documentId,
               data: { expedition_entry_unlocked: currentUnlocked + 1 },
             });
           } else {
