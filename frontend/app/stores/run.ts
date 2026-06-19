@@ -1,5 +1,21 @@
 import { defineStore } from 'pinia'
 import type { Run } from '~/types/run'
+import type { StrapiListResponse, StrapiSingleResponse } from '~/types/strapi'
+
+/** Réponse de l'endpoint custom `POST /runs/start-expedition` (hors enveloppe Strapi standard). */
+interface StartExpeditionResponse {
+  run?: Run
+  questRolled?: boolean
+  dialog?: string[]
+  npc?: { firstname: string; lastname: string; nickname: string } | null
+}
+
+/** Réponse de l'endpoint custom `POST /runs/end-expedition`. */
+interface EndExpeditionResponse {
+  run?: Run
+  rewards?: unknown
+  questSuccess?: boolean
+}
 
 /**
  * Store des expéditions (runs) : démarrage/fin d'expédition vers un musée,
@@ -107,7 +123,7 @@ export const useRunStore = defineStore('run', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/runs', {
+      const response = await client<StrapiListResponse<Run>>('/runs', {
         method: 'GET',
         params: {
           populate: ['museum', 'npc', 'items'],
@@ -130,7 +146,7 @@ export const useRunStore = defineStore('run', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/runs/start-expedition', {
+      const response = await client<StartExpeditionResponse>('/runs/start-expedition', {
         method: 'POST',
         body: { museumDocumentId, userLat, userLng },
       })
@@ -159,7 +175,7 @@ export const useRunStore = defineStore('run', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/runs/end-expedition', {
+      const response = await client<EndExpeditionResponse>('/runs/end-expedition', {
         method: 'POST',
         body: { runDocumentId },
       })
@@ -211,7 +227,7 @@ export const useRunStore = defineStore('run', () => {
    */
   async function fetchRunById(documentId: string): Promise<Run | null> {
     const client = useApi()
-    const response = await client<any>(`/runs/${documentId}`, {
+    const response = await client<StrapiSingleResponse<Run>>(`/runs/${documentId}`, {
       method: 'GET',
       params: {
         populate: {
@@ -220,7 +236,7 @@ export const useRunStore = defineStore('run', () => {
         },
       },
     })
-    return response?.data || response || null
+    return (response?.data || response || null) as Run | null
   }
 
   async function fetchActiveRun() {
@@ -229,12 +245,12 @@ export const useRunStore = defineStore('run', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/runs/active', { method: 'GET' })
+      const response = await client<StrapiSingleResponse<Run> & { run?: Run }>('/runs/active', { method: 'GET' })
       // La forme peut varier (objet run brut renvoyé par le back, ou enveloppe { data } / { run }).
       // On extrait explicitement avec `??` (et non `||` qui retombait sur l'enveloppe entière), puis
       // on VALIDE que c'est un vrai run avec une date_start parsable — sinon `new Date(undefined)`
       // donnait NaN et cassait le timer côté expedition.vue. #80
-      const run = response?.data ?? response?.run ?? response
+      const run = (response?.data ?? response?.run ?? response) as Run
 
       const isValidRun =
         run && typeof run === 'object' &&

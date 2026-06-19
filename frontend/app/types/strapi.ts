@@ -72,3 +72,23 @@ export interface StrapiSingleResponse<T> {
   meta?: StrapiMeta
   error?: StrapiError
 }
+
+/**
+ * Hub des interfaces de content-types principaux (#43). Permet d'écrire
+ * `client<StrapiListResponse<Guild>>(...)` en important tout depuis `~/types/strapi`,
+ * et matérialise « types/strapi expose les interfaces des content-types principaux ».
+ * Les définitions canoniques restent dans `types/<name>.ts` ; ici on ne fait que ré-exporter.
+ */
+export type { Guild } from './guild'
+export type { Character, CharacterFormData } from './character'
+export type { Item } from './item'
+export type { Npc } from './npc'
+export type { Run } from './run'
+export type { Museum } from './museum'
+export type { Quest } from './quest'
+export type { Friendship, NormalizedFriendship } from './friendship'
+export type { Visit } from './visit'
+export type { Poi } from './poi'
+
+/** Alias pratique : un « document » Strapi v5 (entité aplatie). */
+export type StrapiDocument<T> = T & { id: number; documentId: string }

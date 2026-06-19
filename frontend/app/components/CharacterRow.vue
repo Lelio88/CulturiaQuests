@@ -31,16 +31,27 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
+
+/** Item d'inventaire tel que projeté pour l'affichage (view-model d'équipement). */
+interface RowItem {
+  category?: string
+  level?: number
+  rarity?: string
+  image: string
+  index_damage?: number
+  types?: string[]
+  [key: string]: unknown
+}
 
 const emit = defineEmits(['click-item']);
 
-const props = defineProps({
-  characterName: { type: String, required: true },
-  characterImage: { type: String, required: true },
-  items: { type: Array, required: true } 
-});
+const props = defineProps<{
+  characterName: string
+  characterImage: string
+  items: RowItem[]
+}>();
 
 // --- LOGIQUE DE TRI ---
 const sortedItems = computed(() => {

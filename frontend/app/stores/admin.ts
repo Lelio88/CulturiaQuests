@@ -31,14 +31,21 @@ interface DashboardOverview {
 interface Pagination { page: number; pageSize: number; pageCount: number; total: number }
 
 /**
+ * Slice analytics du dashboard admin (map/économie/expéditions/quiz/social/connexions) : payload
+ * pré-agrégé côté serveur, SANS contrat figé. Type boundary documenté (index permissif) plutôt que
+ * `any` nu, en attendant un contrat backend stable. #43
+ */
+type AdminDashboardSlice = Record<string, any>
+
+/**
  * Store du dashboard admin : agrège les données de pilotage exposées par les endpoints
  * custom `/admin-dashboard/*` du backend (overview, joueurs, carte, économie, expéditions,
  * quiz, social, connexions, demandes RGPD).
  *
  * Choix non-évidents :
  * - Les payloads ne sont PAS du CRUD Strapi standard : chaque endpoint renvoie une forme
- *   pré-agrégée côté serveur. Beaucoup de slices sont donc typées `any` (mapData, economyData,
- *   etc.) faute de contrat figé ; seuls overview/players/playerDetail/RGPD ont une interface.
+ *   pré-agrégée côté serveur. Les slices analytics (mapData, economyData, etc.) sont typées via le
+ *   boundary `AdminDashboardSlice` faute de contrat figé ; overview/players/playerDetail/RGPD ont une interface dédiée.
  * - Les mutations (toggleBlockPlayer, changePlayerRole) patchent le tableau `players` ET
  *   `playerDetail` en local après succès API, pour éviter un refetch complet de la liste.
  * - `markGdprProcessed` n'applique la mutation locale (statut + décrément du compteur) qu'APRÈS
@@ -57,13 +64,13 @@ export const useAdminStore = defineStore('admin', () => {
   const players = ref<PlayerSummary[]>([])
   const playerDetail = ref<PlayerDetail | null>(null)
   const pagination = ref<Pagination>({ page: 1, pageSize: 25, pageCount: 0, total: 0 })
-  const mapData = ref<any>(null)
-  const economyData = ref<any>(null)
-  const expeditionsData = ref<any>(null)
-  const quizData = ref<any>(null)
-  const socialData = ref<any>(null)
-  const connectionData = ref<any>(null)
-  const gdprRequests = ref<any[]>([])
+  const mapData = ref<AdminDashboardSlice | null>(null)
+  const economyData = ref<AdminDashboardSlice | null>(null)
+  const expeditionsData = ref<AdminDashboardSlice | null>(null)
+  const quizData = ref<AdminDashboardSlice | null>(null)
+  const socialData = ref<AdminDashboardSlice | null>(null)
+  const connectionData = ref<AdminDashboardSlice | null>(null)
+  const gdprRequests = ref<Record<string, any>[]>([])
   const gdprPagination = ref({ page: 1, pageSize: 10, pageCount: 0, total: 0 })
   const gdprPendingCount = ref(0)
   const loading = ref(false)
@@ -122,7 +129,7 @@ export const useAdminStore = defineStore('admin', () => {
   async function fetchMapData() {
     const client = useApi()
     loading.value = true; error.value = null
-    try { mapData.value = await client<any>('/admin-dashboard/map', { method: 'GET' }) }
+    try { mapData.value = await client<AdminDashboardSlice>('/admin-dashboard/map', { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch map data' }
     finally { loading.value = false }
   }
@@ -130,7 +137,7 @@ export const useAdminStore = defineStore('admin', () => {
   async function fetchEconomy() {
     const client = useApi()
     loading.value = true; error.value = null
-    try { economyData.value = await client<any>('/admin-dashboard/economy', { method: 'GET' }) }
+    try { economyData.value = await client<AdminDashboardSlice>('/admin-dashboard/economy', { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch economy data' }
     finally { loading.value = false }
   }
@@ -138,7 +145,7 @@ export const useAdminStore = defineStore('admin', () => {
   async function fetchExpeditions() {
     const client = useApi()
     loading.value = true; error.value = null
-    try { expeditionsData.value = await client<any>('/admin-dashboard/expeditions', { method: 'GET' }) }
+    try { expeditionsData.value = await client<AdminDashboardSlice>('/admin-dashboard/expeditions', { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch expeditions data' }
     finally { loading.value = false }
   }
@@ -146,7 +153,7 @@ export const useAdminStore = defineStore('admin', () => {
   async function fetchQuiz() {
     const client = useApi()
     loading.value = true; error.value = null
-    try { quizData.value = await client<any>('/admin-dashboard/quiz', { method: 'GET' }) }
+    try { quizData.value = await client<AdminDashboardSlice>('/admin-dashboard/quiz', { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch quiz data' }
     finally { loading.value = false }
   }
@@ -154,7 +161,7 @@ export const useAdminStore = defineStore('admin', () => {
   async function fetchSocial() {
     const client = useApi()
     loading.value = true; error.value = null
-    try { socialData.value = await client<any>('/admin-dashboard/social', { method: 'GET' }) }
+    try { socialData.value = await client<AdminDashboardSlice>('/admin-dashboard/social', { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch social data' }
     finally { loading.value = false }
   }
@@ -162,7 +169,7 @@ export const useAdminStore = defineStore('admin', () => {
   async function fetchConnections() {
     const client = useApi()
     loading.value = true; error.value = null
-    try { connectionData.value = await client<any>('/admin-dashboard/connections', { method: 'GET' }) }
+    try { connectionData.value = await client<AdminDashboardSlice>('/admin-dashboard/connections', { method: 'GET' }) }
     catch (e: any) { error.value = e?.message || 'Failed to fetch connection data' }
     finally { loading.value = false }
   }
@@ -170,7 +177,7 @@ export const useAdminStore = defineStore('admin', () => {
   async function fetchGdprRequests(page = 1) {
     const client = useApi()
     try {
-      const res = await client<{ requests: any[]; pendingCount: number; pagination: typeof gdprPagination.value }>(
+      const res = await client<{ requests: Record<string, any>[]; pendingCount: number; pagination: typeof gdprPagination.value }>(
         '/admin-dashboard/gdpr-requests',
         { method: 'GET', params: { page, pageSize: gdprPagination.value.pageSize } }
       )

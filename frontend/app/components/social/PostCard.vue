@@ -95,7 +95,7 @@
             <img 
                 :src="post.authorAvatar || '/assets/user/placeholder_pdp.jpg'" 
                 class="w-full h-full object-cover" 
-                @error="(e) => e.target.src = '/assets/user/placeholder_pdp.jpg'"
+                @error="(e) => ((e.target as HTMLImageElement).src = '/assets/user/placeholder_pdp.jpg')"
             />
         </div>
         <div class="min-w-0">
@@ -163,17 +163,18 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useDamageCalculator } from '~/composables/useDamageCalculator';
 import { useSocialStore } from '~/stores/social';
+import type { PostCardData } from '~/types/post';
 import PixelButton from '~/components/form/PixelButton.vue';
 import Alert from '~/components/form/Alert.vue';
 import { formatCompactNumber } from '~/utils/format';
 
-const props = defineProps({
-  post: { type: Object, required: true }
-});
+const props = defineProps<{
+  post: PostCardData
+}>();
 
 const emit = defineEmits(['delete', 'edit', 'refresh']);
 
@@ -192,12 +193,12 @@ const isUpdating = ref(false);
 const actionError = ref('');
 
 const editedShowLoot = ref(true);
-const editedTags = ref([]);
+const editedTags = ref<string[]>([]);
 
 const staticFeelings = ["❤️ Coup de cœur", "🏆 Nouveau record", "🏛️ Lieu magnifique", "🧠 Très enrichissant", "🍀 Bonne fortune"];
 
 // --- HELPERS ---
-const formatValue = (num) => formatCompactNumber(num);
+const formatValue = (num: number) => formatCompactNumber(num);
 
 const isAuthor = computed(() => {
     if (!user.value || !props.post.authorId) return false;
@@ -215,28 +216,28 @@ const allAvailableTags = computed(() => {
 });
 
 const activeStats = computed(() => {
-    const list = [
+    const list: Array<{ key: string; label: string; value: string; image?: string | null; rarity?: string; power?: number | string }> = [
         { key: 'duration', label: 'Temps', value: props.post.duration },
         { key: 'threshold', label: 'Palier', value: `${props.post.tier}` }
     ];
     if (props.post.showLoot) {
-        let lootPower = 0;
+        let lootPower: number | string = 0;
         if (props.post.bestLootDamage) {
-            const powerVal = calculateItemPower({ 
-                index_damage: props.post.bestLootDamage, 
-                level: props.post.bestLootLevel, 
-                rarity: props.post.bestLootRarity 
+            const powerVal = calculateItemPower({
+                index_damage: props.post.bestLootDamage,
+                level: props.post.bestLootLevel,
+                rarity: props.post.bestLootRarity
             });
             lootPower = formatValue(powerVal);
         }
 
-        list.push({ 
-            key: 'bestLoot', 
-            label: 'Loot', 
-            value: props.post.bestLootName, 
-            image: props.post.bestLootImage, 
-            rarity: props.post.bestLootRarity, 
-            power: lootPower 
+        list.push({
+            key: 'bestLoot',
+            label: 'Loot',
+            value: props.post.bestLootName,
+            image: props.post.bestLootImage,
+            rarity: props.post.bestLootRarity,
+            power: lootPower
         });
     }
     return list;
@@ -259,7 +260,7 @@ const openEditModal = () => {
     showEditModal.value = true;
 };
 
-const toggleEditedTag = (tag) => {
+const toggleEditedTag = (tag: string) => {
     if (editedTags.value.includes(tag)) {
         editedTags.value = editedTags.value.filter(t => t !== tag);
     } else {
@@ -313,7 +314,7 @@ const toggleLike = async () => {
 
 const triggerAnimation = () => { animateHeart.value = true; setTimeout(() => animateHeart.value = false, 300); };
 
-const rarityColor = (r) => {
+const rarityColor = (r?: string) => {
     switch (r?.toLowerCase()) {
         case 'legendary': return 'bg-gradient-to-b from-yellow-300 to-amber-500';
         case 'epic': return 'bg-gradient-to-b from-fuchsia-400 to-purple-600'; 

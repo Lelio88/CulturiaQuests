@@ -1,12 +1,22 @@
 import { defineStore } from 'pinia'
 import type { Friendship, NormalizedFriendship } from '~/types/friendship'
 import type { Npc } from '~/types/npc'
+import type { StrapiListResponse } from '~/types/strapi'
+
+/**
+ * Forme brute (polymorphe v4/v5) d'une friendship reçue de l'API, avant normalisation.
+ * L'index signature documente le caractère volontairement permissif de cette frontière externe. #43
+ */
+interface RawFriendship {
+  id: number
+  [key: string]: any
+}
 
 /**
  * Normalise une friendship reçue de l'API Strapi
  * Gère les formats v4 et v5, avec ou sans relations peuplées
  */
-function normalizeFriendship(raw: any): NormalizedFriendship {
+function normalizeFriendship(raw: RawFriendship): NormalizedFriendship {
   // Extraire les données principales (gère v4 avec attributes et v5 sans)
   const data = raw.attributes || raw
 
@@ -123,7 +133,7 @@ export const useFriendshipStore = defineStore('friendship', () => {
   /**
    * Définit les friendships (normalise les données à l'entrée)
    */
-  function setFriendships(data: any[]) {
+  function setFriendships(data: RawFriendship[]) {
     friendships.value = data.map(normalizeFriendship)
   }
 
@@ -138,7 +148,7 @@ export const useFriendshipStore = defineStore('friendship', () => {
   /**
    * Ajoute une friendship (normalise les données)
    */
-  function addFriendship(friendship: any) {
+  function addFriendship(friendship: RawFriendship) {
     friendships.value.push(normalizeFriendship(friendship))
   }
 
@@ -158,7 +168,7 @@ export const useFriendshipStore = defineStore('friendship', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/friendships', {
+      const response = await client<StrapiListResponse<RawFriendship>>('/friendships', {
         method: 'GET',
         params: {
           populate: ['npc'],

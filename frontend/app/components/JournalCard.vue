@@ -50,12 +50,18 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-const props = defineProps({
-    name: { type: String, default: '???' },
-    image: { type: String, default: '' },
-    currentLevel: { type: Number, default: 0 },
-    maxLevel: { type: Number, default: 4 },
-    isUnknown: { type: Boolean, default: false }
+const props = withDefaults(defineProps<{
+    name?: string
+    image?: string
+    currentLevel?: number
+    maxLevel?: number
+    isUnknown?: boolean
+}>(), {
+    name: '???',
+    image: '',
+    currentLevel: 0,
+    maxLevel: 4,
+    isUnknown: false,
 });
 
 const isCompleted = computed(() => {
