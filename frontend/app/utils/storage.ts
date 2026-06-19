@@ -72,7 +72,6 @@ export function clearPiniaStores() {
   )
   
   piniaKeys.forEach(key => localStorage.removeItem(key))
-  console.log(`✅ ${piniaKeys.length} stores Pinia nettoyés`)
 }
 
 /**

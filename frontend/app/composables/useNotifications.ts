@@ -59,8 +59,6 @@ export function useNotifications() {
       sound: undefined,
       vibration: false,
     })
-
-    console.log('[Notifications] Channels created')
   }
 
   /**
@@ -104,8 +102,6 @@ export function useNotifications() {
         },
       ],
     })
-
-    console.log(`[Notifications] Quiz notification scheduled for ${next.toLocaleString()}`)
   }
 
   /**
@@ -129,8 +125,6 @@ export function useNotifications() {
         },
       ],
     })
-
-    console.log('[Notifications] Geo notification shown')
   }
 
   /**
@@ -140,7 +134,6 @@ export function useNotifications() {
     if (!isNative) return
 
     await LocalNotifications.cancel({ notifications: [{ id: GEO_NOTIFICATION_ID }] })
-    console.log('[Notifications] Geo notification hidden')
   }
 
   /**
@@ -161,13 +154,10 @@ export function useNotifications() {
       (notification) => {
         const route = notification.notification.extra?.route
         if (route) {
-          console.log(`[Notifications] Navigating to ${route}`)
           navigateTo(route)
         }
       }
     )
-
-    console.log('[Notifications] Listeners registered')
   }
 
   /**

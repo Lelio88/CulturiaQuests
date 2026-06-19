@@ -57,6 +57,7 @@
                         </div>
                     </div>
 
+                    <Alert :message="actionError" variant="error" class="mb-4" />
                     <PixelButton color="indigo" @click="handleUpdate" :disabled="isUpdating" class="w-full !mt-0">
                         {{ isUpdating ? 'Mise à jour...' : 'Enregistrer' }}
                     </PixelButton>
@@ -77,6 +78,7 @@
                     </div>
                     <h3 class="text-xl font-bold text-slate-800 text-center mb-2 font-power">Supprimer le post ?</h3>
                     <p class="text-gray-500 text-center text-sm mb-8 font-onest">Cette action est irréversible.</p>
+                    <Alert :message="actionError" variant="error" class="mb-4" />
                     <div class="flex flex-col gap-3">
                         <PixelButton color="red" @click="handleDelete" class="w-full !mt-0">Supprimer</PixelButton>
                         <button @click="showDeleteModal = false" class="py-3 text-sm font-bold text-slate-400 hover:text-slate-600 uppercase font-power tracking-widest">Annuler</button>
@@ -165,6 +167,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useDamageCalculator } from '~/composables/useDamageCalculator';
 import PixelButton from '~/components/form/PixelButton.vue';
+import Alert from '~/components/form/Alert.vue';
 import { formatCompactNumber } from '~/utils/format';
 
 const props = defineProps({
@@ -185,6 +188,7 @@ const showMenu = ref(false);
 const showDeleteModal = ref(false);
 const showEditModal = ref(false);
 const isUpdating = ref(false);
+const actionError = ref('');
 
 const editedShowLoot = ref(true);
 const editedTags = ref([]);
@@ -265,6 +269,7 @@ const toggleEditedTag = (tag) => {
 
 const handleUpdate = async () => {
     isUpdating.value = true;
+    actionError.value = '';
     try {
         await client(`/posts/${props.post.id}`, {
             method: 'PUT',
@@ -279,7 +284,8 @@ const handleUpdate = async () => {
         showEditModal.value = false;
         emit('refresh');
     } catch (error) {
-        alert("Erreur lors de la mise à jour.");
+        console.error('Erreur de mise à jour du post :', error);
+        actionError.value = "Erreur lors de la mise à jour. Réessaie.";
     } finally {
         isUpdating.value = false;
     }
@@ -288,12 +294,14 @@ const handleUpdate = async () => {
 const openDeleteModal = () => { showMenu.value = false; showDeleteModal.value = true; };
 
 const handleDelete = async () => {
+    actionError.value = '';
     try {
         await client(`/posts/${props.post.id}`, { method: 'DELETE' });
         showDeleteModal.value = false;
         emit('refresh');
     } catch (error) {
-        alert("Erreur lors de la suppression.");
+        console.error('Erreur de suppression du post :', error);
+        actionError.value = "Erreur lors de la suppression. Réessaie.";
     }
 };
 
