@@ -151,6 +151,8 @@ export const useNpcStore = defineStore('npc', () => {
   const sortedJournals = computed(() => {
     if (!hasNpcs.value) return []
 
+    const { formatNpcName, npcImagePath } = useNpcPresentation()
+
     const journals = npcs.value.map((npcObj) => {
       // Gestion Strapi v4/v5 (attributes ou direct)
       const npc = npcObj
@@ -164,16 +166,9 @@ export const useNpcStore = defineStore('npc', () => {
                           + (npc.expedition_entry_available || 0)
       const finalMax = maxEntries > 0 ? maxEntries : 4
 
-      // Formatage du nom et de l'image
-      const firstName = npc.firstname || 'Inconnu'
-      const lastName = npc.lastname || ''
-      const realName = `${firstName} ${lastName}`.trim()
-      
-      // Logique d'image (internalisée ici)
-      const safeName = firstName.trim()
-      const realImage = (firstName === 'Inconnu' || !firstName) 
-        ? '/assets/default-avatar.png' 
-        : `/assets/npc/${safeName}/${safeName}.webp`
+      // Formatage du nom et de l'image (mutualisé, cf. useNpcPresentation)
+      const realName = formatNpcName(npc.firstname, npc.lastname)
+      const realImage = npcImagePath(npc.firstname)
 
       return {
         id: npcId,
