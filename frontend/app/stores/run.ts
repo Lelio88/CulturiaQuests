@@ -1,6 +1,34 @@
 import { defineStore } from 'pinia'
 import type { Run } from '~/types/run'
 
+/**
+ * Store des expéditions (runs) : démarrage/fin d'expédition vers un musée,
+ * suivi du run actif et agrégats (or/xp gagnés, musées visités).
+ *
+ * Choix non-évidents :
+ * - `startExpedition` peut déclencher un tirage de quête (questRolled) ; le
+ *   dialogue et l'identité du PNJ sont alors stockés (`lastQuestRolled`,
+ *   `lastNpcDialog`, `lastNpcInfo`) pour être consommés par la page
+ *   d'interaction PNJ.
+ * - `fetchActiveRun` valide explicitement `date_start` (run réel + date parsable)
+ *   avant d'accepter le run : la forme de réponse du back varie (objet brut ou
+ *   enveloppe `{ data }` / `{ run }`), et un `new Date(undefined)` → NaN cassait
+ *   le timer côté expedition.vue (#80). Cet appel n'écrit jamais `error` (check
+ *   silencieux).
+ * - Les getters tolèrent les deux formes Strapi : champ direct ou `attributes.*`.
+ *
+ * Invariants :
+ * - Aucune persistance Pinia : l'historique des runs s'accumule et provoquait
+ *   l'erreur 431 ; le serveur est la source de vérité (rechargement via
+ *   guildStore.fetchAll()).
+ * - `activeRun` = run sans `date_end` (un seul à la fois côté métier).
+ *
+ * Usage canonique :
+ *   const run = useRunStore()
+ *   const { questRolled, dialog } = await run.startExpedition(museumId, lat, lng)
+ *   // ... plus tard
+ *   await run.endExpedition(runDocumentId)
+ */
 export const useRunStore = defineStore('run', () => {
   // State
   const runs = ref<Run[]>([])

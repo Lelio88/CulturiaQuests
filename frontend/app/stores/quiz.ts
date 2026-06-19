@@ -39,6 +39,34 @@ interface QuizState {
   error: string | null
 }
 
+/**
+ * Store du quiz quotidien : pilote une session de quiz (questions, navigation,
+ * réponses, soumission) et expose le leaderboard du jour.
+ *
+ * Choix non-évidents :
+ * - Seul store du projet écrit en Options API (les autres sont en setup store).
+ * - La date de la session (`sessionDate`) est décidée par le backend (fenêtre
+ *   Europe/Paris) : le front ne la calcule jamais, il l'affiche telle quelle.
+ * - Le statut HTTP d'erreur est lu en priorité sur `e.statusCode` car les appels
+ *   transitent par le proxy BFF (repli sur les anciennes formes Strapi).
+ * - Garde de réentrance sur `submitQuiz` (flag `submitting`) pour bloquer un
+ *   double-submit (double-clic / requêtes concurrentes).
+ *
+ * Invariants :
+ * - La persistance localStorage est PARTIELLE et manuelle (clé
+ *   `quiz_current_session` : sessionId, answers, currentIndex, startTime) — il
+ *   n'y a pas de plugin de persistance Pinia ici. Les réponses ne sont restaurées
+ *   que si `sessionId` correspond à la session courante, sinon le cache est purgé.
+ * - Aucune persistance en cookie (cf. CLAUDE.md, risque d'erreur 431).
+ * - Le localStorage est vidé après soumission réussie ou si le quiz est déjà
+ *   complété pour la journée.
+ *
+ * Usage canonique :
+ *   const quiz = useQuizStore()
+ *   await quiz.fetchTodayQuiz()
+ *   quiz.selectAnswer('B'); quiz.nextQuestion()
+ *   if (quiz.isComplete) await quiz.submitQuiz()
+ */
 export const useQuizStore = defineStore('quiz', {
   state: (): QuizState => ({
     sessionId: null,

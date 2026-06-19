@@ -16,6 +16,27 @@ import { useProgressionStore } from './progression'
 import { useFogStore } from './fog'
 import { usePlayerFriendshipStore } from './playerFriendship'
 
+/**
+ * Store central de la guilde du joueur — agrégat racine de la session de jeu.
+ *
+ * Chaque utilisateur possède une et une seule guilde : les endpoints `/guilds`
+ * renvoient un tableau de 0 ou 1 élément déjà filtré par `guild.user` côté Strapi
+ * (isolation par utilisateur, CLAUDE.md §I), d'où le `Array.isArray(guilds) ? guilds[0] : guilds`.
+ *
+ * Choix non-évidents :
+ * - `level` est dérivé de l'XP (Niveau = √(XP / 75) + 1) plutôt que stocké, pour rester
+ *   l'unique source de vérité et éviter toute désynchronisation.
+ * - `fetchAll()` hydrate en cascade tous les stores liés (characters, items, quests, visits,
+ *   runs, friendships, progressions) via un seul `/guilds?populate=...` profond ; `fetchGuild()`
+ *   et `refetchStats()` sont les variantes légères. `clearAll()` est le miroir au logout.
+ * - `refetchStats()` se replie sur la valeur courante du store si la réponse n'expose ni la clé
+ *   directe ni `attributes.*` (évite d'écraser une stat existante par `undefined`, #80).
+ *
+ * Invariants :
+ * - Isolation par utilisateur : ne jamais lever le filtre serveur `guild.user`.
+ * - Persistance Pinia en localStorage uniquement, et seul `guild` est persisté (`pick: ['guild']`) ;
+ *   les données lourdes liées sont rechargées via `fetchAll()` (jamais en cookie → évite l'erreur 431).
+ */
 export const useGuildStore = defineStore('guild', () => {
   // State
   const guild = ref<Guild | null>(null)

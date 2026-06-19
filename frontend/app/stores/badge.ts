@@ -50,6 +50,37 @@ function getRegionImage(name: string, tier: ZoneBadge['tier']): string {
   return `/assets/badges/Reg/${encodeURIComponent(assetName)}/${encodeURIComponent(assetName)}_${tierName}.png`
 }
 
+/**
+ * Store des badges de zones (comcom / département / région + badge spécial France)
+ * dérivés de la progression du joueur, et gestion des badges équipés.
+ *
+ * Les badges ne sont pas stockés : ils sont calculés à la volée à partir des
+ * stores `zone`, `progression` et `fog`. La complétion détermine un palier
+ * (`tier` : none/bronze/gold/plat) via `getTier`, qui sélectionne l'image
+ * d'asset correspondante.
+ *
+ * Choix non-évidents :
+ * - Complétion comcom : on prend 100 % si `progression.isComcomCompleted`,
+ *   sinon le ratio de couverture du fog (la fog est nettoyée après complétion,
+ *   d'où la priorité donnée à la progression).
+ * - Index pré-calculés `comcomsByDept` / `deptDocIdsByRegion` (passe O(n)) pour
+ *   éviter un re-scan O(départements × comcoms) dans les badges dépt/région (#31).
+ * - `REGION_NAME_MAP` corrige les écarts nom BDD → nom de fichier d'asset
+ *   (« La Réunion » → « La-Réunion ») ; cas spécial double extension
+ *   `.png.png` pour « La-Réunion Gold ».
+ * - `EXCLUDED_REGIONS` : territoires sans assets de badge, exclus du rendu.
+ *
+ * Invariants à préserver :
+ * - Seul `equippedIds` est persisté (localStorage via Pinia).
+ * - Maximum 4 badges équipés ; un badge de palier `none` ne peut pas être équipé.
+ * - Les computed retournent `[]` côté serveur (`import.meta.server`) car les
+ *   stores dépendants lisent IndexedDB/localStorage (indisponibles en SSR).
+ *
+ * @example
+ * const badgeStore = useBadgeStore()
+ * badgeStore.toggleEquip('comcom:abc123') // équipe/déséquipe (max 4)
+ * const equipped = badgeStore.equippedBadges
+ */
 export const useBadgeStore = defineStore('badge', () => {
   const equippedIds = ref<string[]>([])
 

@@ -29,6 +29,33 @@ export interface Comcom extends GeoZone {
 const DB_VERSION_KEY = 'zones-version'
 const CURRENT_DATA_VERSION = '2.1' // Bumped: ajout relations parent comcom→dept, dept→region
 
+/**
+ * Store des zones géographiques (régions, départements, comcoms) affichées sur
+ * la carte, chacune avec sa géométrie GeoJSON et ses relations parent.
+ *
+ * Le store charge les trois collections en parallèle depuis Strapi via un
+ * crawler paginé (`fetchFullCollection`), calcule un centroïde par zone pour le
+ * filtrage BBOX, puis sélectionne le niveau à afficher selon le zoom
+ * (`getZonesForZoom` : ≥11 comcoms, ≥8 départements, sinon régions).
+ *
+ * Choix non-évidents :
+ * - Les géométries (~18 MB au total) sont stockées en `shallowRef` car elles ne
+ *   sont jamais mutées en place : inutile de payer la réactivité profonde.
+ * - Cache local en IndexedDB (idb-keyval), pas en localStorage, à cause du
+ *   volume ; une clé de version (`zones-version` = CURRENT_DATA_VERSION) force
+ *   le rechargement quand le schéma de données change.
+ *
+ * Invariants à préserver :
+ * - `init()` est idempotent (no-op si `isInitialized` ou côté serveur) et doit
+ *   rester no-op en SSR (`import.meta.server`).
+ * - Bumper CURRENT_DATA_VERSION à chaque évolution de la forme des données
+ *   (ex : ajout de relations parent) pour invalider les caches IndexedDB.
+ *
+ * @example
+ * const zones = useZoneStore()
+ * await zones.init()
+ * const visibles = zones.getZonesForZoom(map.getZoom())
+ */
 export const useZoneStore = defineStore('zone', () => {
   // 3 États distincts — shallowRef car les géométries (~18MB) ne sont jamais mutées
   const regions = shallowRef<Region[]>([])

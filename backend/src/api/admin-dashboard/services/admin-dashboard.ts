@@ -1,10 +1,39 @@
-/**
- * admin-dashboard service
- * Aggregates data for the admin dashboard
- */
-
 import { getUserGuild } from '../../../utils/guild-helpers';
 
+/**
+ * Service d'agrégation du dashboard admin : expose une méthode par section
+ * (`getOverview`, `getPlayers`/`getPlayerDetail`, `getEconomy`, `getMapData`, `getExpeditions`,
+ * `getQuizAnalytics`, `getConnectionAnalytics`, `getSocialStats`, `getGdprRequests`) plus deux
+ * actions de modération (`toggleBlockUser`, `changeUserRole`).
+ *
+ * Particularité d'accès :
+ * - Contrairement aux services joueur, ce service lit en CROSS-content-type SANS filtre par
+ *   utilisateur : il agrège volontairement les données de tous les joueurs pour produire des KPIs
+ *   globaux. C'est l'exception assumée à la règle d'isolation — l'accès est protégé en amont par
+ *   les permissions du rôle `admin` (routes `admin-dashboard.*`), jamais exposé aux rôles joueur.
+ *
+ * Choix non-évidents :
+ * - Les lectures lourdes sont parallélisées (`Promise.all`) et agrégées EN MÉMOIRE via des `Map`
+ *   plutôt qu'avec une requête par entité (ex. `getMapData` agrège visites/runs/quêtes côté Node
+ *   pour éviter ~10 500 requêtes ; `getPlayers` groupe guildes/personnages/items en quelques requêtes).
+ * - Le niveau de guilde est dérivé de l'xp partout par la même formule : `floor(sqrt(exp / 75)) + 1`.
+ * - `getPlayers` / `getGdprRequests` sont paginés ; pour le RGPD, `pendingCount` est calculé
+ *   globalement (hors page) pour rester juste.
+ * - `getQuizAnalytics` borne la distribution des scores à MAX_QUIZ_SCORE (2150) pour rester aligné
+ *   avec le front (`dashboard/quiz.vue`).
+ * - `getConnectionAnalytics` regroupe les connexions des 12 dernières semaines par semaine ISO
+ *   (joueurs uniques + total) et compte les heures de pointe.
+ * - `getPlayerDetail` délègue le calcul des stats agrégées au service `api::statistic.statistic`.
+ *
+ * Invariants à préserver :
+ * - Ce service ne doit être atteignable que par le rôle `admin` (vérification dans les
+ *   controllers/permissions, jamais ici) ; l'absence de filtre par `ctx.state.user.id` y est
+ *   intentionnelle et ne doit pas être copiée dans un service joueur.
+ *
+ * @example
+ *   const overview = await strapi.service('api::admin-dashboard.admin-dashboard').getOverview();
+ *   const players  = await strapi.service('api::admin-dashboard.admin-dashboard').getPlayers({ page: 1, search: 'foo' });
+ */
 export default ({ strapi }) => ({
   /**
    * Get global KPIs for the dashboard home page

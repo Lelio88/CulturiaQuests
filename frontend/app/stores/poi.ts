@@ -23,6 +23,32 @@ function normalizePoi(raw: any): Poi {
   }
 }
 
+/**
+ * Store des points d'intérêt (POI) affichés sur la carte (musées, monuments,
+ * lieux porteurs de quêtes), chargés en masse depuis Strapi puis mis en cache.
+ *
+ * Le store télécharge l'intégralité des POI via une boucle de pagination
+ * (`fetchAll`), les normalise (`normalizePoi` tolère le format plat ou
+ * `attributes.*` de Strapi v5), et les conserve en IndexedDB (idb-keyval) avec
+ * une clé de version pour éviter de re-télécharger à chaque ouverture.
+ *
+ * Choix non-évidents :
+ * - Cache en IndexedDB plutôt qu'en localStorage car la liste complète des POI
+ *   peut être volumineuse.
+ * - `normalizePoi` aplatit deux formes de payload possibles (champs racine vs
+ *   `attributes`) pour absorber les variations de sérialisation Strapi.
+ *
+ * Invariants à préserver :
+ * - `init()` est idempotent (no-op si `isInitialized`) ; il sert le cache si la
+ *   version stockée == CURRENT_DATA_VERSION, sinon délègue à `fetchAll`.
+ * - Bumper CURRENT_DATA_VERSION à chaque changement de forme du POI normalisé
+ *   pour invalider le cache IndexedDB.
+ *
+ * @example
+ * const poi = usePOIStore()
+ * await poi.init()
+ * if (poi.hasPOIs) renderMarkers(poi.pois)
+ */
 export const usePOIStore = defineStore('poi', () => {
   const pois = ref<Poi[]>([])
   const loading = ref(false)

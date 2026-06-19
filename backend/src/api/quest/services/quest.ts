@@ -9,6 +9,35 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
+/**
+ * Service des quêtes quotidiennes : sélection des PNJ donneurs de quête, création des
+ * quêtes du jour pour une guilde, et lecture des quêtes du jour d'une guilde.
+ *
+ * Choix non-évidents :
+ * - `selectNpcs` ne retient que les PNJ disposant d'un dialogue `text_type === 'quest_description'`,
+ *   puis les classe en deux priorités avant de mélanger chaque groupe indépendamment :
+ *     • priorité 1 : PNJ dont le compteur d'amitié `quests_entry_unlocked` est strictement
+ *       inférieur à `quests_entry_available` (entrées de quête encore à débloquer) — servis d'abord ;
+ *     • priorité 2 : tous les autres PNJ éligibles.
+ *   Les deux groupes sont mélangés (Fisher-Yates) puis concaténés, et on prend les `count` premiers,
+ *   ce qui favorise la progression d'amitié tout en gardant de la variété.
+ * - L'amitié est résolue via `friendshipMap` (clé = id du PNJ) construite depuis les `friendship`
+ *   de la guilde, et le `populate` des dialogs est filtré sur `quest_description` pour ne pas
+ *   charger tous les dialogues de chaque PNJ.
+ * - `createDailyQuests` associe à chaque PNJ deux POI consécutifs du tableau `poiDocumentIds`
+ *   (indices `i*2` et `i*2+1`) — l'appelant doit donc fournir 2 × `npcDocumentIds.length` POI.
+ * - `getTodayQuestsForGuild` borne sur la journée courante en UTC (`date_start` entre 00:00 et 23:59:59).
+ *
+ * Invariants à préserver :
+ * - Isolation utilisateur : la lecture et la création sont toujours scopées à une guilde précise
+ *   (jamais de quête renvoyée hors de la guilde du joueur).
+ * - `createDailyQuests` initialise toujours les quêtes non complétées (gold/xp à 0, drapeaux POI à false).
+ *
+ * @example
+ *   const npcs = await strapi.service('api::quest.quest').selectNpcs(guildId, 3);
+ *   await strapi.service('api::quest.quest').createDailyQuests(guildDocumentId, npcDocIds, poiDocIds);
+ *   const today = await strapi.service('api::quest.quest').getTodayQuestsForGuild(guildId);
+ */
 export default factories.createCoreService('api::quest.quest', ({ strapi }) => ({
 
   async getTodayQuestsForGuild(guildId: number) {

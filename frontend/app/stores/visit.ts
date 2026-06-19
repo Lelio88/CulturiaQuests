@@ -1,6 +1,29 @@
 import { defineStore } from 'pinia'
 import type { Visit } from '~/types/visit'
 
+/**
+ * Store des visites de POI : suivi des visites, ouverture de coffres et gestion
+ * du cooldown d'ouverture par POI.
+ *
+ * Choix non-évidents :
+ * - Le cooldown d'un coffre est de 24h, calculé côté front à partir de
+ *   `last_opened_at` (`isChestAvailable` / `getTimeUntilAvailable`) : un POI
+ *   jamais ouvert est toujours disponible.
+ * - `getVisitForPOI` et les getters tolèrent les deux formes Strapi (champ direct
+ *   `poi.id` ou relation `poi.data.id`, champ direct ou `attributes.*`).
+ * - `formatTimeRemaining` renvoie "Disponible" quand le temps restant est ≤ 0.
+ *
+ * Invariants :
+ * - Aucune persistance Pinia : l'historique des visites s'accumule et provoquait
+ *   l'erreur 431 ; le serveur est la source de vérité (rechargement via
+ *   guildStore.fetchAll() à la connexion). Ne pas réactiver la persistance.
+ *
+ * Usage canonique :
+ *   const visit = useVisitStore()
+ *   if (visit.isChestAvailable(poiId)) {
+ *     const loot = await visit.openChest(poiDocumentId, lat, lng)
+ *   }
+ */
 export const useVisitStore = defineStore('visit', () => {
   // State
   const visits = ref<Visit[]>([])

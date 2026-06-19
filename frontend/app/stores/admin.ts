@@ -30,6 +30,28 @@ interface DashboardOverview {
 
 interface Pagination { page: number; pageSize: number; pageCount: number; total: number }
 
+/**
+ * Store du dashboard admin : agrège les données de pilotage exposées par les endpoints
+ * custom `/admin-dashboard/*` du backend (overview, joueurs, carte, économie, expéditions,
+ * quiz, social, connexions, demandes RGPD).
+ *
+ * Choix non-évidents :
+ * - Les payloads ne sont PAS du CRUD Strapi standard : chaque endpoint renvoie une forme
+ *   pré-agrégée côté serveur. Beaucoup de slices sont donc typées `any` (mapData, economyData,
+ *   etc.) faute de contrat figé ; seuls overview/players/playerDetail/RGPD ont une interface.
+ * - Les mutations (toggleBlockPlayer, changePlayerRole) patchent le tableau `players` ET
+ *   `playerDetail` en local après succès API, pour éviter un refetch complet de la liste.
+ * - `markGdprProcessed` n'applique la mutation locale (statut + décrément du compteur) qu'APRÈS
+ *   le succès de l'await : sur échec API, l'état reste cohérent avec le serveur (#81).
+ *
+ * Invariants :
+ * - Réservé au rôle `admin` : ces endpoints exposent des données cross-utilisateur et ne sont
+ *   donc PAS soumis à l'isolation par `guild.user`. L'accès est gardé par les permissions
+ *   `admin-dashboard.*` accordées au bootstrap backend, jamais via le store.
+ * - `clearAdmin()` doit remettre toutes les slices à leur valeur initiale (appel au logout/
+ *   changement de compte) pour ne pas laisser fuiter les données admin d'une session précédente.
+ * - Toutes les actions passent par `useApi()` (client BFF httpOnly), jamais d'appel Strapi direct.
+ */
 export const useAdminStore = defineStore('admin', () => {
   const overview = ref<DashboardOverview | null>(null)
   const players = ref<PlayerSummary[]>([])

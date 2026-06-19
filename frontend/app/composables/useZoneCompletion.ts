@@ -14,6 +14,35 @@ function getComcomDocId(comcom: Comcom): string {
   return comcom.documentId || comcom.id.toString()
 }
 
+/**
+ * Détecte la complétion d'une communauté de communes (comcom) et la persiste côté API
+ * pour dissiper définitivement le brouillard (fog-of-war) de la zone.
+ *
+ * Deux chemins de complétion indépendants, qui aboutissent au même seuil de 50 %
+ * (COMPLETION_THRESHOLD = 0.5) :
+ * - CHEMIN A (`checkFogCoverage`) : couverture géographique. À chaque position GPS, on ajoute
+ *   une cellule de grille au fog store ; la zone est complétée quand le ratio
+ *   cellules explorées / cellules totales atteint le seuil. Le total de cellules est dérivé
+ *   de l'aire du polygone (formule du Shoelace, O(n sommets)) plutôt que d'un balayage de
+ *   grille, puis mis en cache dans le fog store.
+ * - CHEMIN B (`checkVisitCoverage`) : couverture des visites. Après chaque coffre ou fin
+ *   d'expédition, on calcule le ratio de POI + musées visités parmi ceux contenus dans la zone.
+ *
+ * Choix non-évidents :
+ * - `findComcomForPoint` pré-filtre par distance au centroïde (~11 km) avant le ray-casting
+ *   `isPointInGeoJSON`, coûteux.
+ * - `checkVisitCoverage` applique un pré-filtre bounding-box (exact, zéro faux négatif) avant
+ *   le ray-casting pour éviter de tester les ~5000 POI à chaque coffre (#34).
+ *
+ * Invariants à préserver :
+ * - Seuil de complétion = 50 % (COMPLETION_THRESHOLD), partagé par les deux chemins.
+ * - `completeComcom` est protégé par un lock `pendingCompletions` (Set) pour empêcher les POST
+ *   `/progressions` concurrents sur une même zone.
+ * - On ne tente jamais de re-compléter une zone déjà marquée complétée
+ *   (`progressionStore.isComcomCompleted`).
+ * - La progression écrite est rattachée à la guilde courante (`guild`) : pas de guilde, pas
+ *   d'appel API (isolation par utilisateur, cf. CLAUDE.md §IV).
+ */
 export function useZoneCompletion() {
   const zoneStore = useZoneStore()
   const fogStore = useFogStore()

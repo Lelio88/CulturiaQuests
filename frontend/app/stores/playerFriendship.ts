@@ -7,6 +7,31 @@ import type {
   PlayerFriendshipGuild,
 } from '~/types/playerFriendship'
 
+/**
+ * Store Pinia des amitiés entre joueurs : recherche d'un joueur par pseudo,
+ * envoi/acceptation/refus de demandes et suppression d'amis. Les relations
+ * lient des guildes (`requester` / `receiver`), pas directement des comptes.
+ *
+ * Choix non-évidents :
+ * - L'orientation d'une amitié (reçue vs envoyée) est calculée en comparant le
+ *   `documentId` de la guilde courante (`myGuildDocumentId`, renvoyé par l'API)
+ *   aux `requester`/`receiver` ; `getOtherGuild` retourne « l'autre » guilde.
+ * - Chaque action mute `actionLoading[documentId]` (map par cible) pour piloter
+ *   un état de chargement granulaire par bouton plutôt qu'un loading global.
+ * - `calculateLevel` reprend la formule de niveau (sqrt(exp/75)+1) pour afficher
+ *   le niveau d'un ami sans dépendre d'un autre store.
+ *
+ * Invariants :
+ * - Après toute mutation (send/accept/reject/remove), on relance
+ *   `fetchFriendships()` : le serveur reste la source de vérité sur le statut.
+ * - L'isolation utilisateur et l'autorisation sont assurées côté backend
+ *   (relation `guild.user`).
+ *
+ * @example
+ * const store = usePlayerFriendshipStore()
+ * await store.searchUser('Marin')
+ * await store.sendRequest(store.searchResult.guildDocumentId)
+ */
 export const usePlayerFriendshipStore = defineStore('playerFriendship', () => {
   // State
   const friendships = ref<PlayerFriendship[]>([])

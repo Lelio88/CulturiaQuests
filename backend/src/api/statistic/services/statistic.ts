@@ -1,9 +1,32 @@
-/**
- * statistic service
- */
-
 import { getUserGuild } from '../../../utils/guild-helpers';
 
+/**
+ * Service de statistiques joueur : agrège en une passe les chiffres-clés d'un utilisateur
+ * (expéditions, temps de jeu, dégâts cumulés, étage max, visites de POI, économie d'objets,
+ * or/xp totaux, ancienneté du compte) via `getSummary(userId)`.
+ *
+ * Choix non-évidents :
+ * - La guilde du joueur est résolue par `getUserGuild` ; si l'utilisateur n'a pas de guilde,
+ *   un objet de stats à zéro est renvoyé (jamais d'erreur ni de fuite cross-utilisateur).
+ * - Les six lectures (runs, visites, items, quêtes, user, POI le plus visité) sont parallélisées
+ *   avec `Promise.all` et des `select` ciblés pour limiter le coût en BDD.
+ * - Le temps total et les dégâts sont reconstitués par run : `duration = date_end - date_start`,
+ *   puis `dégâts += dps * (duration / 1000)` (dps est par seconde) ; seuls les runs avec une
+ *   durée strictement positive comptent.
+ * - L'or total agrège trois sources : runs (`gold_earned`), visites (`total_gold_earned`) et
+ *   quêtes (`gold_earned`). L'xp total provient en revanche du champ `exp` de la guilde.
+ * - Le scrap accumulé des objets démantelés suit la formule `floor(level * multiplicateurRareté
+ *   + index_damage / 2)`, avec un barème de rareté (basic=1 … legendary=20) appliqué en minuscules.
+ * - L'ancienneté (`accountDays`) est arrondie au jour supérieur depuis `user.createdAt`.
+ *
+ * Invariants à préserver :
+ * - Toujours scoper les lectures à `guild.id` du `userId` passé : aucune statistique ne doit
+ *   agréger des données d'une autre guilde (isolation utilisateur).
+ *
+ * @example
+ *   const stats = await strapi.service('api::statistic.statistic').getSummary(userId);
+ *   // stats.totalExpeditions, stats.totalTime (ms), stats.totalGold, stats.mostVisitedPoiName, ...
+ */
 export default ({ strapi }) => ({
   async getSummary(userId) {
     // 1. Get Guild ID
