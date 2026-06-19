@@ -91,13 +91,13 @@ import { useGuildStore } from '~/stores/guild';
 import { useInventoryStore } from '~/stores/inventory';
 // 1. IMPORT DU COMPOSABLE DE DÉGÂTS
 import { useDamageCalculator } from '~/composables/useDamageCalculator';
+import { getImageUrl } from '~/utils/strapiHelpers';
 
 // --- CONFIGURATION ---
 const characterStore = useCharacterStore();
 const guildStore = useGuildStore();
 const inventoryStore = useInventoryStore();
 const config = useRuntimeConfig(); 
-const strapiUrl = config.public.strapi?.url || 'http://localhost:1337';
 
 // 2. RÉCUPÉRATION DE LA FONCTION DE CALCUL
 const { calculateItemPower } = useDamageCalculator();
@@ -227,15 +227,6 @@ const saveEquipmentChange = async (characterId, newItemId, oldItemId) => {
 
 // --- MAPPERS & COMPUTED ---
 
-const getImageUrl = (imgData) => {
-  if (!imgData) return '/assets/default-avatar.png';
-  const data = imgData.data?.attributes || imgData.attributes || imgData;
-  const url = data?.url;
-  if (!url) return '/assets/default-avatar.png';
-  if (url.startsWith('/')) return `${strapiUrl}${url}`;
-  return url;
-};
-
 const mapSingleItem = (itemObj) => {
    if (!itemObj) return null;
    const item = itemObj.attributes || itemObj;
@@ -262,7 +253,7 @@ const mapSingleItem = (itemObj) => {
      index_damage: item.index_damage || 0,
      rarity: String(rarityVal).toLowerCase(),
      category: item.slot || 'weapon',
-     image: getImageUrl(item.icon),
+     image: getImageUrl(item.icon, '/assets/default-avatar.png'),
      types: tagList,
      isScrapped: item.isScrapped || false,
      power: calculatedPower // Ajout de la puissance calculée
@@ -281,7 +272,7 @@ const formattedCharacters = computed(() => {
       id: char.id,
       documentId: c.documentId,
       name: `${c.firstname || ''} ${c.lastname || ''}`.trim(),
-      avatar: getImageUrl(c.icon),
+      avatar: getImageUrl(c.icon, '/assets/default-avatar.png'),
       equippedItems: mapItems(c.items)
     };
   });

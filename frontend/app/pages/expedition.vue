@@ -67,6 +67,7 @@ import { useRunStore } from '~/stores/run';
 import { useMuseumStore } from '~/stores/museum';
 import { useZoneCompletion } from '~/composables/useZoneCompletion';
 import FormPixelButton from '~/components/form/PixelButton.vue';
+import { getImageUrl } from '~/utils/strapiHelpers';
 
 definePageMeta({ layout: 'blank' });
 
@@ -75,8 +76,6 @@ const characterStore = useCharacterStore();
 const runStore = useRunStore();
 const museumStore = useMuseumStore();
 const zoneCompletion = useZoneCompletion();
-const config = useRuntimeConfig();
-const strapiUrl = config.public.strapi?.url || 'http://localhost:1337';
 const router = useRouter();
 
 // --- STATE ---
@@ -122,7 +121,7 @@ const formattedCharacters = computed(() => {
         return {
             id: char.id,
             name: c.firstname,
-            avatar: getImageUrl(c.icon)
+            avatar: getImageUrl(c.icon, '/assets/default-avatar.png')
         };
     });
 });
@@ -130,16 +129,6 @@ const formattedCharacters = computed(() => {
 // NB : la synergie est déjà intégrée dans `run.dps`. Le badge « Bonus Synergie » a été retiré
 // (multiplicateur figé à 1 en placeholder → jamais affiché et trompeur). À réintroduire seulement
 // si le run expose un vrai champ de synergie à afficher. #82
-
-// --- HELPERS ---
-const getImageUrl = (imgData) => {
-    if (!imgData) return '/assets/default-avatar.png';
-    const data = imgData.data?.attributes || imgData.attributes || imgData;
-    const url = data?.url;
-    if (!url) return '/assets/default-avatar.png';
-    if (url.startsWith('/')) return `${strapiUrl}${url}`;
-    return url;
-};
 
 // --- ACTIONS ---
 const startAnimation = () => {

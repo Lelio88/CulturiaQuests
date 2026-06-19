@@ -91,7 +91,8 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import PostCard from '~/components/social/PostCard.vue';
-import { formatCompactNumber } from '~/utils/format';
+import { formatCompactNumber, formatTimeAgo, formatDurationHMS } from '~/utils/format';
+import { getImageUrl, getMuseumImageByTag } from '~/utils/strapiHelpers';
 import { usePlayerFriendshipStore } from '~/stores/playerFriendship';
 import { useQuizStore } from '~/stores/quiz';
 import { useGuildStore } from '~/stores/guild';
@@ -109,51 +110,12 @@ const quizStreak = computed(() => guildStore.quizStreak);
 const posts = ref([]);
 const isLoading = ref(true);
 const client = useApi();
-const config = useRuntimeConfig();
-const strapiUrl = config.public.strapi?.url || 'http://localhost:1337';
-
-const getImageUrl = (imgData) => {
-    if (!imgData) return null; 
-    const url = imgData.url || imgData.attributes?.url || imgData.data?.attributes?.url;
-    if (!url) return null;
-    return url.startsWith('/') ? `${strapiUrl}${url}` : url;
-};
-
-const getMuseumImageByTag = (museum) => {
-    const firstTag = museum.tags?.[0]?.name?.toLowerCase();
-    const availableTags = ['art', 'history', 'make', 'nature', 'science', 'society'];
-    
-    if (firstTag && availableTags.includes(firstTag)) {
-        const capitalizedTag = firstTag.charAt(0).toUpperCase() + firstTag.slice(1);
-        return `/assets/map/museum/${capitalizedTag}.webp`;
-    }
-    return '/assets/musee.png';
-};
-
-const formatTimeAgo = (dateString) => {
-    const diffInMinutes = Math.floor((new Date() - new Date(dateString)) / 60000);
-    if (diffInMinutes < 60) return `Il y a ${diffInMinutes} min`;
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `Il y a ${diffInHours}h`;
-    return `Il y a ${Math.floor(diffInHours / 24)}j`;
-};
 
 const formatValue = (num) => formatCompactNumber(num);
 
 const getDurationSeconds = (start, end) => {
     if(!start || !end) return 0;
     return Math.floor((new Date(end) - new Date(start)) / 1000);
-};
-
-const formatDurationHMS = (seconds) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    
-    if (h > 0) {
-        return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    }
-    return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
 const fetchPosts = async () => {
