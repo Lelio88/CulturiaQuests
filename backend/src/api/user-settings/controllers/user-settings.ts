@@ -281,7 +281,7 @@ export default {
 
       // 6. Supprimer les connection-logs
       const logs = await strapi.db.query('api::connection-log.connection-log').findMany({
-        where: { user: user.id },
+        where: { user: { id: user.id } },
       });
       for (const l of logs) {
         await strapi.documents('api::connection-log.connection-log').delete({ documentId: l.documentId });
@@ -289,7 +289,7 @@ export default {
 
       // 7. Supprimer les demandes RGPD
       const gdprRequests = await strapi.db.query('api::gdpr-request.gdpr-request').findMany({
-        where: { user: user.id },
+        where: { user: { id: user.id } },
       });
       for (const r of gdprRequests) {
         await strapi.documents('api::gdpr-request.gdpr-request').delete({ documentId: r.documentId });
