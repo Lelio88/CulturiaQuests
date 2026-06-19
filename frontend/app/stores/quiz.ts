@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import type {
   QuizQuestion,
-  QuizAnswer,
   QuizAttempt,
   QuizSubmitResult,
   LeaderboardEntry,
@@ -10,41 +9,14 @@ import type {
   LeaderboardResponse,
   GetAttemptResponse,
 } from '~/types/quiz'
-
-interface QuizState {
-  // Session
-  sessionId: string | null
-  sessionDate: string | null
-  questions: QuizQuestion[]
-
-  // Progression
-  currentIndex: number
-  answers: Record<string, string>
-  quizFinished: boolean
-  startTime: number
-  finishedAt: number
-
-  // Résultats
-  submitResult: QuizSubmitResult | null
-  alreadyCompleted: boolean
-  existingAttempt: QuizAttempt | null
-
-  // Leaderboard
-  leaderboard: LeaderboardEntry[]
-
-  // UI State
-  loading: boolean
-  submitting: boolean
-  leaderboardLoading: boolean
-  error: string | null
-}
+import type { QuizAnswer } from '~/types/quiz'
 
 /**
  * Store du quiz quotidien : pilote une session de quiz (questions, navigation,
  * réponses, soumission) et expose le leaderboard du jour.
  *
  * Choix non-évidents :
- * - Seul store du projet écrit en Options API (les autres sont en setup store).
+ * - Écrit en setup store (comme les autres stores du projet) ; converti depuis l'Options API (#47).
  * - La date de la session (`sessionDate`) est décidée par le backend (fenêtre
  *   Europe/Paris) : le front ne la calcule jamais, il l'affiche telle quelle.
  * - Le statut HTTP d'erreur est lu en priorité sur `e.statusCode` car les appels
@@ -53,13 +25,14 @@ interface QuizState {
  *   double-submit (double-clic / requêtes concurrentes).
  *
  * Invariants :
- * - La persistance localStorage est PARTIELLE et manuelle (clé
- *   `quiz_current_session` : sessionId, answers, currentIndex, startTime) — il
- *   n'y a pas de plugin de persistance Pinia ici. Les réponses ne sont restaurées
- *   que si `sessionId` correspond à la session courante, sinon le cache est purgé.
+ * - La persistance localStorage est PARTIELLE et MANUELLE (clé `quiz_current_session` :
+ *   sessionId, answers, currentIndex, startTime) — délibérément PAS via pinia-plugin-persistedstate,
+ *   car la restauration est SESSION-SCOPÉE : `loadSavedAnswers` ne restaure que si le `sessionId`
+ *   sauvegardé correspond à la session courante, sinon il purge le cache (sans quoi, au changement
+ *   de jour, d'anciennes réponses seraient restaurées sur une nouvelle session). Un plugin de
+ *   persistance ne sait pas répliquer cette garde.
  * - Aucune persistance en cookie (cf. CLAUDE.md, risque d'erreur 431).
- * - Le localStorage est vidé après soumission réussie ou si le quiz est déjà
- *   complété pour la journée.
+ * - Le localStorage est vidé après soumission réussie ou si le quiz est déjà complété.
  *
  * Usage canonique :
  *   const quiz = useQuizStore()
@@ -67,262 +40,325 @@ interface QuizState {
  *   quiz.selectAnswer('B'); quiz.nextQuestion()
  *   if (quiz.isComplete) await quiz.submitQuiz()
  */
-export const useQuizStore = defineStore('quiz', {
-  state: (): QuizState => ({
-    sessionId: null,
-    sessionDate: null,
-    questions: [],
-    currentIndex: 0,
-    answers: {},
-    quizFinished: false,
-    startTime: 0,
-    finishedAt: 0,
-    submitResult: null,
-    alreadyCompleted: false,
-    existingAttempt: null,
-    leaderboard: [],
-    loading: false,
-    submitting: false,
-    leaderboardLoading: false,
-    error: null,
-  }),
+export const useQuizStore = defineStore('quiz', () => {
+  // ─── State ───────────────────────────────────────────────────────────
+  // Session
+  const sessionId = ref<string | null>(null)
+  const sessionDate = ref<string | null>(null)
+  const questions = ref<QuizQuestion[]>([])
 
-  getters: {
-    currentQuestion: (state): QuizQuestion | null =>
-      state.questions[state.currentIndex] || null,
+  // Progression
+  const currentIndex = ref(0)
+  const answers = ref<Record<string, string>>({})
+  const quizFinished = ref(false)
+  const startTime = ref(0)
+  const finishedAt = ref(0)
 
-    selectedAnswer(): string | null {
-      const q = this.currentQuestion
-      return q ? this.answers[q.documentId] || null : null
-    },
+  // Résultats
+  const submitResult = ref<QuizSubmitResult | null>(null)
+  const alreadyCompleted = ref(false)
+  const existingAttempt = ref<QuizAttempt | null>(null)
 
-    answeredCount: (state): number =>
-      Object.keys(state.answers).length,
+  // Leaderboard
+  const leaderboard = ref<LeaderboardEntry[]>([])
 
-    isComplete(): boolean {
-      return this.answeredCount === this.questions.length && this.questions.length > 0
-    },
+  // UI State
+  const loading = ref(false)
+  const submitting = ref(false)
+  const leaderboardLoading = ref(false)
+  const error = ref<string | null>(null)
 
-    timeSpentSeconds: (state): number =>
-      state.finishedAt > 0 ? Math.round((state.finishedAt - state.startTime) / 1000) : 0,
-  },
+  // ─── Getters ─────────────────────────────────────────────────────────
+  const currentQuestion = computed<QuizQuestion | null>(
+    () => questions.value[currentIndex.value] || null
+  )
 
-  actions: {
-    async fetchTodayQuiz() {
-      const client = useApi()
-      this.loading = true
-      this.error = null
-      this.alreadyCompleted = false
-      this.existingAttempt = null
+  const selectedAnswer = computed<string | null>(() => {
+    const q = currentQuestion.value
+    return q ? answers.value[q.documentId] || null : null
+  })
 
-      try {
-        const res = await client<GetTodayQuizResponse>('/quiz-attempts/today', { method: 'GET' })
+  const answeredCount = computed(() => Object.keys(answers.value).length)
 
-        if (res.data.alreadyCompleted) {
-          this.alreadyCompleted = true
-          this.existingAttempt = res.data.attempt || null
-          // Nettoyer le localStorage si le quiz est déjà complété
-          this.clearSavedAnswers()
-        } else {
-          this.sessionId = res.data.sessionId || null
-          this.sessionDate = res.data.date || null
-          this.questions = res.data.questions || []
-          this.resetQuizState()
-          // Restaurer les réponses sauvegardées si elles existent
-          this.loadSavedAnswers()
-        }
+  const isComplete = computed(
+    () => answeredCount.value === questions.value.length && questions.value.length > 0
+  )
 
-        await this.fetchLeaderboard()
-      } catch (e: unknown) {
-        const error = e as any
-        // Via le proxy BFF, le statut est sur e.statusCode (repli sur les anciennes formes).
-        const status = error?.statusCode ?? error?.error?.status ?? error?.data?.error?.status
-        if (status === 404) {
-          this.error = "Aucun quiz disponible pour aujourd'hui. Revenez plus tard !"
-        } else {
-          this.error = extractApiError(error, 'Erreur')
-        }
-      } finally {
-        this.loading = false
-      }
-    },
+  const timeSpentSeconds = computed(() =>
+    finishedAt.value > 0 ? Math.round((finishedAt.value - startTime.value) / 1000) : 0
+  )
 
-    async fetchLeaderboard() {
-      const client = useApi()
-      this.leaderboardLoading = true
+  // ─── Actions ─────────────────────────────────────────────────────────
+  async function fetchTodayQuiz() {
+    const client = useApi()
+    loading.value = true
+    error.value = null
+    alreadyCompleted.value = false
+    existingAttempt.value = null
 
-      try {
-        const res = await client<LeaderboardResponse>('/quiz-attempts/leaderboard', { method: 'GET' })
-        this.leaderboard = res.data || []
-      } catch (e: unknown) {
-        console.error('Leaderboard error:', e)
-      } finally {
-        this.leaderboardLoading = false
-      }
-    },
+    try {
+      const res = await client<GetTodayQuizResponse>('/quiz-attempts/today', { method: 'GET' })
 
-    async submitQuiz() {
-      // Garde de réentrance : empêche un double-submit (double-clic / requêtes concurrentes)
-      if (this.submitting) return
-      if (!this.sessionId) {
-        this.error = 'Session non trouvée'
-        return
-      }
-
-      const client = useApi()
-      this.submitting = true
-      this.error = null
-
-      try {
-        const formattedAnswers: QuizAnswer[] = this.questions.map((q) => ({
-          questionId: q.documentId,
-          answer: this.answers[q.documentId] || '',
-        }))
-
-        const res = await client<SubmitQuizResponse>('/quiz-attempts/submit', {
-          method: 'POST',
-          body: {
-            sessionId: this.sessionId,
-            answers: formattedAnswers,
-            timeSpentSeconds: this.timeSpentSeconds,
-          },
-        })
-
-        this.submitResult = res.data
-        // Nettoyer le localStorage après soumission réussie
-        this.clearSavedAnswers()
-        await this.fetchLeaderboard()
-      } catch (e: unknown) {
-        this.error = extractApiError(e, 'Erreur lors de la soumission')
-      } finally {
-        this.submitting = false
-      }
-    },
-
-    async fetchResults(documentId: string) {
-      const client = useApi()
-      this.loading = true
-      this.error = null
-
-      try {
-        const res = await client<GetAttemptResponse>(`/quiz-attempts/${documentId}`, {
-          method: 'GET',
-          params: {
-            populate: {
-              guild: { fields: ['quiz_streak'] }
-            }
-          }
-        })
-
-        const data = res.data
-        this.submitResult = {
-          attempt: {
-            documentId: data.documentId,
-            score: data.score,
-            completed_at: data.completed_at,
-          },
-          score: data.score,
-          rewards: data.rewards || { tier: 'bronze', gold: 0, exp: 0, items: [] },
-          detailedAnswers: (data as any).answers || [],
-          newStreak: data.guild?.quiz_streak || 0,
-        }
-      } catch (e: unknown) {
-        this.error = extractApiError(e, 'Erreur lors du chargement des résultats')
-      } finally {
-        this.loading = false
-      }
-    },
-
-    // Navigation
-    selectAnswer(answer: string) {
-      const q = this.currentQuestion
-      if (this.quizFinished || !q) return
-      this.answers[q.documentId] = answer
-      // Sauvegarder automatiquement dans localStorage
-      this.saveAnswers()
-    },
-
-    nextQuestion() {
-      if (this.currentIndex < this.questions.length - 1) {
-        this.currentIndex++
-        this.saveAnswers()
+      if (res.data.alreadyCompleted) {
+        alreadyCompleted.value = true
+        existingAttempt.value = res.data.attempt || null
+        // Nettoyer le localStorage si le quiz est déjà complété
+        clearSavedAnswers()
       } else {
-        this.quizFinished = true
-        this.finishedAt = Date.now()
-        this.saveAnswers()
+        sessionId.value = res.data.sessionId || null
+        sessionDate.value = res.data.date || null
+        questions.value = res.data.questions || []
+        resetQuizState()
+        // Restaurer les réponses sauvegardées si elles existent
+        loadSavedAnswers()
       }
-    },
 
-    prevQuestion() {
-      if (this.currentIndex > 0) {
-        this.currentIndex--
-        this.saveAnswers()
+      await fetchLeaderboard()
+    } catch (e: unknown) {
+      const err = e as any
+      // Via le proxy BFF, le statut est sur e.statusCode (repli sur les anciennes formes).
+      const status = err?.statusCode ?? err?.error?.status ?? err?.data?.error?.status
+      if (status === 404) {
+        error.value = "Aucun quiz disponible pour aujourd'hui. Revenez plus tard !"
+      } else {
+        error.value = extractApiError(err, 'Erreur')
       }
-    },
+    } finally {
+      loading.value = false
+    }
+  }
 
-    goBackToQuestions() {
-      this.quizFinished = false
-    },
+  async function fetchLeaderboard() {
+    const client = useApi()
+    leaderboardLoading.value = true
 
-    // Reset
-    resetQuizState() {
-      this.currentIndex = 0
-      this.answers = {}
-      this.quizFinished = false
-      this.submitResult = null
-      this.startTime = Date.now()
-      this.finishedAt = 0
-    },
+    try {
+      const res = await client<LeaderboardResponse>('/quiz-attempts/leaderboard', { method: 'GET' })
+      leaderboard.value = res.data || []
+    } catch (e: unknown) {
+      console.error('Leaderboard error:', e)
+    } finally {
+      leaderboardLoading.value = false
+    }
+  }
 
-    resetAll() {
-      this.clearSavedAnswers()
-      this.$reset()
-    },
+  async function submitQuiz() {
+    // Garde de réentrance : empêche un double-submit (double-clic / requêtes concurrentes)
+    if (submitting.value) return
+    if (!sessionId.value) {
+      error.value = 'Session non trouvée'
+      return
+    }
 
-    // LocalStorage management
-    saveAnswers() {
-      if (!this.sessionId) return
-      try {
-        const data = {
-          sessionId: this.sessionId,
-          answers: this.answers,
-          currentIndex: this.currentIndex,
-          startTime: this.startTime,
-        }
-        localStorage.setItem('quiz_current_session', JSON.stringify(data))
-      } catch (e) {
-        console.warn('Failed to save quiz answers to localStorage:', e)
+    const client = useApi()
+    submitting.value = true
+    error.value = null
+
+    try {
+      const formattedAnswers: QuizAnswer[] = questions.value.map((q) => ({
+        questionId: q.documentId,
+        answer: answers.value[q.documentId] || '',
+      }))
+
+      const res = await client<SubmitQuizResponse>('/quiz-attempts/submit', {
+        method: 'POST',
+        body: {
+          sessionId: sessionId.value,
+          answers: formattedAnswers,
+          timeSpentSeconds: timeSpentSeconds.value,
+        },
+      })
+
+      submitResult.value = res.data
+      // Nettoyer le localStorage après soumission réussie
+      clearSavedAnswers()
+      await fetchLeaderboard()
+    } catch (e: unknown) {
+      error.value = extractApiError(e, 'Erreur lors de la soumission')
+    } finally {
+      submitting.value = false
+    }
+  }
+
+  async function fetchResults(documentId: string) {
+    const client = useApi()
+    loading.value = true
+    error.value = null
+
+    try {
+      const res = await client<GetAttemptResponse>(`/quiz-attempts/${documentId}`, {
+        method: 'GET',
+        params: {
+          populate: {
+            guild: { fields: ['quiz_streak'] },
+          },
+        },
+      })
+
+      const data = res.data
+      submitResult.value = {
+        attempt: {
+          documentId: data.documentId,
+          score: data.score,
+          completed_at: data.completed_at,
+        },
+        score: data.score,
+        rewards: data.rewards || { tier: 'bronze', gold: 0, exp: 0, items: [] },
+        detailedAnswers: (data as any).answers || [],
+        newStreak: data.guild?.quiz_streak || 0,
       }
-    },
+    } catch (e: unknown) {
+      error.value = extractApiError(e, 'Erreur lors du chargement des résultats')
+    } finally {
+      loading.value = false
+    }
+  }
 
-    loadSavedAnswers() {
-      if (!this.sessionId) return
-      try {
-        const saved = localStorage.getItem('quiz_current_session')
-        if (!saved) return
+  // Navigation
+  function selectAnswer(answer: string) {
+    const q = currentQuestion.value
+    if (quizFinished.value || !q) return
+    answers.value[q.documentId] = answer
+    // Sauvegarder automatiquement dans localStorage
+    saveAnswers()
+  }
 
-        const data = JSON.parse(saved)
-        // Vérifier que c'est la même session
-        if (data.sessionId === this.sessionId) {
-          this.answers = data.answers || {}
-          this.currentIndex = data.currentIndex || 0
-          this.startTime = data.startTime || Date.now()
-        } else {
-          // Session différente, nettoyer
-          this.clearSavedAnswers()
-        }
-      } catch (e) {
-        console.warn('Failed to load quiz answers from localStorage:', e)
-        this.clearSavedAnswers()
+  function nextQuestion() {
+    if (currentIndex.value < questions.value.length - 1) {
+      currentIndex.value++
+      saveAnswers()
+    } else {
+      quizFinished.value = true
+      finishedAt.value = Date.now()
+      saveAnswers()
+    }
+  }
+
+  function prevQuestion() {
+    if (currentIndex.value > 0) {
+      currentIndex.value--
+      saveAnswers()
+    }
+  }
+
+  function goBackToQuestions() {
+    quizFinished.value = false
+  }
+
+  // Reset
+  function resetQuizState() {
+    currentIndex.value = 0
+    answers.value = {}
+    quizFinished.value = false
+    submitResult.value = null
+    startTime.value = Date.now()
+    finishedAt.value = 0
+  }
+
+  function resetAll() {
+    clearSavedAnswers()
+    // Réinitialisation manuelle (les setup stores n'ont pas de $reset)
+    sessionId.value = null
+    sessionDate.value = null
+    questions.value = []
+    currentIndex.value = 0
+    answers.value = {}
+    quizFinished.value = false
+    startTime.value = 0
+    finishedAt.value = 0
+    submitResult.value = null
+    alreadyCompleted.value = false
+    existingAttempt.value = null
+    leaderboard.value = []
+    loading.value = false
+    submitting.value = false
+    leaderboardLoading.value = false
+    error.value = null
+  }
+
+  // LocalStorage management (session-scopé : cf. invariants du JSDoc)
+  function saveAnswers() {
+    if (!sessionId.value) return
+    try {
+      const data = {
+        sessionId: sessionId.value,
+        answers: answers.value,
+        currentIndex: currentIndex.value,
+        startTime: startTime.value,
       }
-    },
+      localStorage.setItem('quiz_current_session', JSON.stringify(data))
+    } catch (e) {
+      console.warn('Failed to save quiz answers to localStorage:', e)
+    }
+  }
 
-    clearSavedAnswers() {
-      try {
-        localStorage.removeItem('quiz_current_session')
-      } catch (e) {
-        console.warn('Failed to clear quiz answers from localStorage:', e)
+  function loadSavedAnswers() {
+    if (!sessionId.value) return
+    try {
+      const saved = localStorage.getItem('quiz_current_session')
+      if (!saved) return
+
+      const data = JSON.parse(saved)
+      // Vérifier que c'est la même session
+      if (data.sessionId === sessionId.value) {
+        answers.value = data.answers || {}
+        currentIndex.value = data.currentIndex || 0
+        startTime.value = data.startTime || Date.now()
+      } else {
+        // Session différente, nettoyer
+        clearSavedAnswers()
       }
-    },
-  },
+    } catch (e) {
+      console.warn('Failed to load quiz answers from localStorage:', e)
+      clearSavedAnswers()
+    }
+  }
+
+  function clearSavedAnswers() {
+    try {
+      localStorage.removeItem('quiz_current_session')
+    } catch (e) {
+      console.warn('Failed to clear quiz answers from localStorage:', e)
+    }
+  }
+
+  return {
+    // State
+    sessionId,
+    sessionDate,
+    questions,
+    currentIndex,
+    answers,
+    quizFinished,
+    startTime,
+    finishedAt,
+    submitResult,
+    alreadyCompleted,
+    existingAttempt,
+    leaderboard,
+    loading,
+    submitting,
+    leaderboardLoading,
+    error,
+    // Getters
+    currentQuestion,
+    selectedAnswer,
+    answeredCount,
+    isComplete,
+    timeSpentSeconds,
+    // Actions
+    fetchTodayQuiz,
+    fetchLeaderboard,
+    submitQuiz,
+    fetchResults,
+    selectAnswer,
+    nextQuestion,
+    prevQuestion,
+    goBackToQuestions,
+    resetQuizState,
+    resetAll,
+    saveAnswers,
+    loadSavedAnswers,
+    clearSavedAnswers,
+  }
 })
