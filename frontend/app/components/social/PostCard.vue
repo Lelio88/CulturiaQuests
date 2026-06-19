@@ -166,6 +166,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useDamageCalculator } from '~/composables/useDamageCalculator';
+import { useSocialStore } from '~/stores/social';
 import PixelButton from '~/components/form/PixelButton.vue';
 import Alert from '~/components/form/Alert.vue';
 import { formatCompactNumber } from '~/utils/format';
@@ -178,7 +179,7 @@ const emit = defineEmits(['delete', 'edit', 'refresh']);
 
 const { calculateItemPower } = useDamageCalculator();
 const user = useAuth().user;
-const client = useApi();
+const socialStore = useSocialStore();
 
 // --- ÉTATS ---
 const isLiked = ref(false);
@@ -271,15 +272,10 @@ const handleUpdate = async () => {
     isUpdating.value = true;
     actionError.value = '';
     try {
-        await client(`/posts/${props.post.id}`, {
-            method: 'PUT',
-            body: {
-                data: {
-                    show_loot: editedShowLoot.value,
-                    tags: editedTags.value,
-                    best_loot: props.post.bestLootId || null
-                }
-            }
+        await socialStore.updatePost(props.post.id, {
+            show_loot: editedShowLoot.value,
+            tags: editedTags.value,
+            best_loot: props.post.bestLootId || null
         });
         showEditModal.value = false;
         emit('refresh');
@@ -296,7 +292,7 @@ const openDeleteModal = () => { showMenu.value = false; showDeleteModal.value = 
 const handleDelete = async () => {
     actionError.value = '';
     try {
-        await client(`/posts/${props.post.id}`, { method: 'DELETE' });
+        await socialStore.deletePost(props.post.id);
         showDeleteModal.value = false;
         emit('refresh');
     } catch (error) {
@@ -310,7 +306,7 @@ const toggleLike = async () => {
     isLiked.value = !isLiked.value;
     if (isLiked.value) { localLikes.value++; triggerAnimation(); } else { localLikes.value--; }
     try {
-        const res = await client(`/posts/${props.post.id}/toggle-like`, { method: 'POST' });
+        const res = await socialStore.toggleLike(props.post.id);
         if (res && typeof res.likes === 'number') { localLikes.value = res.likes; isLiked.value = res.liked; }
     } catch (error) { isLiked.value = prev; localLikes.value = prevL; }
 };

@@ -184,6 +184,45 @@ export const useRunStore = defineStore('run', () => {
     }
   }
 
+  /**
+   * Récupère les N derniers runs TERMINÉS (date_end non null), avec musée + items peuplés,
+   * pour l'écran de partage (createpost). Helper de requête en LECTURE SEULE : il ne mute PAS
+   * `runs` (sinon il polluerait les getters `activeRun`/`completedRuns` avec des runs déjà
+   * terminés et leurs items). Retourne les runs bruts ; l'appelant assemble son view-model. #36
+   */
+  async function fetchRecentRuns(limit: number = 5): Promise<Run[]> {
+    const client = useApi()
+    const response = await client<{ data?: Run[] }>('/runs', {
+      method: 'GET',
+      params: {
+        populate: ['museum', 'museum.tags', 'items', 'items.rarity', 'items.icon'],
+        sort: 'createdAt:desc',
+        pagination: { limit },
+        filters: { date_end: { $null: false } },
+      },
+    })
+    return response.data || []
+  }
+
+  /**
+   * Récupère un run par son documentId, avec musée + items (icon/rarity/tags) peuplés, pour
+   * l'écran de résumé d'expédition. Helper de requête en LECTURE SEULE (ne mute pas `runs`).
+   * Tolère la double forme de réponse (`{ data }` ou objet brut). #36
+   */
+  async function fetchRunById(documentId: string): Promise<Run | null> {
+    const client = useApi()
+    const response = await client<any>(`/runs/${documentId}`, {
+      method: 'GET',
+      params: {
+        populate: {
+          museum: true,
+          items: { populate: ['icon', 'rarity', 'tags'] },
+        },
+      },
+    })
+    return response?.data || response || null
+  }
+
   async function fetchActiveRun() {
     const client = useApi()
     loading.value = true
@@ -245,6 +284,8 @@ export const useRunStore = defineStore('run', () => {
     startExpedition,
     endExpedition,
     fetchActiveRun,
+    fetchRecentRuns,
+    fetchRunById,
   }
 
 })

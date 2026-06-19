@@ -79,9 +79,10 @@ import { useRouter, useRoute } from 'vue-router';
 import anime from 'animejs';
 import { useCharacterStore } from '~/stores/character';
 import { useGuildStore } from '~/stores/guild';
+import { useRunStore } from '~/stores/run';
 import Items from '~/components/items.vue';
 import { getImageUrl } from '~/utils/strapiHelpers';
-import PixelButton from '~/components/form/PixelButton.vue'; 
+import PixelButton from '~/components/form/PixelButton.vue';
 
 definePageMeta({
   layout: 'blank'
@@ -91,8 +92,7 @@ const router = useRouter();
 const route = useRoute();
 const characterStore = useCharacterStore();
 const guildStore = useGuildStore();
-const client = useApi();
-const config = useRuntimeConfig();
+const runStore = useRunStore();
 
 const runId = route.query.runId;
 const loading = ref(true);
@@ -145,21 +145,9 @@ onMounted(async () => {
     }
 
     try {
-        // Fetch Run Data
-        const response = await client(`/runs/${runId}`, {
-             method: 'GET',
-             params: {
-                 populate: {
-                     museum: true,
-                     items: {
-                         populate: ['icon', 'rarity', 'tags']
-                     }
-                 }
-             }
-        });
-        
-        run.value = response.data || response;
-        
+        // Fetch Run Data (appel API centralisé dans le store run, #36)
+        run.value = await runStore.fetchRunById(runId);
+
         // Process Loot
         const rawItems = run.value.items || [];
         const itemsList = Array.isArray(rawItems) ? rawItems : (rawItems.data || []);
