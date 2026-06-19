@@ -137,7 +137,8 @@
 
         <!-- Bouton Publier -->
         <div v-if="selectedRun" class="fixed bottom-24 left-0 right-0 p-5 bg-gradient-to-t from-[#F8F9FF] via-[#F8F9FF]/80 to-transparent z-[100]">
-            <button 
+            <Alert :message="publishError" variant="error" class="max-w-2xl mx-auto mb-3" />
+            <button
                 @click="publishPost"
                 :disabled="isPublishing"
                 class="w-full py-4 bg-[#4D4DFF] text-white font-pixel text-xl uppercase rounded-3xl shadow-[0_6px_0_#2a2a9e] active:shadow-none active:translate-y-1 transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-1 max-w-2xl mx-auto block group"
@@ -159,6 +160,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useDamageCalculator } from '~/composables/useDamageCalculator';
 import { formatCompactNumber } from '~/utils/format';
+import Alert from '~/components/form/Alert.vue';
 
 const router = useRouter();
 const config = useRuntimeConfig();
@@ -168,6 +170,7 @@ const { calculateItemPower } = useDamageCalculator();
 // --- ÉTATS ---
 const isLoading = ref(true);
 const isPublishing = ref(false);
+const publishError = ref('');
 const recentRuns = ref([]);
 const selectedRun = ref(null);
 const showLoot = ref(true);
@@ -304,6 +307,7 @@ const publishPost = async () => {
     if (!selectedRun.value || isPublishing.value) return;
     
     isPublishing.value = true;
+    publishError.value = '';
     const client = useApi();
 
     try {
@@ -325,14 +329,10 @@ const publishPost = async () => {
             router.push('/social');
         }
     } catch (error) {
-        let debugMsg = "Erreur de publication :\n";
-        if (error.response) {
-            debugMsg += `Status: ${error.response.status}\nData: ${JSON.stringify(error.response._data || error.response.data)}\n`;
-        } else {
-            debugMsg += `Message: ${error.message}\n`;
-        }
-        alert(debugMsg);
-        isPublishing.value = false; 
+        // Pas de message serveur brut exposé à l'utilisateur : message générique en UI + log technique. #44
+        console.error('Erreur de publication du post :', error);
+        publishError.value = "La publication a échoué. Vérifie ta connexion et réessaie.";
+        isPublishing.value = false;
     }
 };
 

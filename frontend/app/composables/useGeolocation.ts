@@ -100,7 +100,6 @@ export function useGeolocation(options: GeolocationOptions = {}) {
 
         if (isFirstPosition.value) {
           // Première position obtenue
-          console.log('📍 First position obtained:', newLat, newLng)
           userLat.value = newLat
           userLng.value = newLng
           geolocLoading.value = false
@@ -132,7 +131,6 @@ export function useGeolocation(options: GeolocationOptions = {}) {
             )
 
             if (distance > reloadThresholdKm) {
-              console.log(`🚶 User moved ${distance.toFixed(2)}km (threshold: ${reloadThresholdKm}km)`)
               lastFetchLat.value = newLat
               lastFetchLng.value = newLng
 
@@ -170,7 +168,6 @@ export function useGeolocation(options: GeolocationOptions = {}) {
       watchId.value = null
       isTracking.value = false
       hideGeoNotification()
-      console.log('📍 Location tracking stopped')
     }
   }
 

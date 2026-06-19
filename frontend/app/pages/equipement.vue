@@ -204,8 +204,6 @@ const saveEquipmentChange = async (characterId, newItemId, oldItemId) => {
   const client = useApi();
 
   try {
-    console.log(`💾 Sauvegarde équipement en cours...`);
-
     // 1. DÉSÉQUIPER l'ancien objet (si il existe)
     if (oldItemId) {
       await client(`/items/${oldItemId}`, {
@@ -219,8 +217,6 @@ const saveEquipmentChange = async (characterId, newItemId, oldItemId) => {
       method: 'PUT',
       body: { data: { character: characterId } }
     });
-
-    console.log("✅ Équipement sauvegardé avec succès !");
 
   } catch (error) {
     console.error("❌ Erreur API Strapi :", error);
