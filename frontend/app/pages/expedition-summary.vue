@@ -80,6 +80,7 @@ import anime from 'animejs';
 import { useCharacterStore } from '~/stores/character';
 import { useGuildStore } from '~/stores/guild';
 import Items from '~/components/items.vue';
+import { getImageUrl } from '~/utils/strapiHelpers';
 import PixelButton from '~/components/form/PixelButton.vue'; 
 
 definePageMeta({
@@ -92,7 +93,6 @@ const characterStore = useCharacterStore();
 const guildStore = useGuildStore();
 const client = useApi();
 const config = useRuntimeConfig();
-const strapiUrl = config.public.strapi?.url || 'http://localhost:1337';
 
 const runId = route.query.runId;
 const loading = ref(true);
@@ -111,7 +111,7 @@ const museumImage = "/assets/musee.png"; // Placeholder
 const characters = computed(() => {
     return characterStore.characters.map(c => {
         const char = c.attributes || c;
-        return { id: c.id, avatar: getImageUrl(char.icon) };
+        return { id: c.id, avatar: getImageUrl(char.icon, '/assets/default-avatar.png') };
     });
 });
 
@@ -120,14 +120,6 @@ const formatNumber = (num) => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 };
 
-const getImageUrl = (imgData) => {
-    if (!imgData) return '/assets/default-avatar.png';
-    const data = imgData.data?.attributes || imgData.attributes || imgData;
-    const url = data?.url;
-    if (!url) return '/assets/default-avatar.png';
-    if (url.startsWith('/')) return `${strapiUrl}${url}`;
-    return url;
-};
 
 // --- ANIMATION ---
 const animateLootItems = () => {
@@ -179,7 +171,7 @@ onMounted(async () => {
              
              return {
                  id: item.id,
-                 image: getImageUrl(i.icon),
+                 image: getImageUrl(i.icon, '/assets/default-avatar.png'),
                  rarity: rarity,
                  level: i.level,
                  index_damage: i.index_damage,

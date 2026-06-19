@@ -54,3 +54,34 @@ export function buildStrapiUrl(path: string): string {
   // Sinon, construire l'URL complète avec l'URL du serveur Strapi
   return `${config.public.strapi.url}${path}`
 }
+
+/**
+ * Résout l'URL absolue d'une image Strapi sous ses formes polymorphes : `.url`,
+ * `.attributes.url` (v4) ou `.data.attributes.url` (v5). Mutualise 5 copies inline divergentes. #39
+ *
+ * @param imgData  objet image brut (relation media Strapi) — ou null/undefined.
+ * @param fallback valeur de repli si aucune URL n'est trouvée (défaut `null`). Les vues "avatar"
+ *   passent `'/assets/default-avatar.png'` ; celles qui gèrent l'absence au call-site laissent `null`.
+ * @returns l'URL absolue (via buildStrapiUrl) ou `fallback`.
+ */
+export function getImageUrl(imgData: any, fallback: string | null = null): string | null {
+  if (!imgData) return fallback
+  const url = imgData.url || imgData.attributes?.url || imgData.data?.attributes?.url
+  if (!url) return fallback
+  return buildStrapiUrl(url)
+}
+
+const MUSEUM_TAG_IMAGES = ['art', 'history', 'make', 'nature', 'science', 'society']
+
+/**
+ * Chemin de l'image d'un musée d'après son premier tag (ex: `/assets/map/museum/Art.webp`),
+ * ou l'image générique `/assets/musee.png` si le tag est absent/inconnu. #39
+ */
+export function getMuseumImageByTag(museum: any): string {
+  const firstTag = museum?.tags?.[0]?.name?.toLowerCase()
+  if (firstTag && MUSEUM_TAG_IMAGES.includes(firstTag)) {
+    const capitalized = firstTag.charAt(0).toUpperCase() + firstTag.slice(1)
+    return `/assets/map/museum/${capitalized}.webp`
+  }
+  return '/assets/musee.png'
+}
