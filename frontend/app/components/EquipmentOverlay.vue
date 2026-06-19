@@ -73,6 +73,7 @@ import { ref, computed, watch } from 'vue'
 import { useGuildStore } from '~/stores/guild'
 import { useInventoryStore } from '~/stores/inventory'
 import { useDamageCalculator } from '~/composables/useDamageCalculator'
+import { useItemFormulas } from '~/composables/useItemFormulas'
 import { useFooterVisibility } from '~/composables/useFooterVisibility'
 
 import OverlayHeader from './equipment/OverlayHeader.vue'
@@ -93,8 +94,8 @@ const emit = defineEmits(['close', 'equip'])
 
 const guildStore = useGuildStore()
 const inventoryStore = useInventoryStore()
-const client = useApi()
 const { calculateItemPower } = useDamageCalculator()
+const { calculateScrapForOneItem, getLevelCost, computeMaxAffordableLevels } = useItemFormulas()
 const { hideFooter, showFooter } = useFooterVisibility()
 
 const activeSlot = ref('weapon');
@@ -177,15 +178,8 @@ const toggleUpgradeMode = () => {
 };
 
 // --- LOGIQUE RECYCLAGE ---
-const calculateScrapForOneItem = (item) => {
-    const level = item.level || 1;
-    const damage = item.index_damage || 0;
-    let rarityMult = 1;
-    switch(item.rarity?.toLowerCase()) {
-        case 'basic': rarityMult = 1; break; case 'common': rarityMult = 2; break; case 'rare': rarityMult = 5; break; case 'epic': rarityMult = 10; break; case 'legendary': rarityMult = 20; break;
-    }
-    return Math.floor((level * rarityMult) + (damage / 2));
-};
+// Formule de scrap extraite dans useItemFormulas (#37). Le total est calculé ici sur le view-model
+// (rareté en string) puis transmis au store, qui ne le recalcule pas sur les items bruts.
 const totalScrapGain = computed(() => {
     let total = 0;
     itemsToRecycle.value.forEach(id => {
@@ -197,23 +191,8 @@ const totalScrapGain = computed(() => {
 const confirmRecycle = async () => {
     if (itemsToRecycle.value.size === 0) return;
     try {
-        const scrapAmount = totalScrapGain.value;
-        const idsToUpdate = Array.from(itemsToRecycle.value);
-        for (const id of idsToUpdate) {
-            const item = props.allInventory.find(i => i.id === id);
-            if (!item) continue;
-            const apiId = item.documentId || item.id;
-            await client(`/items/${apiId}`, { method: 'PUT', body: { data: { isScrapped: true, character: null } } });
-        }
-        if (guildStore.guild) {
-            const currentScrap = guildStore.scrap || 0;
-            const guildApiId = guildStore.guild.documentId || guildStore.guild.id;
-            await client(`/guilds/${guildApiId}`, { method: 'PUT', body: { data: { scrap: currentScrap + scrapAmount } } });
-            await guildStore.refetchStats();
-        }
-        inventoryStore.items.forEach(item => {
-            if (itemsToRecycle.value.has(item.id)) item.isScrapped = true; 
-        });
+        // Appels API + mutation d'état centralisés dans le store (#37, plus de PUT/mutation directe).
+        await inventoryStore.recycleItems(Array.from(itemsToRecycle.value), totalScrapGain.value);
         resetAllModes();
     } catch (e) { console.error("Erreur recyclage", e); }
 };
@@ -223,14 +202,7 @@ const selectedItemObject = computed(() => {
     if (!selectedItemId.value) return null;
     return props.allInventory.find(i => i.id === selectedItemId.value);
 });
-const getLevelCost = (level, rarity, indexDamage) => {
-    const POWER_RARITY_MULT = { basic: 1, common: 1.5, rare: 2, epic: 3, legendary: 5 };
-    const rarityKey = (typeof rarity === 'string' ? rarity : rarity?.name || 'common').toLowerCase();
-    const rarityMult = POWER_RARITY_MULT[rarityKey] || 1;
-    const damageGain = (indexDamage || 0) * rarityMult;
-    const levelTax = 1 + level * 0.05;
-    return { scrap: Math.ceil(damageGain * 0.5 * levelTax), gold: Math.ceil(damageGain * 5 * levelTax) };
-};
+// getLevelCost extrait dans useItemFormulas (#37).
 const upgradeCost = computed(() => {
     if (!selectedItemObject.value) return { scrap: 0, gold: 0 };
     const currentLevel = selectedItemObject.value.level || 1;
@@ -256,33 +228,20 @@ const canAffordUpgrade = computed(() => {
 const setUpgradeIncrement = (val) => { upgradeIncrement.value = val; };
 const setMaxUpgrade = () => {
     if (!selectedItemObject.value) return;
-    const userGold = guildStore.gold || 0, userScrap = guildStore.scrap || 0;
-    const currentLevel = selectedItemObject.value.level || 1, rarity = selectedItemObject.value.rarity;
-    const indexDamage = selectedItemObject.value.index_damage || 0;
-    let possibleLevels = 0, currentCostScrap = 0, currentCostGold = 0;
-    for (let i = 0; i < 1000; i++) {
-        const nextLvlCost = getLevelCost(currentLevel + i, rarity, indexDamage);
-        if (currentCostScrap + nextLvlCost.scrap <= userScrap && currentCostGold + nextLvlCost.gold <= userGold) {
-            currentCostScrap += nextLvlCost.scrap; currentCostGold += nextLvlCost.gold; possibleLevels++;
-        } else break;
-    }
-    upgradeIncrement.value = possibleLevels > 0 ? possibleLevels : 1; 
+    const possibleLevels = computeMaxAffordableLevels({
+        currentLevel: selectedItemObject.value.level || 1,
+        rarity: selectedItemObject.value.rarity,
+        indexDamage: selectedItemObject.value.index_damage || 0,
+        userGold: guildStore.gold || 0,
+        userScrap: guildStore.scrap || 0,
+    });
+    upgradeIncrement.value = possibleLevels > 0 ? possibleLevels : 1;
 };
 const confirmUpgrade = async () => {
     if (!selectedItemObject.value || !canAffordUpgrade.value) return;
     try {
-        const item = selectedItemObject.value;
-        const apiId = item.documentId || item.id;
-        const cost = upgradeCost.value;
-        const newLevel = projectedStats.value.newLevel;
-        if (guildStore.guild) {
-            const guildApiId = guildStore.guild.documentId || guildStore.guild.id;
-            await client(`/guilds/${guildApiId}`, { method: 'PUT', body: { data: { gold: guildStore.gold - cost.gold, scrap: guildStore.scrap - cost.scrap } } });
-            await guildStore.refetchStats();
-        }
-        await client(`/items/${apiId}`, { method: 'PUT', body: { data: { level: newLevel } } });
-        const localItem = inventoryStore.items.find(i => i.id === item.id);
-        if (localItem) { localItem.level = newLevel; if (localItem.attributes) localItem.attributes.level = newLevel; }
+        // Appels API (débit guilde + montée niveau) + mutation d'état centralisés dans le store (#37).
+        await inventoryStore.upgradeItem(selectedItemObject.value.id, projectedStats.value.newLevel, upgradeCost.value);
         upgradeIncrement.value = 1;
     } catch (e) { console.error("Erreur upgrade", e); }
 };
