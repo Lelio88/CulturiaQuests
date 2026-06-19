@@ -3,6 +3,7 @@
  */
 
 import { factories } from '@strapi/strapi'
+import { getUserGuild } from '../../../utils/guild-helpers'
 
 export default factories.createCoreController('api::badge.badge', ({ strapi }) => ({
     async find(ctx) {
@@ -22,8 +23,7 @@ export default factories.createCoreController('api::badge.badge', ({ strapi }) =
 
         // 2. Get User's Guild and Badges
         // Find guild for user
-        const guild = await strapi.db.query('api::guild.guild').findOne({
-            where: { user: user.id },
+        const guild = await getUserGuild(strapi, user.id, {
             populate: ['unlocked_badges', 'equipped_badges']
         });
         
@@ -65,8 +65,7 @@ export default factories.createCoreController('api::badge.badge', ({ strapi }) =
         }
 
         // 1. Get User's Guild
-        const guild = await strapi.db.query('api::guild.guild').findOne({
-            where: { user: user.id },
+        const guild = await getUserGuild(strapi, user.id, {
             populate: ['unlocked_badges']
         });
         

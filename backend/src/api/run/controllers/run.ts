@@ -3,6 +3,7 @@
  */
 
 import { factories } from '@strapi/strapi';
+import { getUserGuild } from '../../../utils/guild-helpers';
 
 function getDistanceFromLatLonInM(lat1: number, lon1: number, lat2: number, lon2: number) {
   var R = 6371e3; // Radius of the earth in m
@@ -97,8 +98,7 @@ export default factories.createCoreController('api::run.run', ({ strapi }) => ({
     }
 
     // 1. Get Guild
-    const guild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: user.id },
+    const guild = await getUserGuild(strapi, user.id, {
       select: ['documentId', 'debug_mode']
     });
     if (!guild) return ctx.badRequest('User has no guild');
@@ -226,8 +226,7 @@ export default factories.createCoreController('api::run.run', ({ strapi }) => ({
 
     if (!run) return ctx.notFound('Run not found');
 
-    const guild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: user.id },
+    const guild = await getUserGuild(strapi, user.id, {
       select: ['documentId']
     });
     if (!guild || run.guild.documentId !== guild.documentId) {
@@ -344,8 +343,7 @@ export default factories.createCoreController('api::run.run', ({ strapi }) => ({
     const user = ctx.state.user;
     if (!user) return ctx.unauthorized();
 
-    const guild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: user.id },
+    const guild = await getUserGuild(strapi, user.id, {
       select: ['documentId']
     });
 

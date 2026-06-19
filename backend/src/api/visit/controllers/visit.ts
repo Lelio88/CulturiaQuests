@@ -4,6 +4,7 @@
 
 import { factories } from '@strapi/strapi';
 import { withAdvisoryLock } from '../../../utils/db-lock';
+import { getUserGuild } from '../../../utils/guild-helpers';
 
 /**
  * Calculate distance between two points using Haversine formula
@@ -105,8 +106,7 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
     }
 
     // 1. Récupérer guild de l'utilisateur
-    const guild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: user.id } },
+    const guild = await getUserGuild(strapi, user.id, {
       select: ['id', 'documentId', 'gold', 'exp', 'debug_mode']
     });
 

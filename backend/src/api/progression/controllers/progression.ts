@@ -3,6 +3,7 @@
  */
 
 import { factories } from '@strapi/strapi'
+import { getUserGuild } from '../../../utils/guild-helpers'
 
 export default factories.createCoreController('api::progression.progression', ({ strapi }) => ({
   /**
@@ -15,8 +16,7 @@ export default factories.createCoreController('api::progression.progression', ({
 
     // user garanti (early-return ci-dessus) : filtrage par guilde inconditionnel
     {
-      const userGuild = await strapi.db.query('api::guild.guild').findOne({
-        where: { user: { id: user.id } },
+      const userGuild = await getUserGuild(strapi, user.id, {
         select: ['documentId'],
       });
 
@@ -48,8 +48,7 @@ export default factories.createCoreController('api::progression.progression', ({
 
     // user garanti (early-return ci-dessus) : filtrage par guilde inconditionnel
     {
-      const userGuild = await strapi.db.query('api::guild.guild').findOne({
-        where: { user: { id: user.id } },
+      const userGuild = await getUserGuild(strapi, user.id, {
         select: ['documentId'],
       });
 
@@ -88,8 +87,7 @@ export default factories.createCoreController('api::progression.progression', ({
       return ctx.unauthorized('You must be logged in to create a progression');
     }
 
-    const userGuild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: user.id } },
+    const userGuild = await getUserGuild(strapi, user.id, {
       select: ['documentId'],
     });
 
@@ -124,8 +122,7 @@ export default factories.createCoreController('api::progression.progression', ({
       return ctx.unauthorized('You must be logged in to update a progression');
     }
 
-    const userGuild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: user.id } },
+    const userGuild = await getUserGuild(strapi, user.id, {
       select: ['documentId'],
     });
 
@@ -165,8 +162,7 @@ export default factories.createCoreController('api::progression.progression', ({
       return ctx.unauthorized('You must be logged in to delete a progression');
     }
 
-    const userGuild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: user.id } },
+    const userGuild = await getUserGuild(strapi, user.id, {
       select: ['documentId'],
     });
 

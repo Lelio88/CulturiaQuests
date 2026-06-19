@@ -3,6 +3,7 @@
  */
 
 import { factories } from '@strapi/strapi'
+import { getUserGuild } from '../../../utils/guild-helpers'
 
 export default factories.createCoreController('api::post.post', ({ strapi }) => ({
   async create(ctx) {
@@ -26,8 +27,7 @@ export default factories.createCoreController('api::post.post', ({ strapi }) => 
 
     // Ownership des relations affichées : un joueur ne peut publier que SON run et SON
     // loot, pas ceux d'autrui (les relations sont validées contre sa guilde).
-    const myGuild = await strapi.db.query('api::guild.guild').findOne({
-        where: { user: { id: user.id } },
+    const myGuild = await getUserGuild(strapi, user.id, {
         select: ['id'],
     });
 
@@ -80,8 +80,7 @@ export default factories.createCoreController('api::post.post', ({ strapi }) => 
     }
 
     // 1. Récupérer la guilde de l'utilisateur courant
-    const myGuild: any = await strapi.db.query('api::guild.guild').findOne({
-        where: { user: { id: user.id } },
+    const myGuild: any = await getUserGuild(strapi, user.id, {
         select: ['documentId'],
     });
 

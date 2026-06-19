@@ -2,6 +2,7 @@ import { factories } from '@strapi/strapi';
 import { previousDateKey } from '../../../utils/quiz-date';
 import { normalizeAnswer } from '../../../utils/quiz-answer';
 import { addExp } from '../../../utils/guild-exp';
+import { getUserGuild as fetchUserGuild } from '../../../utils/guild-helpers';
 
 // ============================================================================
 // Types
@@ -101,10 +102,7 @@ export default factories.createCoreService('api::quiz-attempt.quiz-attempt', ({ 
    * R1 — Récupère la guild d'un utilisateur (helper réutilisable)
    */
   async getUserGuild(userId: number, select: string[] = ['id', 'documentId']): Promise<GuildBasic | null> {
-    return strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: userId } },
-      select,
-    });
+    return fetchUserGuild(strapi, userId, { select }) as Promise<GuildBasic | null>;
   },
 
   /**

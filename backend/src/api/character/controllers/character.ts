@@ -4,6 +4,7 @@
 
 import { factories } from '@strapi/strapi';
 import { getMaxCharacters, calculateGuildLevel } from '../../../utils/guild-level';
+import { getUserGuild } from '../../../utils/guild-helpers';
 
 export default factories.createCoreController('api::character.character', ({ strapi }) => ({
   /**
@@ -17,8 +18,7 @@ export default factories.createCoreController('api::character.character', ({ str
     // user garanti (early-return ci-dessus) : filtrage par guilde inconditionnel
     {
       // Fetch the user's guild first to ensure robust filtering
-      const userGuild = await strapi.db.query('api::guild.guild').findOne({
-        where: { user: { id: user.id } },
+      const userGuild = await getUserGuild(strapi, user.id, {
         select: ['documentId'],
       });
 
@@ -52,8 +52,7 @@ export default factories.createCoreController('api::character.character', ({ str
     // user garanti (early-return ci-dessus) : filtrage par guilde inconditionnel
     {
       // Fetch the user's guild first
-      const userGuild = await strapi.db.query('api::guild.guild').findOne({
-        where: { user: { id: user.id } },
+      const userGuild = await getUserGuild(strapi, user.id, {
         select: ['documentId'],
       });
 
@@ -132,8 +131,7 @@ export default factories.createCoreController('api::character.character', ({ str
     }
 
     // Fetch guild with exp and existing characters (with their icon ids)
-    const userGuild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: user.id } },
+    const userGuild = await getUserGuild(strapi, user.id, {
       select: ['id', 'documentId', 'exp'],
       populate: {
         characters: {

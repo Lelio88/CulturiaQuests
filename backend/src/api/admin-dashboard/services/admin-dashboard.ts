@@ -3,6 +3,8 @@
  * Aggregates data for the admin dashboard
  */
 
+import { getUserGuild } from '../../../utils/guild-helpers';
+
 export default ({ strapi }) => ({
   /**
    * Get global KPIs for the dashboard home page
@@ -152,8 +154,7 @@ export default ({ strapi }) => ({
     });
     if (!user) return null;
 
-    const guild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: userId } },
+    const guild = await getUserGuild(strapi, userId, {
       select: ['id', 'documentId', 'name', 'gold', 'exp', 'scrap', 'debug_mode', 'quiz_streak'],
     });
 
