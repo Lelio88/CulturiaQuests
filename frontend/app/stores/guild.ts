@@ -1,6 +1,14 @@
 import { defineStore } from 'pinia'
 import type { Guild } from '~/types/guild'
+import type { StrapiListResponse, StrapiSingleResponse } from '~/types/strapi'
 import { getMaxCharacters } from '~/utils/guildLevel'
+
+/**
+ * Guilde « aplatie + relations profondes » telle qu'extraite des réponses /guilds (fetchAll
+ * peuple characters/items/quests/visits/runs/friendships/progressions, hors du type Guild
+ * canonique). L'index signature documente cet agrégat volontairement permissif. #43
+ */
+type GuildAggregate = Guild & Record<string, any>
 import { useCharacterStore } from './character'
 import { useInventoryStore } from './inventory'
 import { useQuestStore } from './quest'
@@ -13,6 +21,7 @@ import { usePOIStore } from './poi'
 import { useQuizStore } from './quiz'
 import { useStatisticsStore } from './statistics'
 import { useProgressionStore } from './progression'
+import type { Progression } from './progression'
 import { useFogStore } from './fog'
 import { usePlayerFriendshipStore } from './playerFriendship'
 
@@ -111,13 +120,13 @@ export const useGuildStore = defineStore('guild', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/guilds', {
+      const response = await client<StrapiListResponse<Guild>>('/guilds', {
         method: 'GET',
       })
 
       // The controller filters by user, so we get an array with 0 or 1 guild
       const guilds = response.data || response
-      const guildData = Array.isArray(guilds) ? guilds[0] : guilds
+      const guildData = (Array.isArray(guilds) ? guilds[0] : guilds) as Guild | undefined
 
       if (guildData) {
         setGuild(guildData)
@@ -139,7 +148,7 @@ export const useGuildStore = defineStore('guild', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/guilds', {
+      const response = await client<StrapiListResponse<Guild>>('/guilds', {
         method: 'GET',
         params: {
           populate: {
@@ -189,7 +198,7 @@ export const useGuildStore = defineStore('guild', () => {
 
       // The controller filters by user, so we get an array with 0 or 1 guild
       const guilds = response.data || response
-      const guildData = Array.isArray(guilds) ? guilds[0] : guilds
+      const guildData = (Array.isArray(guilds) ? guilds[0] : guilds) as GuildAggregate | undefined
 
       if (guildData) {
         // Set guild basic info
@@ -228,7 +237,7 @@ export const useGuildStore = defineStore('guild', () => {
   async function fetchProgressions() {
     const client = useApi()
     try {
-      const res = await client<any>('/progressions', {
+      const res = await client<StrapiListResponse<Progression>>('/progressions', {
         method: 'GET',
         params: {
           populate: {
@@ -252,7 +261,7 @@ export const useGuildStore = defineStore('guild', () => {
     const client = useApi()
 
     try {
-      const response = await client<any>('/guilds', {
+      const response = await client<StrapiListResponse<Guild>>('/guilds', {
         method: 'GET',
         params: {
           fields: ['name', 'gold', 'exp', 'scrap', 'debug_mode', 'quiz_streak'],
@@ -260,7 +269,7 @@ export const useGuildStore = defineStore('guild', () => {
       })
 
       const guilds = response.data || response
-      const guildData = Array.isArray(guilds) ? guilds[0] : guilds
+      const guildData = (Array.isArray(guilds) ? guilds[0] : guilds) as GuildAggregate | undefined
 
       if (guildData && guild.value) {
         // Repli final sur la valeur courante du store : si une réponse inattendue n'expose ni la
@@ -290,12 +299,12 @@ export const useGuildStore = defineStore('guild', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/guilds/setup', {
+      const response = await client<StrapiSingleResponse<Guild>>('/guilds/setup', {
         method: 'POST',
         body: payload
       })
 
-      const data = response.data || response
+      const data = (response.data || response) as GuildAggregate
       setGuild(data)
       // Hydrate characters if returned populated
       if (data.characters) {

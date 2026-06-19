@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import type { Item } from '~/types/item'
+import type { StrapiListResponse } from '~/types/strapi'
 import { useGuildStore } from './guild'
 
 /**
@@ -27,7 +28,7 @@ import { useGuildStore } from './guild'
 export const useInventoryStore = defineStore('inventory', () => {
   // State
   const items = ref<Item[]>([])
-  const availableIcons = ref<any[]>([])
+  const availableIcons = ref<Record<string, unknown>[]>([])
   const loading = ref(false)
   const iconsLoading = ref(false)
   const error = ref<string | null>(null)
@@ -96,7 +97,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/items', {
+      const response = await client<StrapiListResponse<Item>>('/items', {
         method: 'GET',
         params: {
           populate: {
@@ -122,7 +123,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     const client = useApi()
     iconsLoading.value = true
     try {
-      const response = await client<any>('/item-icons')
+      const response = await client<StrapiListResponse<Record<string, unknown>>>('/item-icons')
       availableIcons.value = response.data || []
     } catch (e: any) {
       console.error('Failed to fetch item icons:', e)

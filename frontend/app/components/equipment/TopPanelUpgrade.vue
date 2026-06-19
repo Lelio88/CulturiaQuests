@@ -64,8 +64,24 @@
   </div>
 </template>
 
-<script setup>
-defineProps({ item: Object, userGold: Number, userScrap: Number, cost: Object, stats: Object, increment: Number, canAfford: Boolean });
+<script setup lang="ts">
+defineProps<{
+  // Forme alignée sur les props du composant Items (v-bind="item") : image requis.
+  item?: {
+    level?: number
+    index_damage?: number
+    rarity?: string
+    image: string
+    types?: string[]
+    category?: string
+  } | null
+  userGold: number
+  userScrap: number
+  cost: { scrap: number; gold: number }
+  stats: { damageGain: number; newLevel: number }
+  increment: number
+  canAfford: boolean
+}>();
 defineEmits(['set-increment', 'set-max']);
-const formatNumber = (num) => { if (!num) return "0"; return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " "); };
+const formatNumber = (num: number) => { if (!num) return "0"; return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " "); };
 </script>

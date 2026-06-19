@@ -1,5 +1,12 @@
 import { defineStore } from 'pinia'
 import type { Quest } from '~/types/quest'
+import type { StrapiListResponse } from '~/types/strapi'
+
+/** Réponse de l'endpoint custom `POST /quests/generate-daily`. */
+interface GenerateDailyResponse {
+  data?: Quest[]
+  alreadyGenerated?: boolean
+}
 
 export const useQuestStore = defineStore('quest', () => {
   // State
@@ -84,7 +91,7 @@ export const useQuestStore = defineStore('quest', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/quests/generate-daily', {
+      const response = await client<GenerateDailyResponse>('/quests/generate-daily', {
         method: 'POST',
         body: { poiDocumentIds },
       })
@@ -106,7 +113,7 @@ export const useQuestStore = defineStore('quest', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/quests', {
+      const response = await client<StrapiListResponse<Quest>>('/quests', {
         method: 'GET',
         params: {
           populate: {

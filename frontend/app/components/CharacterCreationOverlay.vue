@@ -62,7 +62,7 @@
   </transition>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useCharacterStore } from '~/stores/character';
 import { useFooterVisibility } from '~/composables/useFooterVisibility';
@@ -72,9 +72,9 @@ import PixelButton from './form/PixelButton.vue';
 import IconPicker from './form/IconPicker.vue';
 import Alert from './form/Alert.vue';
 
-const props = defineProps({
-  isOpen: Boolean,
-});
+const props = defineProps<{
+  isOpen?: boolean
+}>();
 const emit = defineEmits(['close', 'created']);
 
 const characterStore = useCharacterStore();
@@ -83,11 +83,11 @@ const { hideFooter, showFooter } = useFooterVisibility();
 
 const firstname = ref('');
 const lastname = ref('');
-const selectedIconId = ref(null);
+const selectedIconId = ref<number | null>(null);
 const creating = ref(false);
-const errorMsg = ref(null);
+const errorMsg = ref<string | null>(null);
 
-function getIconUrl(icon) {
+function getIconUrl(icon: { url?: string } | null) {
   if (!icon || !icon.url) return '';
   if (icon.url.startsWith('/')) {
     return `${config.public.strapi.url}${icon.url}`;
@@ -136,7 +136,7 @@ async function handleCreate() {
     } else {
       errorMsg.value = characterStore.error || 'Erreur lors de la création du personnage.';
     }
-  } catch (e) {
+  } catch (e: any) {
     errorMsg.value = e?.error?.message || e?.message || 'Erreur lors de la création du personnage.';
   } finally {
     creating.value = false;

@@ -152,7 +152,7 @@ export const useFogStore = defineStore('fog', () => {
    * Supprime les points qui sont à l'intérieur des zones fournies.
    * Utile pour nettoyer le stockage quand une zone est complétée.
    */
-  function removePointsInZones(zones: any[]) {
+  function removePointsInZones(zones: Array<{ geometry: unknown }>) {
     if (!zones || zones.length === 0) return
 
     discoveredPoints.value = discoveredPoints.value.filter(pt => {

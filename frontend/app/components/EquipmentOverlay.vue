@@ -40,11 +40,11 @@
           v-model:sortBy="sortBy"
           :items="filteredItems"
           :loading="loading"
-          :activeTag="activeTag"
+          :activeTag="activeTag ?? undefined"
           :availableTags="availableTags"
           :isRecycleMode="currentMode === 'recycle'"
           :isUpgradeMode="currentMode === 'upgrade'"
-          :selectedId="selectedItemId"
+          :selectedId="selectedItemId ?? undefined"
           :selectedRecycleIds="itemsToRecycle"
           @toggle-tag="toggleTag"
           @item-click="handleItemClick"
@@ -68,7 +68,7 @@
   </transition>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useGuildStore } from '~/stores/guild'
 import { useInventoryStore } from '~/stores/inventory'
@@ -83,13 +83,33 @@ import TopPanelEquip from './equipment/TopPanelEquip.vue'
 import TopPanelRecycle from './equipment/TopPanelRecycle.vue'
 import TopPanelUpgrade from './equipment/TopPanelUpgrade.vue'
 
-const props = defineProps({
-  isOpen: Boolean,
-  character: Object,
-  initialSlot: String,
-  allInventory: Array,
-  loading: Boolean
-})
+/**
+ * Item d'inventaire projeté pour l'affichage (view-model issu de equipement.vue:mapSingleItem,
+ * qui définit toujours ces champs — d'où leur caractère requis). `slot` est lu défensivement par
+ * filteredItems mais non produit par le mapper (optionnel).
+ */
+interface InventoryItemView {
+  id: number
+  documentId?: string
+  level: number
+  index_damage: number
+  rarity: string
+  category: string
+  image: string
+  types: string[]
+  isScrapped: boolean
+  power: number
+  slot?: string
+  isEquippedByCurrentChar?: boolean
+}
+
+const props = defineProps<{
+  isOpen?: boolean
+  character?: Record<string, any>
+  initialSlot?: string
+  allInventory: InventoryItemView[]
+  loading?: boolean
+}>()
 const emit = defineEmits(['close', 'equip'])
 
 const guildStore = useGuildStore()
@@ -99,16 +119,16 @@ const { calculateScrapForOneItem, getLevelCost, computeMaxAffordableLevels } = u
 const { hideFooter, showFooter } = useFooterVisibility()
 
 const activeSlot = ref('weapon');
-const selectedItemId = ref(null);
+const selectedItemId = ref<string | number | null>(null);
 const sortBy = ref('rarity');
-const activeTag = ref(null);
+const activeTag = ref<string | null>(null);
 const isRecycleMode = ref(false);
-const itemsToRecycle = ref(new Set()); 
+const itemsToRecycle = ref(new Set<number>());
 const isUpgradeMode = ref(false);
 const upgradeIncrement = ref(1);
 
 const availableTags = ['nature', 'history', 'science', 'art', 'make', 'society'];
-const rarityWeight = { legendary: 4, epic: 3, rare: 2, common: 1, basic: 0 };
+const rarityWeight: Record<string, number> = { legendary: 4, epic: 3, rare: 2, common: 1, basic: 0 };
 
 const currentMode = computed(() => {
     if (isRecycleMode.value) return 'recycle';
@@ -144,15 +164,15 @@ const resetAllModes = () => {
     itemsToRecycle.value.clear();
     upgradeIncrement.value = 1;
 };
-const changeSlot = (slot) => {
-  if (currentMode.value !== 'normal') return; 
+const changeSlot = (slot: string) => {
+  if (currentMode.value !== 'normal') return;
   activeSlot.value = slot;
   activeTag.value = null;
   selectedItemId.value = null;
 };
-const toggleTag = (tag) => { activeTag.value = activeTag.value === tag ? null : tag; };
+const toggleTag = (tag: string) => { activeTag.value = activeTag.value === tag ? null : tag; };
 
-const handleItemClick = (item) => {
+const handleItemClick = (item: InventoryItemView) => {
     if (isRecycleMode.value) {
         if (itemsToRecycle.value.has(item.id)) itemsToRecycle.value.delete(item.id);
         else itemsToRecycle.value.add(item.id);
@@ -160,7 +180,7 @@ const handleItemClick = (item) => {
     }
     selectNewItem(item);
 };
-const selectNewItem = (item) => {
+const selectNewItem = (item: InventoryItemView) => {
   selectedItemId.value = selectedItemId.value === item.id ? null : item.id;
   if(isUpgradeMode.value) upgradeIncrement.value = 1;
 };
@@ -200,7 +220,7 @@ const confirmRecycle = async () => {
 // --- LOGIQUE AMÉLIORATION ---
 const selectedItemObject = computed(() => {
     if (!selectedItemId.value) return null;
-    return props.allInventory.find(i => i.id === selectedItemId.value);
+    return props.allInventory.find(i => i.id === selectedItemId.value) || null;
 });
 // getLevelCost extrait dans useItemFormulas (#37).
 const upgradeCost = computed(() => {
@@ -225,7 +245,7 @@ const projectedStats = computed(() => {
 const canAffordUpgrade = computed(() => {
     return (guildStore.gold || 0) >= upgradeCost.value.gold && (guildStore.scrap || 0) >= upgradeCost.value.scrap;
 });
-const setUpgradeIncrement = (val) => { upgradeIncrement.value = val; };
+const setUpgradeIncrement = (val: number) => { upgradeIncrement.value = val; };
 const setMaxUpgrade = () => {
     if (!selectedItemObject.value) return;
     const possibleLevels = computeMaxAffordableLevels({
@@ -271,7 +291,7 @@ const filteredItems = computed(() => {
     let isEquipped = false;
 
     if (rawItem) {
-        const attrs = rawItem.attributes || rawItem;
+        const attrs: any = rawItem.attributes || rawItem;
 
         if (attrs.character) {
              if (attrs.character.data) isEquipped = true;
@@ -281,7 +301,7 @@ const filteredItems = computed(() => {
 
     // 4. En mode upgrade, autoriser les items équipés par le personnage sélectionné
     const isEquippedByCurrentChar = isEquipped && rawItem && (() => {
-      const attrs = rawItem.attributes || rawItem;
+      const attrs: any = rawItem.attributes || rawItem;
       const charData = attrs.character?.data || attrs.character;
       const equippedCharId = charData?.id ?? charData;
       return equippedCharId === props.character?.id;
@@ -296,7 +316,7 @@ const filteredItems = computed(() => {
     const rawItem = inventoryStore.items.find(i => i.id === item.id);
     let equipped = false;
     if (rawItem) {
-      const attrs = rawItem.attributes || rawItem;
+      const attrs: any = rawItem.attributes || rawItem;
       if (attrs.character) {
         const charData = attrs.character?.data || attrs.character;
         const equippedCharId = charData?.id ?? charData;
@@ -308,7 +328,8 @@ const filteredItems = computed(() => {
 
   // Filtrage par Tag (Nature, Art...)
   if (activeTag.value) {
-      items = items.filter(item => item.types && item.types.includes(activeTag.value.toLowerCase()));
+      const tag = activeTag.value.toLowerCase();
+      items = items.filter(item => item.types && item.types.includes(tag));
   }
 
   // Tri

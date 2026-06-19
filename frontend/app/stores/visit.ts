@@ -1,5 +1,14 @@
 import { defineStore } from 'pinia'
 import type { Visit } from '~/types/visit'
+import type { ChestLoot } from '~/types/loot'
+import type { StrapiListResponse } from '~/types/strapi'
+
+/** Réponse de l'endpoint custom `POST /visits/open-chest` (hors enveloppe Strapi standard). */
+interface OpenChestResponse {
+  visit: Visit
+  loot: ChestLoot
+  data?: { visit: Visit; loot: ChestLoot }
+}
 
 /**
  * Store des visites de POI : suivi des visites, ouverture de coffres et gestion
@@ -130,7 +139,7 @@ export const useVisitStore = defineStore('visit', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/visits', {
+      const response = await client<StrapiListResponse<Visit>>('/visits', {
         method: 'GET',
         params: {
           populate: ['poi', 'items'],
@@ -156,7 +165,7 @@ export const useVisitStore = defineStore('visit', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/visits/open-chest', {
+      const response = await client<OpenChestResponse>('/visits/open-chest', {
         method: 'POST',
         body: { poiId, userLat, userLng }
       })

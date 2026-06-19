@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import type { Character, CharacterFormData } from '~/types/character'
-import type { StrapiMedia } from '~/types/strapi'
+import type { StrapiMedia, StrapiListResponse, StrapiSingleResponse } from '~/types/strapi'
 
 /**
  * Store des personnages de la guilde du joueur (CRUD + icônes).
@@ -85,7 +85,7 @@ export const useCharacterStore = defineStore('character', () => {
 
     try {
       // Construct populate object conditionally
-      const populateConfig: any = {
+      const populateConfig: Record<string, unknown> = {
         icon: { fields: ['id', 'documentId', 'url', 'name'] },
       }
 
@@ -99,7 +99,7 @@ export const useCharacterStore = defineStore('character', () => {
         }
       }
 
-      const response = await client<any>('/characters', {
+      const response = await client<StrapiListResponse<Character>>('/characters', {
         method: 'GET',
         params: {
           populate: populateConfig,
@@ -121,7 +121,7 @@ export const useCharacterStore = defineStore('character', () => {
     iconsLoading.value = true
 
     try {
-      const response = await client<any>('/character-icons', {
+      const response = await client<StrapiListResponse<StrapiMedia>>('/character-icons', {
         method: 'GET',
       })
 
@@ -141,7 +141,7 @@ export const useCharacterStore = defineStore('character', () => {
     error.value = null
 
     try {
-      const response = await client<any>('/characters', {
+      const response = await client<StrapiSingleResponse<Character>>('/characters', {
         method: 'POST',
         body: {
           data: {
@@ -152,7 +152,7 @@ export const useCharacterStore = defineStore('character', () => {
         },
       })
 
-      const created = response.data || response
+      const created = (response.data || response) as Character
       if (created) {
         await fetchCharacters()
         return created
@@ -173,7 +173,7 @@ export const useCharacterStore = defineStore('character', () => {
     error.value = null
 
     try {
-      await client<any>(`/characters/${documentId}`, {
+      await client<StrapiSingleResponse<Character>>(`/characters/${documentId}`, {
         method: 'PUT',
         body: {
           data: {
@@ -201,7 +201,7 @@ export const useCharacterStore = defineStore('character', () => {
     error.value = null
 
     try {
-      await client<any>(`/characters/${documentId}`, {
+      await client<StrapiSingleResponse<Character>>(`/characters/${documentId}`, {
         method: 'DELETE',
       })
 

@@ -35,20 +35,27 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
 // IMPORT DU COMPOSABLE (Source unique de vérité pour les dégâts)
 import { useDamageCalculator } from '~/composables/useDamageCalculator';
 import { formatCompactNumber } from '~/utils/format';
 
-const props = defineProps({
-  level: { type: [Number, String], default: 1 },
-  index_damage: { type: [Number, String], default: 0 },
-  rarity: { type: String, default: 'common' },
-  selected: { type: Boolean, default: false },
-  image: { type: String, required: true },
-  types: { type: Array, default: () => [] }, 
-  category: { type: String, default: 'Weapon' }
+const props = withDefaults(defineProps<{
+  level?: number | string
+  index_damage?: number | string
+  rarity?: string
+  selected?: boolean
+  image: string
+  types?: string[]
+  category?: string
+}>(), {
+  level: 1,
+  index_damage: 0,
+  rarity: 'common',
+  selected: false,
+  types: () => [],
+  category: 'Weapon',
 });
 
 // Récupération de la fonction de calcul
@@ -81,14 +88,14 @@ const gradientClass = computed(() => {
 });
 
 // --- 4. Icônes ---
-const getTypeIcon = (typeName) => {
-  const map = {
+const getTypeIcon = (typeName: string) => {
+  const map: Record<string, string> = {
     nature: '/assets/nature-icon.png',
     history: '/assets/history-icon.png',
     science: '/assets/science-icon.png',
-    art: '/assets/art-icon.png', 
+    art: '/assets/art-icon.png',
     make: '/assets/make-icon.png',
-    society: '/assets/society-icon.png' 
+    society: '/assets/society-icon.png'
   };
   // Fallback si l'image n'est pas mappée
   return map[typeName.toLowerCase()] || `/${typeName}.svg`;
