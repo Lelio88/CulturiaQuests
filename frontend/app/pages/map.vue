@@ -27,13 +27,13 @@
         >
           <!-- Tile layer ajoutée programmatiquement dans onMapReady pour maxNativeZoom -->
 
-          <!-- Zones et Labels gérés manuellement dans le script via updateMapLayers -->
+          <!-- Zones et Labels gérés via le composable useZoneRenderer (zoneLayers) -->
 
           <!-- Marqueurs extraits (Optimisé JS pur) -->
           <MapMarkers
             v-if="isMapReady"
             ref="mapMarkersRef"
-            :map="mapRef.leafletObject"
+            :map="mapRef?.leafletObject"
             :museums="validMuseums"
             :pois="validPOIs"
             :user-lat="userLat"
@@ -44,7 +44,7 @@
           />
 
           <!-- Brouillard de guerre -->
-          <FogLayer v-if="isMapReady" ref="fogLayerRef" :map="mapRef.leafletObject" />
+          <FogLayer v-if="isMapReady" ref="fogLayerRef" :map="mapRef?.leafletObject" />
         </LMap>
       </ClientOnly>
 
@@ -64,18 +64,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch, toRaw } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import type * as Leaflet from 'leaflet' // Type only import for SSR safety
 import { useMuseumStore } from '~/stores/museum'
 import { usePOIStore } from '~/stores/poi'
 import { useGuildStore } from '~/stores/guild'
 import { useRunStore } from '~/stores/run'
 import { useFogStore } from '~/stores/fog'
-import { useZoneStore, type GeoZone } from '~/stores/zone'
+import { useZoneStore } from '~/stores/zone'
 import { useProgressionStore } from '~/stores/progression'
 import { useGeolocation } from '~/composables/useGeolocation'
 import { useMapInteraction } from '~/composables/useMapInteraction'
 import { useZoneCompletion } from '~/composables/useZoneCompletion'
+import { useZoneRenderer } from '~/composables/useZoneRenderer'
 import { calculateDistance } from '~/utils/geolocation'
 import MapMarkers from '~/components/map/MapMarkers.vue'
 import FogLayer from '~/components/map/FogLayer.vue'
@@ -108,15 +109,12 @@ const mapInteraction = useMapInteraction()
 const zoneCompletion = useZoneCompletion()
 
 // Refs
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mapRef = ref<any>(null) // Type any car Leaflet map non typé
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const fogLayerRef = ref<any>(null)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mapMarkersRef = ref<any>(null)
+// mapRef = instance du composant LMap (vue-leaflet) ; son `.leafletObject` est la Leaflet.Map.
+const mapRef = ref<{ leafletObject?: Leaflet.Map } | null>(null)
+const fogLayerRef = ref<InstanceType<typeof FogLayer> | null>(null)
+const mapMarkersRef = ref<InstanceType<typeof MapMarkers> | null>(null)
 const currentZoom = ref(16)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mapBounds = ref<any>(null) // Limites visibles de la carte
+const mapBounds = ref<Leaflet.LatLngBounds | null>(null) // Limites visibles de la carte
 const isMapReady = ref(false) // Flag de sécurité pour l'initialisation
 const selectedItem = ref<LocationItem | null>(null)
 const isDrawerOpen = ref(false)
@@ -124,171 +122,9 @@ const isDrawerOpen = ref(false)
 // Leaflet Library (Loaded dynamically)
 let L: typeof Leaflet
 
-// Renderer Canvas persistant (évite le bug SVG removeLayer/_renderer)
-let zoneRenderer: Leaflet.Canvas | null = null
-let currentZoneLayer: Leaflet.GeoJSON | null = null
-let labelMarkersMap = new Map<string | number, Leaflet.Marker>()
-
-// Debounce & rAF helpers
+// Debounce helpers (cycle de vie carte)
 let moveDebounceTimer: ReturnType<typeof setTimeout> | null = null
 let mapReadyTimer: ReturnType<typeof setTimeout> | null = null
-let rafId: number | null = null
-let lastZoneType: 'regions' | 'departments' | 'comcoms' | null = null
-
-// --- LOGIQUE RENDU ZONES (Fusionnée) ---
-
-const ZONE_STYLE = {
-  color: '#ffffff',
-  weight: 3,
-  opacity: 0.8,
-  fill: false,
-  lineCap: 'round' as const,
-  lineJoin: 'round' as const
-} as const
-
-const getZoneCenter = (zone: GeoZone): [number, number] | null => {
-  if (zone.centerLat && zone.centerLng) return [zone.centerLat, zone.centerLng]
-  try {
-    const geo = toRaw(zone.geometry)
-    if (!geo) return null
-    let coords: any[] = []
-    if (geo.type === 'Polygon') coords = geo.coordinates[0]
-    else if (geo.type === 'MultiPolygon') coords = geo.coordinates[0][0]
-    if (!coords || coords.length === 0) return null
-    let sumLat = 0, sumLng = 0
-    const len = coords.length
-    for (let i = 0; i < len; i++) {
-      sumLng += coords[i][0]
-      sumLat += coords[i][1]
-    }
-    return [sumLat / len, sumLng / len]
-  } catch (e) { return null }
-}
-
-const shouldHideZoneLabel = (zone: GeoZone): boolean => {
-  if (currentZoom.value < 8) {
-    const id = zone.documentId || zone.id
-    return progressionStore.isRegionCompleted(id)
-  }
-  return false
-}
-
-const getCurrentZoneType = (): 'regions' | 'departments' | 'comcoms' => {
-  if (currentZoom.value >= 11) return 'comcoms'
-  if (currentZoom.value >= 8) return 'departments'
-  return 'regions'
-}
-
-const destroyZoneRenderer = () => {
-  if (currentZoneLayer) {
-    try { currentZoneLayer.remove() } catch (_) { /* ignore */ }
-    currentZoneLayer = null
-  }
-  if (zoneRenderer) {
-    try {
-      const c = (zoneRenderer as any)._container
-      if (c?.parentNode) c.parentNode.removeChild(c)
-    } catch (_) { /* ignore */ }
-    zoneRenderer = null
-  }
-}
-
-const renderZones = () => {
-  const map = mapRef.value?.leafletObject
-  if (!map || !isMapReady.value || !L) return
-
-  const zoneType = getCurrentZoneType()
-  const typeChanged = zoneType !== lastZoneType
-  lastZoneType = zoneType
-
-  // Changement de type (comcoms→départements) : recréer le renderer
-  // Même type (pan dans les comcoms) : réutiliser le renderer, juste remplacer le layer
-  if (typeChanged) {
-    destroyZoneRenderer()
-  } else if (currentZoneLayer) {
-    try { currentZoneLayer.remove() } catch (_) { /* ignore */ }
-    currentZoneLayer = null
-  }
-
-  const zones = visibleZones.value.filter(z => z.geometry)
-  if (zones.length === 0) return
-
-  const geoJsonData = {
-    type: "FeatureCollection",
-    features: zones.map(z => ({
-      type: "Feature",
-      geometry: toRaw(z.geometry),
-      properties: {}
-    }))
-  }
-
-  try {
-    if (!zoneRenderer) zoneRenderer = L.canvas()
-    currentZoneLayer = L.geoJSON(geoJsonData as any, {
-      style: () => ZONE_STYLE,
-      interactive: false,
-      renderer: zoneRenderer
-    }).addTo(map)
-  } catch (e) {
-    console.error("GeoJSON render error", e)
-  }
-}
-
-const renderLabels = () => {
-  const map = mapRef.value?.leafletObject
-  if (!map || !isMapReady.value || !L) return
-
-  const zones = visibleZones.value
-  const nextIds = new Set<string | number>()
-
-  zones.forEach(zone => {
-    if (shouldHideZoneLabel(zone)) return
-    const center = getZoneCenter(zone)
-    if (!center) return
-
-    const key = zone.documentId || zone.id
-    nextIds.add(key)
-
-    // Le marker existe déjà → pas de DOM churn
-    if (labelMarkersMap.has(key)) return
-
-    const html = `<div class="text-center font-pixel text-white text-shadow-outline text-xs whitespace-nowrap overflow-visible pointer-events-none">${zone.name}</div>`
-
-    const icon = L.divIcon({
-      className: 'zone-label-icon',
-      html: html,
-      iconSize: [100, 20],
-      iconAnchor: [50, 10]
-    })
-
-    const marker = L.marker(center, {
-      icon: icon,
-      interactive: false,
-      zIndexOffset: 1000
-    }).addTo(map)
-    labelMarkersMap.set(key, marker)
-  })
-
-  // Retirer les markers qui ne sont plus visibles
-  for (const [key, marker] of labelMarkersMap) {
-    if (!nextIds.has(key)) {
-      try { marker.remove() } catch (_) { /* ignore */ }
-      labelMarkersMap.delete(key)
-    }
-  }
-}
-
-const updateMapLayers = () => {
-  // Coalesce multiples appels en un seul rendu par frame
-  if (rafId !== null) return
-  rafId = requestAnimationFrame(() => {
-    rafId = null
-    renderZones()
-    renderLabels()
-  })
-}
-
-// --- FIN LOGIQUE RENDU FUSIONNÉE ---
 
 // Computed - Zones visibles selon le zoom ET la zone visible (BBOX)
 const visibleZones = computed(() => {
@@ -311,8 +147,19 @@ const visibleZones = computed(() => {
   return zones
 })
 
+// Rendu des zones/labels délégué au composable dédié (#46). Accès paresseux à la carte/lib
+// Leaflet (non disponibles en SSR / avant onMapReady).
+const zoneLayers = useZoneRenderer({
+  // cast: @types/leaflet perd la polymorphie `this` quand Map est annoté en propriété.
+  getMap: () => mapRef.value?.leafletObject as Leaflet.Map | undefined,
+  getL: () => L,
+  isMapReady,
+  currentZoom,
+  visibleZones,
+})
+
 watch([visibleZones, isMapReady], () => {
-  updateMapLayers()
+  zoneLayers.updateMapLayers()
 }, { deep: false })
 
 // Computed - Guild characters
@@ -414,8 +261,10 @@ function onMapReady() {
   // quand des layers/handlers référencent des éléments DOM déjà détruits
   // (ex: Marker._removeIcon → DomEvent.off(this._icon) avec _icon undefined).
   if (map) {
-    const originalRemove = map.remove
-    map.remove = function () {
+    // Monkey-patch d'un internal Leaflet (cleanup tolérant) : accès volontairement non typé.
+    const mapAny = map as any
+    const originalRemove = mapAny.remove
+    mapAny.remove = function () {
       try {
         return originalRemove.call(this)
       } catch (_) {
@@ -426,7 +275,7 @@ function onMapReady() {
 
   mapReadyTimer = setTimeout(() => {
     mapReadyTimer = null
-    const m = mapRef.value?.leafletObject
+    const m = mapRef.value?.leafletObject as Leaflet.Map | undefined
     if (!m) return // La carte a déjà été détruite (navigation rapide)
     m.zoomControl?.remove()
     m.invalidateSize()
@@ -439,7 +288,7 @@ function onMapReady() {
     }).addTo(m)
 
     isMapReady.value = true
-    updateMapLayers()
+    zoneLayers.updateMapLayers()
   }, 100)
 }
 
@@ -529,11 +378,7 @@ onBeforeUnmount(() => {
   // 2. Bloquer tout nouveau rendu immédiatement
   isMapReady.value = false
 
-  // Annuler les opérations asynchrones en attente
-  if (rafId !== null) {
-    cancelAnimationFrame(rafId)
-    rafId = null
-  }
+  // Annuler les timers de cycle de vie carte en attente
   if (moveDebounceTimer) {
     clearTimeout(moveDebounceTimer)
     moveDebounceTimer = null
@@ -543,12 +388,9 @@ onBeforeUnmount(() => {
     mapReadyTimer = null
   }
 
-  // Supprimer les layers Leaflet pendant que la carte existe encore
-  destroyZoneRenderer()
-  for (const marker of labelMarkersMap.values()) {
-    try { marker.remove() } catch (_) { /* ignore */ }
-  }
-  labelMarkersMap.clear()
+  // Annule le rAF en attente + supprime layer/renderer/labels des zones pendant que la carte
+  // existe encore (le composable détient cet état, #46).
+  zoneLayers.cleanup()
 })
 
 </script>
