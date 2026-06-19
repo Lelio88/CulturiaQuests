@@ -4,6 +4,7 @@
 
 import { factories } from '@strapi/strapi';
 import { withAdvisoryLock } from '../../../utils/db-lock';
+import { getUserGuild } from '../../../utils/guild-helpers';
 
 export default factories.createCoreController('api::quest.quest', ({ strapi }) => ({
   /**
@@ -80,8 +81,7 @@ export default factories.createCoreController('api::quest.quest', ({ strapi }) =
     }
 
     // Récupérer la guild du joueur
-    const guild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: user.id } },
+    const guild = await getUserGuild(strapi, user.id, {
       select: ['id', 'documentId'],
     });
     if (!guild) return ctx.notFound('Guild not found');

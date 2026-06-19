@@ -4,6 +4,7 @@
  */
 import sharp from 'sharp';
 import crypto from 'crypto';
+import { getUserGuild } from '../../../utils/guild-helpers';
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
@@ -245,8 +246,7 @@ export default {
 
     try {
       // 1. Trouver la guild de l'utilisateur
-      const guild = await strapi.db.query('api::guild.guild').findOne({
-        where: { user: { id: user.id } },
+      const guild = await getUserGuild(strapi, user.id, {
         select: ['id', 'documentId'],
       });
 

@@ -1,4 +1,5 @@
 import { factories } from '@strapi/strapi';
+import { getUserGuild } from '../../../utils/guild-helpers';
 
 const MAX_PENDING_REQUESTS = 20;
 
@@ -13,8 +14,7 @@ export default factories.createCoreController('api::player-friendship.player-fri
     }
 
     // Get user's guild
-    const guild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: user.id } },
+    const guild = await getUserGuild(strapi, user.id, {
       select: ['documentId'],
     });
 
@@ -122,8 +122,7 @@ export default factories.createCoreController('api::player-friendship.player-fri
     }
 
     // Get user's guild
-    const myGuild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: user.id } },
+    const myGuild = await getUserGuild(strapi, user.id, {
       select: ['documentId'],
     });
 
@@ -216,8 +215,7 @@ export default factories.createCoreController('api::player-friendship.player-fri
     }
 
     // Get user's guild
-    const myGuild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: user.id } },
+    const myGuild = await getUserGuild(strapi, user.id, {
       select: ['documentId'],
     });
 
@@ -270,8 +268,7 @@ export default factories.createCoreController('api::player-friendship.player-fri
     }
 
     // Get user's guild
-    const myGuild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: user.id } },
+    const myGuild = await getUserGuild(strapi, user.id, {
       select: ['documentId'],
     });
 
@@ -324,8 +321,7 @@ export default factories.createCoreController('api::player-friendship.player-fri
     }
 
     // Get user's guild
-    const myGuild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: user.id } },
+    const myGuild = await getUserGuild(strapi, user.id, {
       select: ['documentId'],
     });
 

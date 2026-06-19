@@ -2,11 +2,12 @@
  * statistic service
  */
 
+import { getUserGuild } from '../../../utils/guild-helpers';
+
 export default ({ strapi }) => ({
   async getSummary(userId) {
     // 1. Get Guild ID
-    const guild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: userId } },
+    const guild = await getUserGuild(strapi, userId, {
       select: ['id', 'exp']
     });
 
