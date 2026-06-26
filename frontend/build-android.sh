@@ -39,10 +39,11 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 
 if command -v npx &> /dev/null && ! command -v android-studio &> /dev/null; then
-    echo -e "${CYAN}To build APK without Android Studio:${NC}"
-    echo -e "  cd android && ./gradlew assembleRelease"
+    echo -e "${CYAN}To build the Play Store bundle (AAB) without Android Studio:${NC}"
+    echo -e "  cd android && ./gradlew bundleRelease"
     echo ""
-    echo -e "${CYAN}APK will be located at:${NC}"
-    echo -e "  android/app/build/outputs/apk/release/app-release-unsigned.apk"
+    echo -e "${CYAN}AAB will be located at:${NC}"
+    echo -e "  android/app/build/outputs/bundle/release/app-release.aab"
+    echo -e "  ${YELLOW}(signé si android/keystore.properties existe — cf. android/keystore.properties.example)${NC}"
     echo ""
 fi
