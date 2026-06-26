@@ -21,15 +21,10 @@
             1. Éditeur de l'application
           </h2>
           <div class="p-4 bg-gray-50 rounded-lg text-sm space-y-1">
-            <p><strong>Raison sociale</strong> : Culturia Quests SASU</p>
-            <p><strong>Forme juridique</strong> : Société par actions simplifiée unipersonnelle (SASU)</p>
-            <p><strong>Capital social</strong> : [À compléter]</p>
-            <p><strong>Siège social</strong> : [À compléter]</p>
-            <p><strong>SIRET</strong> : [À compléter]</p>
-            <p><strong>RCS</strong> : [À compléter]</p>
-            <p><strong>Numéro de TVA intracommunautaire</strong> : [À compléter]</p>
-            <p><strong>Téléphone</strong> : [À compléter]</p>
-            <p><strong>Email</strong> : [À compléter]</p>
+            <p><strong>Éditeur</strong> : Lelio Buton</p>
+            <p><strong>Statut</strong> : personne physique éditant l'application à titre non professionnel</p>
+            <p><strong>Email de contact</strong> : heianenterpriseyt@gmail.com</p>
+            <p class="text-gray-500 mt-2">Conformément à l'article 6-III-2 de la LCEN, l'éditeur non professionnel peut préserver l'anonymat de son adresse postale auprès du public ; ses coordonnées sont détenues par l'hébergeur (section 3) et communicables sur réquisition de l'autorité judiciaire.</p>
           </div>
         </section>
 
@@ -39,8 +34,7 @@
             2. Directeur de la publication
           </h2>
           <p class="leading-relaxed">
-            Le directeur de la publication est <strong>[Nom et prénom à compléter]</strong>,
-            en qualité de président de la société Culturia Quests SASU.
+            Le directeur de la publication est <strong>Lelio Buton</strong>, en qualité d'éditeur de l'application.
           </p>
         </section>
 
@@ -50,7 +44,7 @@
             3. Hébergeur
           </h2>
           <div class="p-4 bg-gray-50 rounded-lg text-sm space-y-1">
-            <p><strong>Raison sociale</strong> : [À compléter]</p>
+            <p><strong>Raison sociale</strong> : [À compléter une fois l'hébergeur choisi]</p>
             <p><strong>Adresse</strong> : [À compléter]</p>
             <p><strong>Téléphone</strong> : [À compléter]</p>
             <p><strong>Site web</strong> : [À compléter]</p>
@@ -64,7 +58,7 @@
           </h2>
           <p class="leading-relaxed">
             L'ensemble des éléments constituant l'application CulturiaQuests (design, graphismes, code source,
-            textes, personnages, quêtes, mécaniques de jeu) est la propriété exclusive de Culturia Quests SASU
+            textes, personnages, quêtes, mécaniques de jeu) est la propriété exclusive de Lelio Buton
             ou de ses concédants de licence, et est protégé par les lois françaises et internationales relatives
             au droit d'auteur et à la propriété intellectuelle.
           </p>
@@ -102,7 +96,7 @@
           </h2>
           <p class="leading-relaxed">
             Pour toute question relative aux mentions légales, vous pouvez nous contacter à l'adresse :
-            <span class="text-indigo-600">[email de contact à compléter]</span>.
+            <span class="text-indigo-600">heianenterpriseyt@gmail.com</span>.
           </p>
         </section>
 

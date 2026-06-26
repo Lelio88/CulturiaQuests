@@ -22,10 +22,8 @@
           L'application <strong>CulturiaQuests</strong> est éditée par :
         </p>
         <div class="mt-3 p-4 bg-gray-50 rounded-lg text-sm space-y-1">
-          <p><strong>Culturia Quests SASU</strong></p>
-          <p>Adresse : [À compléter]</p>
-          <p>SIRET : [À compléter]</p>
-          <p>Email de contact : [À compléter]</p>
+          <p><strong>Lelio Buton</strong> — éditeur individuel (à titre non professionnel)</p>
+          <p>Email de contact : heianenterpriseyt@gmail.com</p>
         </div>
       </section>
 
@@ -142,7 +140,7 @@
         <p class="leading-relaxed mt-2">
           <strong>Droits des utilisateurs</strong> : conformément au RGPD, vous disposez d'un droit d'accès, de rectification,
           d'effacement, de portabilité et d'opposition concernant vos données personnelles. Pour exercer ces droits,
-          contactez-nous à l'adresse : <span class="text-indigo-600">[email de contact à compléter]</span>.
+          contactez-nous à l'adresse : <span class="text-indigo-600">heianenterpriseyt@gmail.com</span>.
         </p>
         <p class="leading-relaxed mt-2">
           Vous pouvez également introduire une réclamation auprès de la <strong>CNIL</strong> (Commission Nationale de l'Informatique et des Libertés) si vous estimez que vos droits ne sont pas respectés.
@@ -173,7 +171,7 @@
         </h2>
         <p class="leading-relaxed">
           L'ensemble des éléments constituant CulturiaQuests (design, graphismes, code source, textes, personnages, quêtes,
-          mécaniques de jeu) est la propriété exclusive de <strong>Culturia Quests SASU</strong> ou de ses concédants de licence,
+          mécaniques de jeu) est la propriété exclusive de <strong>Lelio Buton</strong> ou de ses concédants de licence,
           et est protégé par les lois françaises et internationales relatives au droit d'auteur et à la propriété intellectuelle.
         </p>
         <p class="leading-relaxed mt-2">
