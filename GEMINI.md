@@ -1,43 +1,67 @@
 # CulturiaQuests - Project Context
 
+> Source of truth for project facts: the root `CLAUDE.md`. This file mirrors it for the Gemini CLI and adds the Plan-Mode operating instructions below. If the two ever disagree, `CLAUDE.md` wins.
+
 ## Project Overview
 
-**CulturiaQuests** is a geolocation-based RPG web application that gamifies cultural visits. It employs a headless CMS architecture to manage game content (Quests, NPCs, Items, POIs) and a modern frontend for the player experience.
+**CulturiaQuests** is a geolocation-based RPG that turns the discovery of Saint-Lô's cultural heritage into a game for the 18-25 audience. Players physically explore real-world locations (museums, POIs, NPCs) to complete quests, answer a daily timeline quiz, run "expeditions", reveal a fog-of-war map, and progress their character.
 
-- **Type:** Full-stack Web Application (PWA capabilities potential).
-- **Core Concept:** Users interact with real-world locations (Museums, Points of Interest) to complete quests, earn experience/items, and progress their character.
+- **Type:** Mobile-first full-stack application (web + Capacitor Android). The desktop view is blocked outside `/dashboard` unless `NUXT_PUBLIC_ALLOW_DESKTOP=true`.
+- **Architecture:** A three-service Docker monorepo — a headless CMS, an SSR SPA, and a local LLM. No microservices, no message queue.
 
 ## Technology Stack
 
 ### Backend (`/backend`)
-- **Framework:** [Strapi v5](https://strapi.io/) (Headless CMS).
-- **Language:** TypeScript (Node.js).
-- **Database:** PostgreSQL (via Docker).
-- **Key Plugins:** `strapi-geodata` (for geolocation management), `users-permissions`.
-- **API Style:** REST API.
+- **Framework:** [Strapi v5](https://strapi.io/) 5.34 (Headless CMS), ~29 content-types under `src/api/`.
+- **Language:** TypeScript 5 (Node.js >= 20).
+- **Database:** PostgreSQL 14 (via Docker).
+- **Key libs/plugins:** `strapi-geodata` (geolocation), `users-permissions`, `node-cron` (daily quiz cron), `openai` 6 (Ollama-compatible client).
+- **API Style:** REST. Always the Strapi v5 **Document Service API** (`strapi.documents(...)`), never the legacy Entity Service.
 
 ### Frontend (`/frontend`)
-- **Framework:** [Nuxt 4](https://nuxt.com/) (Vue.js 3).
+- **Framework:** [Nuxt 4](https://nuxt.com/) 4.2 (Vue 3.5), SSR.
 - **Styling:** Tailwind CSS.
-- **State Management:** Pinia.
+- **State Management:** Pinia + `pinia-plugin-persistedstate` (storage **`localStorage` only** — never cookies, see guardrails).
+- **Maps / charts / motion:** `@nuxtjs/leaflet`, `nuxt-charts`, `animejs` (direct import, route-split).
 - **Language:** TypeScript.
-- **API Integration:** `@nuxtjs/strapi`.
+- **API & Auth:** a **BFF (Backend-for-Frontend)** — Nuxt server routes `/api/auth/*` + a `/api/strapi/*` proxy that injects the JWT from an HTTP-only `cq_session` cookie server-side. The `@nuxtjs/strapi` module was **removed** at the BFF cutover (#17); the client never holds a token.
 
-### Infrastructure & Tools
-- **Containerization:** Docker & Docker Compose.
-- **Scripts:** Python (`ai_reviewer.py`) and TypeScript (`pois_importer`, `populate_db`) utilities in `/scripts`.
+### Mobile (`/frontend/android`)
+- **Capacitor 8** (`@capacitor/android`, `@capacitor/ios`, `@capacitor/local-notifications`). App ID `fr.briceledanois.culturiaquests`.
+
+### Local AI
+- **Ollama** (`mistral:7b` by default, override via `OLLAMA_MODEL`) for the timeline quiz generation and POI categorisation.
+
+### Tooling
+- **Containerization:** Docker & Docker Compose (`database` + `backend` + `frontend` + `ollama`).
+- **E2E tests:** Playwright (frontend only) — `cd frontend && npm test`.
+- **Scripts:** Python (`ai_reviewer.py`) and TypeScript (`pois_importer`, `zones_importer`, `populate_db`) utilities in `/scripts`.
 
 ## Directory Structure
 
 ```
 /
-├── backend/            # Strapi application (API & Admin Panel)
-├── frontend/           # Nuxt application (Client)
-├── scripts/            # Utility scripts (POI import, AI review, DB population)
-├── docker-compose.yml  # Main orchestration file
-├── IMPLEMENTATION_PLAN.md # Detailed plan for Content-Type implementation
-└── README.md           # General entry point
+├── backend/            # Strapi v5 API & Admin Panel (content-types in src/api/, bootstrap perms in src/index.ts)
+├── frontend/           # Nuxt 4 SSR client (app/{pages,components,stores,composables,middleware,types,utils}, server/api BFF)
+│   └── android/        # Capacitor Android project
+├── scripts/            # POI/zones importers (Overpass + Ollama), seed, backup, AI reviewer
+├── docs/               # Thematic documentation (architecture.md, fog_system.md, ...)
+├── docker-compose.yml  # Main orchestration (dev)
+├── docker-compose.prod.yml
+└── README.md
 ```
+
+## Non-Negotiable Guardrails
+
+(mirrors `CLAUDE.md` §IV — read it for the full text)
+
+1. **User data isolation:** every controller exposing player data (`guild`, `character`, `item`, `run`, `quest`, `quiz-attempt`, `friendship`, ...) MUST filter by `ctx.state.user.id` via the `guild.user` relation. A query without it is a cross-tenant leak.
+2. **Strapi v5 Document Service API:** `strapi.documents('api::x.x')` with `documentId`. `strapi.db.query()` only for internal lookups by `id`.
+3. **Permissions at bootstrap, never via the admin panel:** every custom route is granted in `backend/src/index.ts` for `public`/`authenticated`/`admin`.
+4. **Pinia persistence in `localStorage` only:** never re-enable cookie persistence (guaranteed 431 "Request Header Fields Too Large" in prod).
+5. **Auth via the HTTP-only `cq_session` cookie** (set by the BFF server routes; `secure` in prod, `sameSite=lax`, 14 days). No token in `localStorage`. (`culturia_jwt` is a removed legacy cookie, only cleared defensively.)
+6. **No secrets in clear:** `APP_KEYS`, `JWT_SECRET`, `API_TOKEN_SALT`, `ADMIN_JWT_SECRET`, `TRANSFER_TOKEN_SALT` come from `.env` / `.env.production`.
+7. **Strapi admin build required** after any schema (`*/schema.json`) or plugin change: `cd backend && npm run build` before `develop`.
 
 ## Development Workflow
 
@@ -76,26 +100,29 @@ Strapi v5 requires a manual build of the admin panel before the first Docker lau
 - **Start all:** `docker-compose up` (add `-d` for background)
 - **Rebuild:** `docker-compose up --build`
 - **Stop:** `docker-compose down`
+- **Logs:** `docker-compose logs -f backend`
 
 ### Backend (Local)
 - **Develop:** `npm run develop` (starts on port 1337)
-- **Build:** `npm run build`
+- **Build:** `npm run build`  *(required after any schema/plugin change)*
 - **Console:** `npm run console`
 
 ### Frontend (Local)
 - **Develop:** `npm run dev` (starts on port 3000)
 - **Build:** `npm run build`
+- **E2E tests:** `npm test` (Playwright)
 
 ## Current Development Status
-- **Content Types:** A major refactor of Strapi Content Types is in progress (see `IMPLEMENTATION_PLAN.md`).
-- **Database:** `scripts/populate_db` handles initial seeding of NPCs, POIs, and Items.
-- **Geolocation:** `strapi-geodata` is configured for `museum` and `poi` types.
+- **Content:** ~29 Strapi content-types are in place; `scripts/populate_db` and the importers seed NPCs, POIs, items and zones.
+- **Auth:** migrated to the BFF HTTP-only model (#17).
+- **Geolocation:** `strapi-geodata` configured for `museum` and `poi` types; fog-of-war + expeditions implemented (see `docs/`).
 
 ## Conventions
-- **Code Style:** Follow existing ESLint configurations (`eslint.config.mjs`).
-- **TypeScript:** Strictly used across both backend and frontend.
-- **Strapi:** Use the Factory pattern for Controllers/Services/Routes.
-- **Commits:** Follow the `scripts/ai_reviewer.py` guidelines (likely Conventional Commits).
+- **Code Style:** Follow the existing ESLint config (`eslint.config.mjs`). Backend uses semicolons; frontend does not.
+- **TypeScript:** Used across backend and frontend (backend `strict: false`).
+- **Strapi:** Factory pattern for Controllers/Services/Routes; custom routes need a bootstrap permission in `src/index.ts`.
+- **Commits:** Conventional Commits (`feat`, `fix`, `refactor`, `docs`, `test`, `chore`...).
+- **Docs:** keep the code diff and its doc diff in the same commit (`CLAUDE.md` §VII).
 
 You are Gemini CLI, an expert AI assistant operating in a special 'Plan Mode'. Your sole purpose is to research, analyze, and create detailed implementation plans. You must operate in a strict read-only capacity.
 
@@ -195,4 +222,3 @@ grepai trace graph "ValidateToken" --depth 3 --json
 2. Use `grepai trace` to understand function relationships
 3. Use `Read` tool to examine files from results
 4. Only use Grep for exact string searches if needed
-

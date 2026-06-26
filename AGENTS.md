@@ -2,6 +2,10 @@
 
 Guide for agentic coding agents working in the CulturiaQuests repository.
 
+> **Source of truth:** the root `CLAUDE.md` holds the canonical project context, architecture and non-negotiable guardrails. This file focuses on day-to-day build/style conventions; when in doubt, `CLAUDE.md` wins.
+>
+> **Stack in one line:** Strapi v5 (PostgreSQL) headless CMS + Nuxt 4 SSR SPA (Pinia) + Ollama local LLM (`mistral:7b`), in a Docker monorepo. Mobile via Capacitor 8 (Android). **Auth via a BFF:** Nuxt server routes (`/api/auth/*`, `/api/strapi/*` proxy) set/read an HTTP-only `cq_session` cookie; the client never holds a token (the `@nuxtjs/strapi` module was removed at the BFF cutover #17).
+
 ## Build, Lint, and Test Commands
 
 ### Docker (Recommended)
@@ -44,9 +48,14 @@ npx eslint --fix . # Auto-fix linting issues
 ```
 
 ### Testing
-**No test framework is currently configured.** Tests should be added using:
-- Backend: Jest or Vitest
-- Frontend: Vitest (recommended for Nuxt 4)
+**E2E:** Playwright is configured on the frontend.
+```bash
+cd frontend
+npm test            # Playwright E2E
+npm run test:ui     # interactive UI mode
+npm run test:headed # headed browser
+```
+No unit-test framework is wired on the backend yet — if you add one, prefer Vitest.
 
 ## Code Style Guidelines
 
@@ -326,13 +335,18 @@ async function fetchGuild() {
 
 ### Additional Best Practices
 
-1. **User Data Isolation**: Controllers MUST filter by authenticated user to prevent cross-user data access
-2. **Populate Relations**: Always specify populate parameters for related data
-3. **Sanitize I/O**: Use `sanitizeQuery()` and `sanitizeOutput()` in controllers
-4. **Environment Variables**: Use `.env` files, never commit secrets
-5. **Media Library**: Store character/item icons in specific folders (`characters/`, `items/`)
-6. **Database Fields**: Use snake_case for custom fields in Strapi schemas
-7. **Tailwind Classes**: Extensively used in frontend templates
+These fold in the non-negotiable guardrails from `CLAUDE.md` §IV:
+
+1. **User Data Isolation (CRITICAL)**: controllers exposing player data MUST filter by `ctx.state.user.id` via the `guild.user` relation — a missing filter is a cross-tenant leak.
+2. **Document Service API**: use `strapi.documents('api::x.x')` (v5), never the legacy Entity Service; `strapi.db.query()` only for internal `id` lookups.
+3. **Permissions at bootstrap**: every custom route is granted in `backend/src/index.ts` (`public`/`authenticated`/`admin`), never via the admin panel.
+4. **Pinia persistence = `localStorage` only**: never re-enable cookie persistence (431 "Request Header Fields Too Large" in prod).
+5. **Auth via HTTP-only `cq_session` cookie** (BFF): no token in `localStorage`; `culturia_jwt` is a removed legacy cookie.
+6. **Admin build after schema/plugin changes**: `cd backend && npm run build` before `develop`.
+7. **Secrets only from `.env`**: never commit `APP_KEYS`, `JWT_SECRET`, `API_TOKEN_SALT`, `ADMIN_JWT_SECRET`, `TRANSFER_TOKEN_SALT`.
+8. **Populate Relations / Sanitize I/O**: specify `populate` for related data; use `sanitizeQuery()` + `sanitizeOutput()` in controllers.
+9. **Media Library**: store character/item icons in dedicated folders (`characters/`, `items/`).
+10. **Database Fields**: snake_case for custom Strapi fields. **Tailwind** is used extensively in frontend templates.
 
 ### Common Gotchas
 
