@@ -22,6 +22,7 @@ import fs from 'fs';
 import path from 'path';
 import { getParisDateKey } from '../../../utils/quiz-date';
 import { normalizeAnswer } from '../../../utils/quiz-answer';
+import { shuffleArray } from '../../../utils/array';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -184,15 +185,6 @@ function sanitizeJson(raw: string): unknown {
 
 function makeQuestionId(quizId: number, difficulty: string, questionId: number): string {
   return `${quizId}_${difficulty}_${questionId}`;
-}
-
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
 }
 
 async function callOllama(prompt: string, retries = 3): Promise<unknown> {
