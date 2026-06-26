@@ -158,8 +158,8 @@
               <p class="text-gray-600 mt-1">Fournisseurs de tuiles cartographiques. Votre adresse IP peut être exposée lors du chargement des éléments de la carte.</p>
             </div>
             <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">OpenAI</p>
-              <p class="text-gray-600 mt-1">Utilisé pour la génération de questions de quiz. Aucune donnée personnelle n'est transmise à ce service ; seuls des prompts de génération de contenu sont envoyés.</p>
+              <p class="font-bold text-gray-800">IA locale (Ollama)</p>
+              <p class="text-gray-600 mt-1">Les questions de quiz sont générées par un modèle d'IA hébergé sur nos propres serveurs (Ollama). Aucune donnée personnelle n'est transmise à un tiers : la génération est entièrement réalisée en interne.</p>
             </div>
           </div>
         </section>
@@ -170,7 +170,7 @@
             6. Transferts de données hors Union européenne
           </h2>
           <p class="leading-relaxed">
-            Certains de nos prestataires techniques (OpenStreetMap, CartoDB, OpenAI) peuvent opérer des serveurs
+            Certains de nos prestataires techniques (OpenStreetMap, CartoDB) peuvent opérer des serveurs
             situés en dehors de l'Union européenne, notamment aux États-Unis. Ces transferts sont encadrés par
             les clauses contractuelles types approuvées par la Commission européenne ou par le cadre
             EU-U.S. Data Privacy Framework lorsque applicable.
