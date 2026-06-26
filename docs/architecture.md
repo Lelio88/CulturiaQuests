@@ -39,7 +39,7 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 │                          ┌──────────────────┐                              │
 │                          │      ollama       │                              │
 │                          │  :11434  (LLM)   │                              │
-│                          │  mistral / nemo   │                              │
+│                          │  mistral:7b       │                              │
 │                          └──────────────────┘                              │
 └───────────────────────────────────────────────────────────────────────────┘
 
@@ -270,7 +270,7 @@ Fichier `.env` à la racine pour Docker Compose (cf. `.env.exemple`) :
 | `PORT` | Port Strapi (défaut 1337). |
 | `NUXT_PORT` | Port Nuxt (défaut 3000). |
 | `APP_KEYS`, `API_TOKEN_SALT`, `ADMIN_JWT_SECRET`, `TRANSFER_TOKEN_SALT`, `JWT_SECRET` | Secrets Strapi. **Toujours en `.env`, jamais en dur**. |
-| `OLLAMA_MODEL` | Modèle Ollama (défaut `mistral:7b`, prod `mistral-nemo:12b`). |
+| `OLLAMA_MODEL` | Modèle Ollama (défaut `mistral:7b` en dev et en prod ; override possible, ex. `mistral-nemo:12b`, si le serveur a la RAM/GPU). |
 | `OLLAMA_BASE_URL` | URL Ollama (défaut `http://ollama:11434` en Docker). |
 | `NUXT_PUBLIC_API_URL` | URL publique de l'API pour le browser (défaut `http://localhost:1337`). |
 | `NUXT_PUBLIC_ALLOW_DESKTOP` | `true` pour autoriser le desktop hors `/dashboard`. Défaut `true` en dev. |

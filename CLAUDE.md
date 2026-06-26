@@ -29,7 +29,7 @@ Topologie rapide :
 - **Frontend** : Nuxt 4.2, Vue 3.5, Pinia + `pinia-plugin-persistedstate` (storage `localStorage`), `@nuxtjs/strapi` v2, `@nuxtjs/leaflet`, `@nuxtjs/device`, `@nuxt/icon`, `nuxt-charts`, `@hypernym/nuxt-anime`
 - **Mobile** : Capacitor 8 (`@capacitor/android`, `@capacitor/ios`, `local-notifications`)
 - **Tests E2E** : Playwright (configuré côté frontend uniquement)
-- **IA** : Ollama (`mistral:7b` par défaut, `mistral-nemo:12b` en prod) pour quiz timeline + catégorisation POI
+- **IA** : Ollama (`mistral:7b` par défaut en dev **et** en prod ; override possible via `OLLAMA_MODEL`, ex. `mistral-nemo:12b`, si le serveur dispose de la RAM/GPU) pour quiz timeline + catégorisation POI
 - **Infra** : Docker Compose (`database` Postgres alpine + `backend` + `frontend` + `ollama`)
 
 ## IV. Garde-Fous non négociables
