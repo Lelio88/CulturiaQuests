@@ -43,7 +43,7 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 │                          └──────────────────┘                              │
 └───────────────────────────────────────────────────────────────────────────┘
 
-   JWT cookie « culturia_jwt » (sameSite=lax, secure=true en prod, 14 jours)
+   Cookie de session HTTP-only « cq_session » (sameSite=lax, secure=true en prod, 14 jours)
    Pinia → localStorage (jamais en cookie — limite 431 atteinte sinon)
 ```
 
@@ -154,7 +154,7 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 
 Exemple end-to-end représentatif (auth + validation métier + interaction multi-service).
 
-1. **Browser / Capacitor WebView** envoie `POST http://localhost:1337/api/runs/startExpedition` avec body `{ museumDocumentId, userLat, userLng }`. Cookie `culturia_jwt` joint automatiquement.
+1. **Browser / Capacitor WebView** envoie `POST /api/strapi/runs/startExpedition` (proxy BFF same-origin) avec body `{ museumDocumentId, userLat, userLng }`. Le serveur Nuxt lit le cookie HTTP-only `cq_session` et relaie vers Strapi `POST /api/runs/startExpedition` en injectant l'en-tête `Authorization: Bearer` (le cookie n'est jamais exposé au JavaScript).
 2. **CORS middleware** (`strapi::cors`) vérifie l'origine contre l'allowlist (`http://localhost:3000`, `capacitor://localhost`, etc.). Refus si non listée.
 3. **CSP / security middleware** (`strapi::security`) ajoute les headers de sécurité.
 4. **Strapi router** matche la route custom `runs/startExpedition` définie dans `backend/src/api/run/routes/01-custom-run.ts`.
@@ -197,14 +197,14 @@ Exemple end-to-end représentatif (auth + validation métier + interaction multi
 
 ### BFF httpOnly (#17 — migration en cours)
 
-Objectif : soustraire le JWT au JavaScript. À terme le token vit dans un cookie **HTTP-ONLY** (`cq_session`) détenu côté serveur Nuxt, et tous les appels passent par un **BFF** (Backend-For-Frontend) same-origin.
+Objectif : soustraire le JWT au JavaScript. Le token vit dans un cookie **HTTP-ONLY** (`cq_session`) détenu côté serveur Nuxt, et tous les appels passent par un **BFF** (Backend-For-Frontend) same-origin.
 
 - **Routes serveur** (`frontend/server/api/`) :
   - `POST /api/auth/login|register`, `POST /api/auth/logout`, `GET /api/auth/me` : auth ; posent/lisent/effacent le cookie httpOnly `cq_session`, ne renvoient jamais le JWT au client.
   - `ANY /api/strapi/<chemin>` : proxy authentifié — relaie vers Strapi `/api/<chemin>` en injectant `Authorization: Bearer` côté serveur. Garde `!jwt` (401), **défense CSRF** (origine same-origin exigée sur POST/PUT/PATCH/DELETE), mapping d'erreur robuste.
 - **Endpoint backend `GET /api/users/me-with-role`** (extension users-permissions) : variante de `/users/me` qui **peuple le `role`** (le `me` natif le retire au `sanitizeQuery`), requis par les checks admin du front. Permission `plugin::users-permissions.user.meWithRole` accordée au bootstrap (`authenticated`, héritée par `admin`).
 - **Front (`useApi` / `useAuth` / `plugins/auth.ts`)** : `useApi()` (compatible `useStrapiClient`) route vers le proxy ; `useAuth()` remplace `useStrapiUser/Auth` ; le plugin hydrate l'user en SSR (gate sur présence du cookie). Le fetcher SSR utilise `useRequestFetch()` pour propager le cookie httpOnly.
-- **État** : socle + durcissement + infra front **livrés** (additifs). Cohabitation `culturia_jwt` (@nuxtjs/strapi) ↔ `cq_session` pendant la migration ; bascule atomique des stores + retrait de `culturia_jwt` à venir (phases suivantes de #17). Détail : `frontend/server/README.md`.
+- **État** : migration #17 **terminée** (phases A/B/C mergées). Le cutover a retiré `@nuxtjs/strapi` des modules de `nuxt.config.ts` et supprimé l'ancien cookie `culturia_jwt` ; seul le cookie HTTP-only `cq_session` (BFF) est désormais utilisé. Le paquet npm `@nuxtjs/strapi` reste en dépendance mais n'est plus chargé. Détail : `frontend/server/README.md`.
 
 ### Conventions cross-cutting
 
@@ -218,7 +218,7 @@ Objectif : soustraire le JWT au JavaScript. À terme le token vit dans un cookie
 - ❌ **Requête Strapi sans filtre user** dans un controller custom — fuite cross-tenant garantie. Toujours passer par `ctx.state.user.id` + relation `guild.user`.
 - ❌ **Réimplémenter le lookup guilde-par-utilisateur inline** (`strapi.db.query('api::guild.guild').findOne({ where: { user: { id } } })`) — utiliser le helper unique `getUserGuild(strapi, userId, { select?, populate? })` (`backend/src/utils/guild-helpers.ts`). Point unique pour l'invariant d'isolation, évite la dérive du format de filtre (`user: user.id` vs `user: { id }`).
 - ❌ **Persistance Pinia en cookie** — provoque l'erreur HTTP 431 (Request Header Fields Too Large) dès que l'inventaire dépasse quelques dizaines d'items. Configuration figée dans `nuxt.config.ts` (`storage: 'localStorage'`).
-- ❌ **Token JWT en `localStorage` côté frontend** — utiliser uniquement le cookie `culturia_jwt` (httpOnly géré par `@nuxtjs/strapi`).
+- ❌ **Token JWT en `localStorage` côté frontend** — le JWT vit uniquement dans le cookie HTTP-only `cq_session`, posé et lu côté serveur par le BFF Nuxt (jamais accessible au JavaScript).
 - ❌ **Permissions ajoutées via le panel admin Strapi** — non versionnées, perdues au prochain rebuild. Tout passe par `backend/src/index.ts`.
 - ❌ **`strapi.entityService.*`** — déprécié en Strapi v5. Utiliser `strapi.documents(...)`.
 - ❌ **Mutation d'un objet store Pinia depuis un composant** — toujours passer par une action du store (immutabilité du state public).
