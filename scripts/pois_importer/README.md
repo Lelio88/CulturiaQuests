@@ -5,7 +5,7 @@ Ce dossier contient les outils pour peupler la base de données CulturiaQuests a
 ## 🚀 Fonctionnalités Clés
 
 - **Maillage Territorial** : Import par Communauté de Communes (EPCI) pour une couverture exhaustive.
-- **Intelligence Artificielle locale** : Qualification automatique des lieux (Catégorie RPG, Accessibilité, Rayon d'action) via Ollama (Mistral Nemo 12B).
+- **Intelligence Artificielle locale** : Qualification automatique des lieux (Catégorie RPG, Accessibilité, Rayon d'action) via Ollama (Mistral 7B par défaut, override via `OLLAMA_MODEL`).
 - **Anti-Doublon** : Vérification géographique stricte (distance < 100m) avant insertion.
 - **Reprise sur Erreur** : Cache local (JSON) par EPCI et possibilité de ré-importer sans rescanner.
 - **0 coût API** : Overpass (gratuit) + Ollama (local).
@@ -13,7 +13,7 @@ Ce dossier contient les outils pour peupler la base de données CulturiaQuests a
 ## 📦 Prérequis
 
 1.  **Services Docker** :
-    - `ollama` : LLM local avec le modèle `mistral-nemo:12b` (démarré automatiquement via `docker-compose up`)
+    - `ollama` : LLM local avec le modèle `mistral:7b` par défaut (override via `OLLAMA_MODEL` ; démarré automatiquement via `docker-compose up`)
     - `STRAPI_API_TOKEN` (dans `.env`) : Token "Full Access" pour écrire dans la base.
 
 2.  **Base de Données** :
