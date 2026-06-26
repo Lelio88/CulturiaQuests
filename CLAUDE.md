@@ -26,7 +26,7 @@ Topologie rapide :
 *Versions contraintes par `backend/package.json` et `frontend/package.json`. N'introduisez aucune dépendance alternative sans approbation.*
 
 - **Backend** : Strapi 5.34.0, TypeScript 5, Node ≥ 20, PostgreSQL 14, `node-cron` 4, `openai` 6, `strapi-geodata`
-- **Frontend** : Nuxt 4.2, Vue 3.5, Pinia + `pinia-plugin-persistedstate` (storage `localStorage`), `@nuxtjs/strapi` v2, `@nuxtjs/leaflet`, `@nuxtjs/device`, `@nuxt/icon`, `nuxt-charts`, `@hypernym/nuxt-anime`
+- **Frontend** : Nuxt 4.2, Vue 3.5, Pinia + `pinia-plugin-persistedstate` (storage `localStorage`), `@nuxtjs/leaflet`, `@nuxtjs/device`, `@nuxt/icon`, `nuxt-charts`, `animejs` (import direct route-splitté). Auth via BFF (cf. §IV.5) : le module `@nuxtjs/strapi` a été retiré des modules au cutover #17 (paquet conservé en dépendance mais non utilisé) ; `@hypernym/nuxt-anime` a été désinstallé.
 - **Mobile** : Capacitor 8 (`@capacitor/android`, `@capacitor/ios`, `local-notifications`)
 - **Tests E2E** : Playwright (configuré côté frontend uniquement)
 - **IA** : Ollama (`mistral:7b` par défaut en dev **et** en prod ; override possible via `OLLAMA_MODEL`, ex. `mistral-nemo:12b`, si le serveur dispose de la RAM/GPU) pour quiz timeline + catégorisation POI
@@ -38,7 +38,7 @@ Topologie rapide :
 2. **Strapi v5 Document Service API** — utiliser `strapi.documents('api::x.x')` avec `documentId`, jamais l'ancien Entity Service. `strapi.db.query()` reste autorisé pour les lookups internes par `id`.
 3. **Permissions accordées au bootstrap, jamais via le panel admin** — toute nouvelle route custom doit être ajoutée à `backend/src/index.ts` pour les rôles `public`/`authenticated`/`admin`. Le rôle `admin` hérite de tout `authenticated` + des endpoints `admin-dashboard.*`.
 4. **Persistance Pinia en `localStorage` uniquement** — ne **jamais** réactiver la persistance cookie (erreur 431 Request Header Fields Too Large garantie sur la prod). Configuration figée dans `nuxt.config.ts` (`storage: 'localStorage'`).
-5. **JWT via cookie nommé `culturia_jwt`** — défini dans `frontend/nuxt.config.ts`. Aucun token en `localStorage`. Le cookie est `secure` en prod, `sameSite: 'lax'`, durée 14 jours.
+5. **JWT via cookie HTTP-only nommé `cq_session`** — posé/lu par les routes serveur BFF (`frontend/server/api/auth/*`), jamais exposé au JavaScript. Aucun token en `localStorage`. Le cookie est `secure` en prod, `sameSite: 'lax'`, durée 14 jours. (`culturia_jwt`, l'ancien cookie de `@nuxtjs/strapi`, a été retiré au cutover #17 ; il n'est plus qu'effacé défensivement au logout.)
 6. **Pas de secrets en clair** — `APP_KEYS`, `JWT_SECRET`, `API_TOKEN_SALT`, `ADMIN_JWT_SECRET`, `TRANSFER_TOKEN_SALT` viennent de `.env` (racine) ou `.env.production` (CI/CD). Voir [common/security.md](~/.claude/rules/common/security.md).
 7. **Build admin Strapi obligatoire** — après toute modification de schéma (`*/schema.json`) ou installation de plugin, `cd backend && npm run build` est requis avant `develop`.
 
