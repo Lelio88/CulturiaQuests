@@ -1,60 +1,36 @@
 import { useZoneStore, type Comcom } from '~/stores/zone'
 import { useFogStore, GRID_LAT_STEP, GRID_LNG_STEP } from '~/stores/fog'
 import { useProgressionStore } from '~/stores/progression'
-import { useGuildStore } from '~/stores/guild'
-import { useMuseumStore } from '~/stores/museum'
-import { usePOIStore } from '~/stores/poi'
-import { useVisitStore } from '~/stores/visit'
-import { useRunStore } from '~/stores/run'
-import { isPointInGeoJSON, computeGeoJSONArea, computeGeoJSONBounds } from '~/utils/geometry'
+import { isPointInGeoJSON, computeGeoJSONArea } from '~/utils/geometry'
 
-const COMPLETION_THRESHOLD = 0.5 // 50%
+const COMPLETION_THRESHOLD = 0.5 // 50% — conservé comme seuil de complétion (côté SERVEUR désormais)
 
 function getComcomDocId(comcom: Comcom): string {
   return comcom.documentId || comcom.id.toString()
 }
 
 /**
- * Détecte la complétion d'une communauté de communes (comcom) et la persiste côté API
- * pour dissiper définitivement le brouillard (fog-of-war) de la zone.
+ * Suivi de la COUVERTURE D'EXPLORATION (fog) d'une comcom, à des fins d'AFFICHAGE uniquement.
  *
- * Deux chemins de complétion indépendants, qui aboutissent au même seuil de 50 %
- * (COMPLETION_THRESHOLD = 0.5) :
- * - CHEMIN A (`checkFogCoverage`) : couverture géographique. À chaque position GPS, on ajoute
- *   une cellule de grille au fog store ; la zone est complétée quand le ratio
- *   cellules explorées / cellules totales atteint le seuil. Le total de cellules est dérivé
- *   de l'aire du polygone (formule du Shoelace, O(n sommets)) plutôt que d'un balayage de
- *   grille, puis mis en cache dans le fog store.
- * - CHEMIN B (`checkVisitCoverage`) : couverture des visites. Après chaque coffre ou fin
- *   d'expédition, on calcule le ratio de POI + musées visités parmi ceux contenus dans la zone.
+ * ⚠️ La COMPLÉTION d'une zone est désormais SERVEUR-AUTORITATIVE (#54, anti-triche niveau 2) :
+ * c'est le backend qui marque `is_completed` à partir des VISITES VÉRIFIÉES (geofence) —
+ * cf. `backend/src/utils/comcom-completion.ts`, déclenché par `openChest` / `endExpedition`.
+ * Le client ne déclenche plus AUCUNE complétion (l'ancien POST `/progressions { is_completed }`
+ * est désormais ignoré côté serveur — la voie « fog », invérifiable, ne débloque donc plus rien).
  *
- * Choix non-évidents :
- * - `findComcomForPoint` pré-filtre par distance au centroïde (~11 km) avant le ray-casting
- *   `isPointInGeoJSON`, coûteux.
- * - `checkVisitCoverage` applique un pré-filtre bounding-box (exact, zéro faux négatif) avant
- *   le ray-casting pour éviter de tester les ~5000 POI à chaque coffre (#34).
+ * Ce composable ne fait plus QUE tracer la couverture de grille de fog, qui alimente le PALIER (%)
+ * affiché pour les zones encore NON complétées (`stores/badge.ts` utilise `getCoverageRatio` en
+ * repli quand `isComcomCompleted` est faux). Le brouillard VISUEL (FogLayer) est géré séparément
+ * via `fogStore.discoveredPoints` / `addPosition` et se dissipe pour une zone dès que
+ * `progressionStore.isComcomCompleted` passe à vrai (donnée serveur, rafraîchie via
+ * `guildStore.fetchProgressions()` après chaque visite).
  *
- * Invariants à préserver :
- * - Seuil de complétion = 50 % (COMPLETION_THRESHOLD), partagé par les deux chemins.
- * - `completeComcom` est protégé par un lock `pendingCompletions` (Set) pour empêcher les POST
- *   `/progressions` concurrents sur une même zone.
- * - On ne tente jamais de re-compléter une zone déjà marquée complétée
- *   (`progressionStore.isComcomCompleted`).
- * - La progression écrite est rattachée à la guilde courante (`guild`) : pas de guilde, pas
- *   d'appel API (isolation par utilisateur, cf. CLAUDE.md §IV).
+ * Invariant : ne JAMAIS réintroduire d'écriture de complétion côté client (falsifiable).
  */
 export function useZoneCompletion() {
   const zoneStore = useZoneStore()
   const fogStore = useFogStore()
   const progressionStore = useProgressionStore()
-  const guildStore = useGuildStore()
-  const museumStore = useMuseumStore()
-  const poiStore = usePOIStore()
-  const visitStore = useVisitStore()
-  const runStore = useRunStore()
-
-  // Lock pour éviter les appels API concurrents
-  const pendingCompletions = new Set<string>()
 
   /**
    * Trouve la comcom dans laquelle se situe un point GPS.
@@ -104,51 +80,9 @@ export function useZoneCompletion() {
   }
 
   /**
-   * Appelle l'API pour marquer une comcom comme complétée.
-   * Puis refresh les progressions côté frontend.
-   */
-  async function completeComcom(comcomDocId: string) {
-    if (pendingCompletions.has(comcomDocId)) return
-    pendingCompletions.add(comcomDocId)
-
-    try {
-      const client = useApi()
-      const guildDocId = guildStore.guild?.documentId
-      if (!guildDocId) return
-
-      await client<any>('/progressions', {
-        method: 'POST',
-        body: {
-          data: {
-            is_completed: true,
-            comcom: comcomDocId,
-            guild: guildDocId
-          }
-        }
-      })
-
-      // Refresh CIBLÉ des progressions (au lieu du fetchAll() profond) pour le FogLayer
-      await guildStore.fetchProgressions()
-
-      // Nettoyer les points GPS et les données de grille de la comcom
-      const comcom = zoneStore.comcoms.find(
-        c => getComcomDocId(c) === comcomDocId
-      )
-      if (comcom) {
-        fogStore.removePointsInZones([comcom])
-      }
-      fogStore.clearGridForComcom(comcomDocId)
-
-    } catch (e: any) {
-      console.error('Failed to complete comcom:', e)
-    } finally {
-      pendingCompletions.delete(comcomDocId)
-    }
-  }
-
-  /**
-   * CHEMIN A — Vérifie la couverture du brouillard pour un point GPS.
-   * Appelé à chaque addPosition.
+   * À chaque position GPS : marque la cellule de grille visitée pour la comcom courante.
+   * Sert UNIQUEMENT au calcul du palier d'affichage (`badge.ts`) — ne déclenche AUCUNE complétion
+   * (celle-ci est décidée par le serveur à partir des visites vérifiées).
    */
   function checkFogCoverage(lat: number, lng: number) {
     if (!zoneStore.isInitialized) return
@@ -158,77 +92,16 @@ export function useZoneCompletion() {
 
     const docId = getComcomDocId(comcom)
 
+    // Zone déjà complétée (serveur) : plus rien à tracer (badge.ts affiche 100%).
     if (progressionStore.isComcomCompleted(docId)) return
 
     const isNew = fogStore.addGridCell(docId, lat, lng)
     if (!isNew) return
 
     computeTotalGridCells(comcom)
-
-    const ratio = fogStore.getCoverageRatio(docId)
-    if (ratio >= COMPLETION_THRESHOLD) {
-      completeComcom(docId)
-    }
-  }
-
-  /**
-   * CHEMIN B — Vérifie la couverture des visites POI + musées.
-   * Appelé après chaque openChest ou fin d'expédition.
-   */
-  function checkVisitCoverage(poiLat: number, poiLng: number) {
-    if (!zoneStore.isInitialized) return
-
-    const comcom = findComcomForPoint(poiLat, poiLng)
-    if (!comcom) return
-
-    const docId = getComcomDocId(comcom)
-
-    if (progressionStore.isComcomCompleted(docId)) return
-
-    // Pré-filtre bbox (exact, zéro faux négatif) AVANT le ray-casting coûteux : on évite
-    // de tester isPointInGeoJSON sur les ~5000 POI à chaque coffre/fin d'expédition. #34
-    const b = computeGeoJSONBounds(comcom.geometry)
-    const inBounds = (lat: number, lng: number) =>
-      !b || (lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng)
-
-    // POI dans cette comcom
-    const poisInComcom = poiStore.pois.filter(p =>
-      p.lat !== undefined && p.lng !== undefined && inBounds(p.lat, p.lng) &&
-      isPointInGeoJSON([p.lat, p.lng], comcom.geometry)
-    )
-
-    // Musées dans cette comcom
-    const museumsInComcom = museumStore.museums.filter(m =>
-      m.lat !== undefined && m.lng !== undefined && inBounds(m.lat, m.lng) &&
-      isPointInGeoJSON([m.lat, m.lng], comcom.geometry)
-    )
-
-    const totalLocations = poisInComcom.length + museumsInComcom.length
-    if (totalLocations === 0) return
-
-    // Compter les POI visités (au moins 1 visite via le système de visit)
-    let visitedCount = 0
-    for (const poi of poisInComcom) {
-      if (visitStore.getVisitForPOI(poi.id)) {
-        visitedCount++
-      }
-    }
-
-    // Compter les musées visités (au moins 1 run via le système de run)
-    for (const museum of museumsInComcom) {
-      if (runStore.hasVisitedMuseum(museum.id)) {
-        visitedCount++
-      }
-    }
-
-    const ratio = visitedCount / totalLocations
-    if (ratio >= COMPLETION_THRESHOLD) {
-      completeComcom(docId)
-    }
   }
 
   return {
-    checkFogCoverage,
-    checkVisitCoverage
+    checkFogCoverage
   }
 }
