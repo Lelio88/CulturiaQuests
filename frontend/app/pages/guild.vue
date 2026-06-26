@@ -115,8 +115,8 @@ onMounted(async () => {
     // 2. Calcul des statistiques
     statsStore.fetchStatistics()
 
-    // 3. (Optionnel) Si tes badges viennent d'une API, il faudra peut-être :
-    // await badgeStore.fetchBadges()
+    // 3. Sélection de badges équipés : le serveur fait foi (#54).
+    await badgeStore.hydrateFromServer()
 })
 
 // Configuration des statistiques à afficher

@@ -122,6 +122,8 @@ onMounted(async () => {
     await zoneStore.init()
     zonesLoading.value = false
   }
+  // Le serveur fait foi pour la sélection équipée (#54) — cohérence multi-device.
+  await badgeStore.hydrateFromServer()
 })
 
 const filteredBadges = computed(() => {
