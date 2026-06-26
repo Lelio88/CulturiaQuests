@@ -154,7 +154,10 @@
             :key="friendship.documentId"
             class="flex items-center gap-3 bg-indigo-50 rounded-2xl p-4"
           >
-            <div class="flex-1 min-w-0">
+            <div
+              class="flex-1 min-w-0 cursor-pointer"
+              @click="router.push(`/social/friends/${store.getOtherGuild(friendship).documentId}`)"
+            >
               <p class="font-power text-indigo-950 truncate">{{ store.getOtherGuild(friendship).user?.username || 'Inconnu' }}</p>
               <p class="text-sm font-onest text-indigo-950 opacity-60 truncate">
                 {{ store.getOtherGuild(friendship).name }} · Niv. {{ store.calculateLevel(store.getOtherGuild(friendship).exp) }}
