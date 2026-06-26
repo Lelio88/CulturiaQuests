@@ -24,10 +24,9 @@
             Le responsable du traitement des données personnelles collectées via l'application CulturiaQuests est :
           </p>
           <div class="mt-3 p-4 bg-gray-50 rounded-lg text-sm space-y-1">
-            <p><strong>Culturia Quests SASU</strong></p>
-            <p>Adresse : [À compléter]</p>
-            <p>SIRET : [À compléter]</p>
-            <p>Email du DPO / contact données personnelles : [À compléter]</p>
+            <p><strong>Lelio Buton</strong> — éditeur individuel (personne physique, à titre non professionnel)</p>
+            <p>Contact données personnelles : heianenterpriseyt@gmail.com</p>
+            <p class="text-gray-500">Aucun délégué à la protection des données (DPO) n'est désigné : le traitement étant réalisé par un éditeur individuel, sa désignation n'est pas requise. Le responsable du traitement reste joignable à l'adresse ci-dessus.</p>
           </div>
         </section>
 
@@ -151,7 +150,7 @@
           <div class="space-y-3">
             <div class="p-3 bg-gray-50 rounded-lg text-sm">
               <p class="font-bold text-gray-800">Hébergeur</p>
-              <p class="text-gray-600 mt-1">[Nom de l'hébergeur à compléter] — hébergement des serveurs et de la base de données.</p>
+              <p class="text-gray-600 mt-1">[Hébergeur — à compléter une fois l'hébergeur choisi] : hébergement des serveurs et de la base de données.</p>
             </div>
             <div class="p-3 bg-gray-50 rounded-lg text-sm">
               <p class="font-bold text-gray-800">OpenStreetMap / CartoDB</p>
@@ -202,7 +201,7 @@
           </p>
           <ul class="list-disc list-inside space-y-1 text-sm leading-relaxed pl-2 mt-2">
             <li>Utiliser les fonctionnalités de l'application (Paramètres > Données personnelles)</li>
-            <li>Nous contacter par email à : <span class="text-indigo-600">[email de contact à compléter]</span></li>
+            <li>Nous contacter par email à : <span class="text-indigo-600">heianenterpriseyt@gmail.com</span></li>
           </ul>
           <p class="leading-relaxed mt-4">
             Nous nous engageons à répondre à votre demande dans un délai de <strong>30 jours</strong>.
@@ -260,7 +259,7 @@
           </h2>
           <p class="leading-relaxed">
             Pour toute question relative à la protection de vos données personnelles, vous pouvez contacter
-            notre responsable des données à l'adresse : <span class="text-indigo-600">[email de contact à compléter]</span>.
+            le responsable du traitement à l'adresse : <span class="text-indigo-600">heianenterpriseyt@gmail.com</span>.
           </p>
           <p class="leading-relaxed mt-2">
             Si vous estimez que vos droits ne sont pas respectés, vous pouvez introduire une réclamation auprès de la
