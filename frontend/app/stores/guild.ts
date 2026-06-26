@@ -351,6 +351,45 @@ export const useGuildStore = defineStore('guild', () => {
     }
   }
 
+  /**
+   * Bascule le mode debug de la guilde de l'utilisateur courant (ADMIN uniquement).
+   *
+   * `debug_mode` désactive le geofence anti-triche (consommé par MuseumDrawer/POIDrawer côté
+   * front et run.service côté back) : il autorise expéditions et ouverture de coffres sans être
+   * physiquement sur place — utile pour tester/démontrer l'app sans se déplacer. L'endpoint
+   * `POST /guilds/toggle-debug` est doublement gardé admin (permission bootstrap §IV.3 +
+   * re-check `role.type === 'admin'` dans le controller) et n'agit QUE sur la guilde de l'admin
+   * authentifié (filtre `guild.user`, jamais une guilde arbitraire — invariant d'isolation §I).
+   * On patche `debug_mode` depuis la réponse (mise à jour immuable) pour rester en phase sans
+   * refetch complet.
+   */
+  async function toggleDebug() {
+    const client = useApi()
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await client<StrapiSingleResponse<Guild>>('/guilds/toggle-debug', {
+        method: 'POST',
+      })
+
+      const data = (response.data || response) as GuildAggregate
+      if (guild.value) {
+        guild.value = {
+          ...guild.value,
+          debug_mode: data.debug_mode ?? data.attributes?.debug_mode ?? !guild.value.debug_mode,
+        }
+      }
+      return data
+    } catch (e: any) {
+      console.error('Failed to toggle debug mode:', e)
+      error.value = e?.message || 'Failed to toggle debug mode'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     // State
     guild,
@@ -377,6 +416,7 @@ export const useGuildStore = defineStore('guild', () => {
     refetchStats,
     createGuildSetup,
     deleteGuild,
+    toggleDebug,
   }
 }, {
   persist: {
