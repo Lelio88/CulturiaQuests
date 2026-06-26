@@ -244,6 +244,42 @@
         </div>
       </div>
 
+      <!-- Mode Debug (admin) — toggle le geofence anti-triche pour la guilde de l'admin -->
+      <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <Icon name="bx-bug" class="w-5 h-5 text-yellow-400" />
+              <h2 class="text-lg font-power text-white">Mode Debug</h2>
+              <span
+                class="text-xs font-medium px-2 py-0.5 rounded-full"
+                :class="guildStore.debugMode ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-700/50 text-gray-400'"
+              >
+                {{ guildStore.debugMode ? 'Actif' : 'Inactif' }}
+              </span>
+            </div>
+            <p class="text-sm text-gray-400 font-onest mt-1 max-w-xl">
+              Désactive le geofence anti-triche <strong>pour votre propre guilde</strong> : permet de lancer
+              expéditions et coffres sans être physiquement sur place (tests / démos). Réservé aux administrateurs.
+            </p>
+          </div>
+          <button
+            v-if="guildStore.hasGuild"
+            class="shrink-0 px-4 py-2 rounded-lg font-onest text-sm font-medium border transition-colors disabled:opacity-50"
+            :class="guildStore.debugMode
+              ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40 hover:bg-yellow-500/30'
+              : 'bg-gray-800 text-gray-200 border-gray-700 hover:bg-gray-700'"
+            :disabled="guildStore.loading"
+            @click="handleToggleDebug"
+          >
+            {{ guildStore.debugMode ? 'Désactiver' : 'Activer' }}
+          </button>
+          <p v-else class="shrink-0 text-sm text-gray-500 font-onest italic">
+            Aucune guilde sur ce compte
+          </p>
+        </div>
+      </div>
+
       <!-- Secondary KPIs -->
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <div
@@ -269,6 +305,7 @@ definePageMeta({
 })
 
 const adminStore = useAdminStore()
+const guildStore = useGuildStore()
 
 onMounted(async () => {
   // Chargement initial parallèle, attendu et protégé : une promesse rejetée ne doit pas remonter
@@ -282,7 +319,26 @@ onMounted(async () => {
   } catch (e) {
     console.error('Dashboard initial load failed:', e)
   }
+
+  // Charge la guilde de l'admin (pour l'état debug_mode du toggle), sans bloquer le dashboard si absente.
+  try {
+    if (!guildStore.hasGuild) await guildStore.fetchGuild()
+  } catch (e) {
+    console.error('Dashboard: guild fetch for debug toggle failed:', e)
+  }
 })
+
+/**
+ * Bascule le mode debug de la guilde de l'admin courant (endpoint admin-gated POST /guilds/toggle-debug).
+ * Le store patche debug_mode depuis la réponse — pas besoin de refetch.
+ */
+async function handleToggleDebug() {
+  try {
+    await guildStore.toggleDebug()
+  } catch (e) {
+    console.error('Failed to toggle debug mode:', e)
+  }
+}
 
 // KPI data
 const mainKpis = computed(() => {
