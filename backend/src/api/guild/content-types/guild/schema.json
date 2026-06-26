@@ -109,6 +109,9 @@
       "default": 0,
       "min": 0
     },
+    "equipped_badge_ids": {
+      "type": "json"
+    },
     "progressions": {
       "type": "relation",
       "relation": "oneToMany",
