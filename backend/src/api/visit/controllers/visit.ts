@@ -5,6 +5,7 @@
 import { factories } from '@strapi/strapi';
 import { withAdvisoryLock } from '../../../utils/db-lock';
 import { getUserGuild } from '../../../utils/guild-helpers';
+import { recomputeComcomCompletion } from '../../../utils/comcom-completion';
 
 /**
  * Calculate distance between two points using Haversine formula
@@ -120,7 +121,8 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
     // 2. Récupérer POI
     const poi = await strapi.documents('api::poi.poi').findOne({
       documentId: poiId,
-      fields: ['lat', 'lng', 'name']
+      fields: ['lat', 'lng', 'name'],
+      populate: ['comcom']
     });
 
     if (!poi) {
@@ -224,10 +226,24 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
       populate: ['items', 'poi']
     });
 
+    // Complétion serveur-autoritative (#54 phase 2) : une visite réelle (geofence vérifié ci-dessus)
+    // peut faire franchir le seuil de complétion de la comcom du POI. Best-effort : un échec ici ne
+    // doit jamais casser le flux de loot (déjà crédité) — la complétion se retentera à la prochaine visite.
+    let comcomCompleted = false;
+    const poiComcomId = (poi as any).comcom?.documentId;
+    if (poiComcomId) {
+      try {
+        comcomCompleted = await recomputeComcomCompletion(strapi, guild.id, guild.documentId, poiComcomId);
+      } catch (e) {
+        strapi.log.warn(`[comcom-completion] recompute échoué (openChest poi=${poiId}): ${e}`);
+      }
+    }
+
     return ctx.send({
       data: {
         visit: updatedVisit,
-        loot: { items, gold, exp }
+        loot: { items, gold, exp },
+        comcomCompleted
       }
     });
   },

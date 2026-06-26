@@ -97,14 +97,28 @@ export default factories.createCoreController('api::progression.progression', ({
 
     const { data } = ctx.request.body;
 
-    // Force the guild to be the user's guild
-    const progressionData = {
-      ...data,
-      guild: userGuild.documentId,
-    };
+    // Anti-triche (#54 phase 2) : la complétion est décidée par le SERVEUR (visites vérifiées,
+    // cf. utils/comcom-completion), jamais par le client. On ignore tout `is_completed` fourni et
+    // on force `false`. Idempotent par (guilde, comcom) : pas de progression dupliquée — un doublon
+    // is_completed corromprait le compteur d'enfants du cascade département/région.
+    const safeData: Record<string, any> = { ...(data ?? {}) };
+    delete safeData.is_completed;
+
+    if (safeData.comcom) {
+      const existingProgression = await strapi.db.query('api::progression.progression').findOne({
+        where: { guild: { documentId: userGuild.documentId }, comcom: { documentId: safeData.comcom } },
+        select: ['documentId'],
+      });
+      if (existingProgression) {
+        const current = await strapi.documents('api::progression.progression').findOne({
+          documentId: existingProgression.documentId,
+        });
+        return this.transformResponse(await this.sanitizeOutput(current, ctx));
+      }
+    }
 
     const entity = await strapi.documents('api::progression.progression').create({
-      data: progressionData,
+      data: { ...safeData, guild: userGuild.documentId, is_completed: false },
     });
 
     const sanitizedEntity = await this.sanitizeOutput(entity, ctx);
@@ -142,9 +156,14 @@ export default factories.createCoreController('api::progression.progression', ({
 
     const { data } = ctx.request.body;
 
+    // Anti-triche (#54 phase 2) : `is_completed` ne peut pas être modifié par le client (la
+    // complétion est serveur-autoritative — cf. utils/comcom-completion).
+    const safeData: Record<string, any> = { ...(data ?? {}) };
+    delete safeData.is_completed;
+
     const entity = await strapi.documents('api::progression.progression').update({
       documentId: id,
-      data,
+      data: safeData,
     });
 
     const sanitizedEntity = await this.sanitizeOutput(entity, ctx);
