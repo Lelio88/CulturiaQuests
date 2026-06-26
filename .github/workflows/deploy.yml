@@ -49,6 +49,7 @@ jobs:
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
             OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+            NUXT_PUBLIC_STRAPI_URL=${{ secrets.NUXT_PUBLIC_STRAPI_URL }}
             ENVEOF
 
             # Remove leading spaces from heredoc
