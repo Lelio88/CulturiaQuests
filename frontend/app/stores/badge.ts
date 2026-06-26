@@ -285,16 +285,60 @@ export const useBadgeStore = defineStore('badge', () => {
     return allBadges.value
   }
 
-  // Toggle équipement
-  function toggleEquip(badgeId: string) {
+  /**
+   * Persiste la sélection équipée côté serveur (#54). Le serveur (re)valide que chaque badge est
+   * réellement gagné (progression complétée, serveur-autoritative) → source de vérité partagée,
+   * visible des autres joueurs et cohérente multi-device.
+   */
+  async function syncEquippedToServer() {
+    const client = useApi()
+    await client('/guilds/badges/equip', {
+      method: 'PUT',
+      body: { badges: equippedIds.value },
+    })
+  }
+
+  /**
+   * Hydrate la sélection équipée depuis le serveur (le serveur fait foi). À appeler au montage des
+   * écrans qui affichent/éditent les badges (badges.vue, guild.vue), une fois la guilde disponible.
+   * En cas d'échec (hors-ligne), on conserve la valeur localStorage en repli.
+   */
+  async function hydrateFromServer() {
+    const guildStore = useGuildStore()
+    const guildDocId = guildStore.guild?.documentId
+    if (!guildDocId) return
+    try {
+      const client = useApi()
+      const res = await client<{ equippedBadgeIds?: string[] }>(`/guilds/${guildDocId}/badge-summary`)
+      if (Array.isArray(res?.equippedBadgeIds)) {
+        equippedIds.value = res.equippedBadgeIds
+      }
+    } catch (e: any) {
+      console.error('Failed to hydrate equipped badges from server:', e)
+    }
+  }
+
+  // Toggle équipement — optimiste, avec persistance serveur et rollback si le serveur refuse.
+  async function toggleEquip(badgeId: string) {
     const badge = allBadges.value.find(b => b.id === badgeId)
     if (!badge || badge.tier === 'none') return
 
+    const previous = [...equippedIds.value]
     const idx = equippedIds.value.indexOf(badgeId)
     if (idx !== -1) {
       equippedIds.value.splice(idx, 1)
     } else if (equippedIds.value.length < 4) {
       equippedIds.value.push(badgeId)
+    } else {
+      return // déjà 4 équipés : aucun changement
+    }
+
+    try {
+      await syncEquippedToServer()
+    } catch (e: any) {
+      // Le serveur a refusé (badge non gagné) ou erreur réseau → on revient à l'état précédent.
+      console.error('Failed to equip badges (rollback):', e)
+      equippedIds.value = previous
     }
   }
 
@@ -313,7 +357,9 @@ export const useBadgeStore = defineStore('badge', () => {
     equippedCount,
     badgesByCategory,
     toggleEquip,
-    isEquipped
+    isEquipped,
+    syncEquippedToServer,
+    hydrateFromServer
   }
 }, {
   persist: {
