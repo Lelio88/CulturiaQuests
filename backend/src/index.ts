@@ -190,6 +190,11 @@ export default {
         // non reproductible (garde-fou §IV.3) — sans elles : 403 sur tout env neuf.
         'api::guild.guild.find',
         'api::guild.guild.findOne',
+        // Badges serveur-autoritatifs (#54) : badge-summary = lecture cross-joueur (données
+        // badge uniquement, jamais or/xp/persos), equip-badges = sélection équipée de SA
+        // guilde, validée serveur contre les progressions réellement complétées (anti-triche).
+        'api::guild.guild.badgeSummary',
+        'api::guild.guild.equipBadges',
         'api::character.character.find',
         'api::character.character.findOne',
         'api::item.item.find',

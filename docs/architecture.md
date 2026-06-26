@@ -55,7 +55,7 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 
 | Content-type | Rôle | Custom controller / service notable |
 |---|---|---|
-| `guild` | Guilde joueur (1 par user). Champs : `name`, `gold`, `exp` (biginteger), `scrap`, `quiz_streak`, `debug_mode`. | `find/findOne` filtrent par `user.id`. `setup()` crée guild + character + starter items en une transaction logique. `delete()` propage via `deleteGuildWithRelations()`. |
+| `guild` | Guilde joueur (1 par user). Champs : `name`, `gold`, `exp` (biginteger), `scrap`, `quiz_streak`, `debug_mode`, `equipped_badge_ids` (json — badges équipés, max 4, IDs synthétiques de zones). | `find/findOne` filtrent par `user.id`. `setup()` crée guild + character + starter items. `delete()` propage via `deleteGuildWithRelations()`. `badgeSummary()` (GET `/guilds/:documentId/badge-summary`) expose les badges d'une guilde aux autres joueurs (données badge uniquement). `equipBadges()` (PUT `/guilds/badges/equip`) valide la sélection contre les progressions complétées (#54). |
 | `character` | Personnage jouable rattaché à une guilde. | `getCharacterIcons()` expose les icônes du media folder `characters/`. Bootstrap : `createStarterItems()` génère arme + casque + charme. |
 | `item` | Inventaire (slot : weapon / helmet / charm). Champs : `level`, `index_damage`, `rarity` (FK), `tags`. | `getItemIcons()` + `generateRandomItem(guildId, maxFloor)` (loot drops). |
 | `rarity` | Référentiel : basic / common / rare / epic / legendary. | Multiplicateurs DPS hardcodés dans `run.service` : 1 / 1.5 / 2 / 3 / 5. |
@@ -90,7 +90,7 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 | `player-friendship` | Amitiés entre **guildes** (requester / receiver, status `pending`/`accepted`/`rejected`). |
 | `friendship` | Legacy — amitiés entre character et PNJ (utilisé pour `expedition_entry_unlocked`). |
 | `post` | Feed social (création, likes). |
-| `badge` | Récompenses méta (`unlocked_badges` / `equipped_badges`). |
+| `badge` | Content-type **dormant** (réservé à de futurs badges curés). Les badges de zone sont dérivés des `progressions` (`is_completed`, serveur-autoritatif) et la sélection équipée est persistée dans `guild.equipped_badge_ids` ; les relations `unlocked_badges`/`equipped_badges` ne sont pas utilisées (#54). |
 | `user-settings` | Avatar uploadé, paramètres user. |
 | `admin-dashboard` | Service API only (pas d'entité). Endpoints overview / players / map / economy / expeditions / quiz analytics / social / connection / GDPR. |
 | `admin-action-log` | Audit log moderation (block/unblock, role change). |

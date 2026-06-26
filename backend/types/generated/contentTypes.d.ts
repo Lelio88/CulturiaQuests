@@ -780,6 +780,7 @@ export interface ApiGuildGuild extends Struct.CollectionTypeSchema {
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     debug_mode: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    equipped_badge_ids: Schema.Attribute.JSON;
     equipped_badges: Schema.Attribute.Relation<
       'manyToMany',
       'api::badge.badge'
