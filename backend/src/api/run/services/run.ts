@@ -17,6 +17,7 @@
 
 import { factories } from '@strapi/strapi';
 import { getUserGuild } from '../../../utils/guild-helpers';
+import { recomputeComcomCompletion } from '../../../utils/comcom-completion';
 
 const RARITY_MULTIPLIERS: Record<string, number> = {
   basic: 1,
@@ -267,13 +268,13 @@ export default factories.createCoreService('api::run.run', ({ strapi }) => ({
     // 1. Fetch Run & Validate
     const run = await strapi.documents('api::run.run').findOne({
       documentId: runDocumentId,
-      populate: ['guild', 'npc']
+      populate: { guild: true, npc: true, museum: { populate: { comcom: true } } }
     });
 
     if (!run) throw new RunServiceError(404, 'Run not found');
 
     const guild = await getUserGuild(strapi, userId, {
-      select: ['documentId']
+      select: ['id', 'documentId']
     });
     if (!guild || (run.guild as any).documentId !== guild.documentId) {
       throw new RunServiceError(403, 'You do not own this run');
@@ -378,6 +379,17 @@ export default factories.createCoreService('api::run.run', ({ strapi }) => ({
       'UPDATE guilds SET gold = gold + ?, exp = exp + ? WHERE document_id = ?',
       [gold, xp, guild.documentId]
     );
+
+    // Complétion serveur-autoritative (#54 phase 2) : l'expédition (geofence vérifié au start) compte
+    // comme une visite du musée et peut faire franchir le seuil de complétion de sa comcom. Best-effort.
+    const museum = run.museum as any;
+    if (museum?.comcom?.documentId) {
+      try {
+        await recomputeComcomCompletion(strapi, (guild as any).id, guild.documentId, museum.comcom.documentId);
+      } catch (e) {
+        strapi.log.warn(`[comcom-completion] recompute échoué (endExpedition run=${runDocumentId}): ${e}`);
+      }
+    }
 
     return {
       run: updatedRun,
