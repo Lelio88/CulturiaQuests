@@ -64,8 +64,7 @@ import anime from 'animejs';
 import { useRouter } from 'vue-router';
 import { useCharacterStore } from '~/stores/character';
 import { useRunStore } from '~/stores/run';
-import { useMuseumStore } from '~/stores/museum';
-import { useZoneCompletion } from '~/composables/useZoneCompletion';
+import { useGuildStore } from '~/stores/guild';
 import FormPixelButton from '~/components/form/PixelButton.vue';
 import { getImageUrl } from '~/utils/strapiHelpers';
 
@@ -74,8 +73,7 @@ definePageMeta({ layout: 'blank' });
 // --- CONFIGURATION ---
 const characterStore = useCharacterStore();
 const runStore = useRunStore();
-const museumStore = useMuseumStore();
-const zoneCompletion = useZoneCompletion();
+const guildStore = useGuildStore();
 const router = useRouter();
 
 // --- STATE ---
@@ -150,18 +148,12 @@ const stopExpedition = async () => {
     error.value = null;
     
     try {
-        // Récupérer les coordonnées du musée AVANT endExpedition (le run est encore actif)
-        const museumId = run?.museum?.data?.id || run?.museum?.id
-        const museum = museumId
-            ? museumStore.museums.find(m => m.id === museumId)
-            : null
-
         await runStore.endExpedition(runId);
 
-        // Vérifier auto-complétion de la comcom (chemin visites)
-        if (museum?.lat !== undefined && museum?.lng !== undefined) {
-            zoneCompletion.checkVisitCoverage(museum.lat, museum.lng)
-        }
+        // Complétion serveur-autoritative (#54) : le serveur a peut-être marqué la comcom du musée
+        // complétée suite à cette expédition vérifiée. On rafraîchit les progressions pour que le
+        // FogLayer dissipe la zone et que les badges se mettent à jour.
+        await guildStore.fetchProgressions()
 
         router.push({
             path: '/expedition-summary',

@@ -50,9 +50,7 @@
 import type { ChestLoot } from '~/types/loot'
 import { useVisitStore } from '~/stores/visit'
 import { useGuildStore } from '~/stores/guild'
-import { usePOIStore } from '~/stores/poi'
 import { useChestAnimation } from '~/composables/useChestAnimation'
-import { useZoneCompletion } from '~/composables/useZoneCompletion'
 
 definePageMeta({
   layout: 'blank'
@@ -62,9 +60,7 @@ const route = useRoute()
 const router = useRouter()
 const visitStore = useVisitStore()
 const guildStore = useGuildStore()
-const poiStore = usePOIStore()
 const { animateChestBounce, animateFadeOut } = useChestAnimation()
-const zoneCompletion = useZoneCompletion()
 
 // State
 const loading = ref(true)
@@ -108,11 +104,10 @@ async function openChest() {
     // 3. Refresh guild stats
     await guildStore.refetchStats()
 
-    // 3b. Vérifier auto-complétion de la comcom (chemin visites)
-    const poi = poiStore.pois.find(p => (p.documentId || p.id) === poiId.value)
-    if (poi?.lat !== undefined && poi?.lng !== undefined) {
-      zoneCompletion.checkVisitCoverage(poi.lat, poi.lng)
-    }
+    // 3b. Complétion serveur-autoritative (#54) : suite à cette visite vérifiée, le serveur a
+    // peut-être marqué la comcom complétée. On rafraîchit les progressions pour que le FogLayer
+    // dissipe la zone et que les badges se mettent à jour.
+    await guildStore.fetchProgressions()
 
     // 4. Update chest image
     if (chestImage.value) {
