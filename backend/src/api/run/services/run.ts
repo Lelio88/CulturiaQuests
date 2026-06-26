@@ -125,14 +125,6 @@ export default factories.createCoreService('api::run.run', ({ strapi }) => ({
     return { gold, xp, itemCount };
   },
 
-  rollQuestChance() {
-    // 1/5 chance => 20%
-    const rolled = Math.random() < 0.2;
-    // target_threshold 5-15
-    const targetThreshold = rolled ? Math.floor(Math.random() * 11) + 5 : null;
-    return { rolled, targetThreshold };
-  },
-
   /**
    * Démarre une expédition : validations (coordonnées, guilde, distance, run active, cooldown),
    * calcul du DPS, tirage NPC (1/5, 0% si cooldown), création de la run. Retourne la run + l'éventuel
