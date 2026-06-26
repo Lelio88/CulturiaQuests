@@ -164,15 +164,26 @@ cat ~/.ssh/github_deploy_key
 
 ## 🌐 Configuration Caddy (reverse proxy)
 
-Ajouter au Caddyfile du serveur :
+Deux domaines, deux conteneurs (TLS auto via Let's Encrypt). Adapter les domaines à votre hébergement :
 
 ```
-cqapi.ada.briceledanois.fr {
+# API Strapi (backend) — sert aussi les médias /uploads
+api.<votre-domaine> {
     reverse_proxy localhost:1337
+}
+
+# Serveur Nuxt (frontend SSR + BFF : /api/auth/* + proxy /api/strapi/*) — chargé par le web ET
+# par l'app mobile (Capacitor server.url). Service ajouté en « option A » (#54).
+app.<votre-domaine> {
+    reverse_proxy localhost:3000
 }
 ```
 
 Caddy gère automatiquement HTTPS via Let's Encrypt.
+
+> **Variables à définir** :
+> - `.env.production` : `NUXT_PUBLIC_STRAPI_URL=https://api.<votre-domaine>` (URL publique de Strapi pour les médias côté client). Optionnel : `NUXT_PUBLIC_ALLOW_DESKTOP`.
+> - Build de l'app mobile : `CAP_SERVER_URL=https://app.<votre-domaine>` (lu par `capacitor.config.ts`).
 
 ---
 
@@ -191,9 +202,16 @@ curl https://cqapi.ada.briceledanois.fr/api
 https://cqapi.ada.briceledanois.fr/admin
 ```
 
-### App Android
+### App Android (option A — webview du serveur Nuxt déployé)
 
-L'app se connecte automatiquement à `https://cqapi.ada.briceledanois.fr` grâce au fichier `frontend/.env.production`.
+L'app Capacitor charge le **serveur Nuxt déployé** via `server.url` (`https://app.<votre-domaine>`),
+défini par `CAP_SERVER_URL` au build (cf. `capacitor.config.ts`). Tout passe alors par le BFF
+(routes `/api/auth/*` + proxy `/api/strapi/*`, cookie httpOnly `cq_session`) comme sur le web — le
+jeton n'est jamais exposé au JavaScript. L'app nécessite une connexion internet (jeu géolocalisé).
+
+> ⚠️ Ne PAS publier un build statique seul (`npm run generate` sans `server.url`) : sans serveur Nuxt
+> joignable, les appels `/api/*` n'ont aucune cible et l'app est non fonctionnelle (c'était le
+> blocage initial). Le service `frontend` de `docker-compose.prod.yml` fournit ce serveur.
 
 ---
 

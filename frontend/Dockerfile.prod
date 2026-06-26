@@ -1,0 +1,24 @@
+# Image de PRODUCTION du serveur Nuxt (SSR / BFF) — déploiement « option A » (#54).
+#
+# Le serveur Nuxt porte le BFF (routes /api/auth/* + proxy /api/strapi/*, cookie httpOnly
+# cq_session). L'app mobile (Capacitor) charge ce serveur via `server.url`, le web le sert en SSR.
+# Les URLs (Strapi public, etc.) sont injectées au RUNTIME via les variables NUXT_* (runtimeConfig),
+# donc l'image est indépendante du domaine — rien à rebuild quand le domaine change.
+
+# --- Étape build : compile l'app Nuxt en bundle Nitro (.output) ---
+FROM node:22-slim AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# --- Étape run : ne garde que le bundle .output (autosuffisant) ---
+FROM node:22-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=3000
+COPY --from=builder /app/.output ./.output
+EXPOSE 3000
+CMD ["node", ".output/server/index.mjs"]

@@ -49,6 +49,32 @@ services:
     networks:
       - app-network
 
+  frontend:
+    container_name: nuxt_frontend_prod
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      # SSR / BFF → Strapi en INTERNE (le proxy /api/strapi/* tape ici, côté serveur).
+      NUXT_STRAPI_URL: http://backend:1337
+      # URL PUBLIQUE de Strapi pour les médias côté client (images, avatars).
+      # À définir dans .env.production (ex: https://api.<domaine>). Cf. DEPLOYMENT.md.
+      NUXT_PUBLIC_STRAPI_URL: ${NUXT_PUBLIC_STRAPI_URL}
+      # En prod l'app est mobile-first ; le desktop reste bloqué hors /dashboard sauf override.
+      NUXT_PUBLIC_ALLOW_DESKTOP: ${NUXT_PUBLIC_ALLOW_DESKTOP:-false}
+    ports:
+      # Exposé uniquement en local ; le reverse proxy (Caddy) termine le TLS et route le domaine.
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - app-network
+
   ollama:
     image: ollama/ollama:latest
     container_name: ollama

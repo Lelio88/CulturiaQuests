@@ -8,9 +8,11 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
     iosScheme: 'https',
     cleartext: false,
-    // Permet le hot-reload en dev (optionnel)
-    // url: 'http://192.168.x.x:3000',
-    // cleartext: true
+    // Option A (#54) : en PROD, l'app mobile charge le serveur Nuxt déployé (BFF + cookie httpOnly
+    // cq_session) au lieu d'un bundle statique sans backend. Défini au build mobile via CAP_SERVER_URL
+    // (ex: CAP_SERVER_URL=https://app.<domaine> npx cap sync android). Non défini (web/dev) → bundle
+    // local (webDir), comportement inchangé.
+    ...(process.env.CAP_SERVER_URL ? { url: process.env.CAP_SERVER_URL } : {}),
   },
   plugins: {
     SplashScreen: {
