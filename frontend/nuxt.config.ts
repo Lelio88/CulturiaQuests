@@ -23,8 +23,9 @@ export default defineNuxtConfig({
     '@nuxtjs/device',
   ],
 
-  // Configuration pinia-plugin-persistedstate
-  // Force localStorage pour éviter l'erreur 431 (cookies trop volumineux)
+  // Configuration pinia-plugin-persistedstate (clé du module v4 réellement lue).
+  // Force localStorage UNIQUEMENT pour éviter l'erreur 431 (Request Header Fields Too Large
+  // causée par des cookies trop volumineux). Ne jamais réactiver la persistance cookie.
   piniaPluginPersistedstate: {
     storage: 'localStorage',
   },
@@ -96,12 +97,5 @@ export default defineNuxtConfig({
         'd3-sankey': path.resolve(__dirname, 'node_modules/d3-sankey/src/index.js'),
       },
     },
-  },
-
-  // Configuration de pinia-plugin-persistedstate
-  // Force l'utilisation de localStorage uniquement pour éviter l'erreur 431
-  // (Request Header Fields Too Large causée par des cookies trop volumineux)
-  piniaPersistedstate: {
-    storage: 'localStorage',
   },
 })

@@ -1,7 +1,8 @@
 # Documentation Import des Zones (Régions, Départements, EPCI)
 
-Ce document décrit l'utilisation du script `scripts/zones_importer/import-zones.ts`.
-Ce script permet d'importer les contours administratifs français (3 niveaux) et de créer les **relations hiérarchiques** dans la base de données Strapi.
+Ce document décrit l'utilisation des scripts `scripts/zones_importer/import-zones-<pays>.ts`
+(un par pays : `france`, `belgique`, `luxembourg`, `suisse`).
+Ces scripts importent les contours administratifs (3 niveaux) et créent les **relations hiérarchiques** dans la base de données Strapi.
 
 ## 📁 Architecture
 
@@ -47,7 +48,9 @@ Le script utilise les fichiers GeoJSON "Simplifiés 100m" d'Etalab (Millésime 2
 ## 🚀 Lancement de l'Import
 
 ```bash
-npx tsx import-zones.ts
+# Un script par pays (depuis scripts/zones_importer/)
+npx tsx import-zones-france.ts
+# ou : import-zones-belgique.ts / import-zones-luxembourg.ts / import-zones-suisse.ts
 ```
 
 ### Fonctionnement Détaillé
