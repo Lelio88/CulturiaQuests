@@ -7,7 +7,7 @@
 # ============================================================
 
 # Configuration
-CONTAINER_NAME="postgres_db"
+CONTAINER_NAME="${PG_CONTAINER:-postgres_db}"
 DB_USER="strapi"
 DB_NAME="strapi"
 BACKUP_DIR="$(dirname "$0")/../backups"

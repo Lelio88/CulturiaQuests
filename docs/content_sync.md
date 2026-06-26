@@ -41,7 +41,8 @@ Ces tables ne sont **jamais touchées** par les scripts.
 
 ## Prérequis
 
-- Docker et le conteneur `postgres_db` doivent tourner sur les deux serveurs
+- Docker et le conteneur PostgreSQL doivent tourner sur les deux serveurs (dev : `postgres_db` ; **prod : `postgres_db_prod`**)
+- Les scripts ciblent `postgres_db` **par défaut**. Sur le serveur de **prod**, préfixer chaque commande par `PG_CONTAINER=postgres_db_prod` (variable d'env lue par les scripts backup/restore/export/import).
 - Accès SSH au serveur de production
 - Les deux serveurs doivent avoir le **même schéma de base de données** (même version de Strapi)
 
@@ -90,7 +91,8 @@ Se connecter en SSH au serveur de production, puis :
 
 ```bash
 cd /chemin/vers/CulturiaQuests
-bash scripts/import-content.sh backups/content_export_YYYYMMDD_HHMMSS.sql
+# Prod : cibler le conteneur de prod via PG_CONTAINER
+PG_CONTAINER=postgres_db_prod bash scripts/import-content.sh backups/content_export_YYYYMMDD_HHMMSS.sql
 ```
 
 Le script effectue les actions suivantes dans cet ordre :
@@ -116,10 +118,10 @@ Strapi doit être redémarré pour recharger les données en cache.
 
 ## Mode interactif
 
-Le script d'import peut être lancé sans argument :
+Le script d'import peut être lancé sans argument (toujours `PG_CONTAINER=postgres_db_prod` sur le serveur de prod) :
 
 ```bash
-bash scripts/import-content.sh
+PG_CONTAINER=postgres_db_prod bash scripts/import-content.sh
 ```
 
 Il affichera la liste des fichiers `content_export_*.sql` disponibles dans `backups/` et demandera lequel utiliser.
@@ -134,10 +136,10 @@ Si quelque chose se passe mal, un backup complet a été créé automatiquement 
 # Trouver le backup de sécurité
 ls -la backups/pre_import_*.sql
 
-# Restaurer (ATTENTION : cela écrase TOUTE la base)
-docker exec -i postgres_db psql -U strapi -d strapi -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-docker exec -i postgres_db psql -U strapi -d strapi < backups/pre_import_YYYYMMDD_HHMMSS.sql
-docker-compose restart backend
+# Restaurer (ATTENTION : cela écrase TOUTE la base) — conteneur de prod : postgres_db_prod
+docker exec -i postgres_db_prod psql -U strapi -d strapi -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+docker exec -i postgres_db_prod psql -U strapi -d strapi < backups/pre_import_YYYYMMDD_HHMMSS.sql
+docker compose -f docker-compose.prod.yml restart backend
 ```
 
 ### Erreurs courantes
