@@ -5,6 +5,27 @@
 import { factories } from '@strapi/strapi';
 import { getUserGuild } from '../../../utils/guild-helpers';
 
+/**
+ * Retire récursivement l'attribut `email` de tout objet peuplé dans la réponse guild.
+ * Empêche la fuite d'e-mails de tiers via un populate profond piloté par le client
+ * (amitiés/badges → guildes d'autrui → user.email). Cf. audit #2.
+ * L'e-mail du joueur lui-même reste accessible via /users/me (endpoint non impacté).
+ */
+function stripPopulatedEmails(node: any): void {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) {
+    node.forEach(stripPopulatedEmails);
+    return;
+  }
+  for (const key of Object.keys(node)) {
+    if (key === 'email') {
+      delete node[key];
+    } else if (node[key] && typeof node[key] === 'object') {
+      stripPopulatedEmails(node[key]);
+    }
+  }
+}
+
 export default factories.createCoreController('api::guild.guild', ({ strapi }) => ({
   /**
    * Find guilds - for authenticated users, returns only their guild
@@ -32,6 +53,7 @@ export default factories.createCoreController('api::guild.guild', ({ strapi }) =
     const results = await strapi.documents('api::guild.guild').findMany(sanitizedQuery);
 
     const sanitizedEntity = await this.sanitizeOutput(results, ctx);
+    stripPopulatedEmails(sanitizedEntity);
     return this.transformResponse(sanitizedEntity);
   },
 
@@ -67,6 +89,7 @@ export default factories.createCoreController('api::guild.guild', ({ strapi }) =
     }
 
     const sanitizedEntity = await this.sanitizeOutput(document, ctx);
+    stripPopulatedEmails(sanitizedEntity);
     return this.transformResponse(sanitizedEntity);
   },
 

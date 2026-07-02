@@ -39,6 +39,12 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
+      # Timeout Ollama (ms) — l'inférence CPU peut être lente : prévoir large (cf. audit #4).
+      OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-120000}
+      # URL publique de Strapi derrière Caddy (server.url + liens e-mail). Cf. audit #8.
+      PUBLIC_URL: ${NUXT_PUBLIC_STRAPI_URL}
+      # Fuseau du process Node = Paris, cohérent avec le reste de l'app. Cf. audit #9.
+      TZ: Europe/Paris
     volumes:
       - ./backend/public/uploads:/opt/app/public/uploads
     ports:
@@ -46,6 +52,8 @@ services:
     depends_on:
       database:
         condition: service_healthy
+      ollama:
+        condition: service_started
     networks:
       - app-network
 
@@ -79,11 +87,20 @@ services:
     image: ollama/ollama:latest
     container_name: ollama
     restart: unless-stopped
-    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull ${OLLAMA_MODEL:-mistral:7b} && wait"]
+    # Entrypoint robuste (cf. audit #6) : `ollama serve` reste vivant même si le pull échoue
+    # (pull best-effort, retenté à la demande) → plus de boucle de restart du conteneur.
+    entrypoint: ["/bin/sh", "-c", "ollama serve & serve_pid=$$!; until ollama list >/dev/null 2>&1; do sleep 1; done; ollama pull ${OLLAMA_MODEL:-mistral:7b} || echo '[ollama] pull echoue - sera retente a la demande'; wait $$serve_pid"]
     volumes:
       - ollama-data:/root/.ollama
     # Aucun mapping de port hôte : Ollama n'est joignable que sur le réseau interne (backend),
     # jamais exposé publiquement (cf. audit sécurité — API LLM sans authentification).
+    healthcheck:
+      # Sain uniquement quand le modèle est réellement présent (cf. audit #6).
+      test: ["CMD-SHELL", "ollama list | grep -q '${OLLAMA_MODEL:-mistral:7b}' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 600s
     networks:
       - app-network
 
