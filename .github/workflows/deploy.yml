@@ -34,28 +34,17 @@ jobs:
             git checkout release
             git pull origin release
 
-            # Generate .env.production from secrets
-            cat > .env.production << 'ENVEOF'
-            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
-            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
-            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-            HOST=0.0.0.0
-            PORT=1337
-            NODE_ENV=production
-            APP_KEYS=${{ secrets.APP_KEYS }}
-            API_TOKEN_SALT=${{ secrets.API_TOKEN_SALT }}
-            ADMIN_JWT_SECRET=${{ secrets.ADMIN_JWT_SECRET }}
-            TRANSFER_TOKEN_SALT=${{ secrets.TRANSFER_TOKEN_SALT }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
-            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-            NUXT_PUBLIC_STRAPI_URL=${{ secrets.NUXT_PUBLIC_STRAPI_URL }}
-            ENVEOF
+            # .env.production est généré UNE SEULE FOIS au premier déploiement (secrets aléatoires
+            # créés directement sur le serveur, jamais versionnés). Le CI ne le régénère PAS : le
+            # régénérer depuis des secrets GitHub écraserait les clés en place (ENCRYPTION_KEY, etc.)
+            # et casserait la prod (données chiffrées illisibles, sessions invalidées).
+            if [ ! -f .env.production ]; then
+              echo "ERREUR: .env.production absent sur le serveur."
+              echo "Le générer une fois (cf. INFRASTRUCTURE.md / install-prod.sh) avant d'activer le CI."
+              exit 1
+            fi
 
-            # Remove leading spaces from heredoc
-            sed -i 's/^            //' .env.production
-
-            # Build and restart services
+            # Build and restart services (réutilise le .env.production présent sur le serveur)
             docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 
             # Wait for Strapi to be ready

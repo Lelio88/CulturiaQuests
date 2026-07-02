@@ -150,7 +150,7 @@
           <div class="space-y-3">
             <div class="p-3 bg-gray-50 rounded-lg text-sm">
               <p class="font-bold text-gray-800">Hébergeur</p>
-              <p class="text-gray-600 mt-1">[Hébergeur — à compléter une fois l'hébergeur choisi] : hébergement des serveurs et de la base de données.</p>
+              <p class="text-gray-600 mt-1">Hetzner Online GmbH (Allemagne, Union européenne) : hébergement des serveurs et de la base de données. Les données sont hébergées dans l'UE, conformément au RGPD.</p>
             </div>
             <div class="p-3 bg-gray-50 rounded-lg text-sm">
               <p class="font-bold text-gray-800">OpenStreetMap / CartoDB</p>
