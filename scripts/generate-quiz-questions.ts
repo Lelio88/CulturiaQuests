@@ -26,10 +26,14 @@ import axios, { AxiosError } from 'axios';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Charger le .env depuis la racine du projet
+// Charger le .env (dev) puis .env.production (prod) depuis la racine du projet.
+// dotenv n'écrase pas les clés déjà définies → l'env du conteneur/CI reste prioritaire.
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
+dotenv.config({ path: path.join(__dirname, '..', '.env.production') });
 
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+// Défaut = nom de service Docker (réseau interne app-network). En dev standalone,
+// exporter OLLAMA_BASE_URL=http://localhost:11434 si Ollama est mappé sur l'hôte. Cf. audit #5.
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral:7b';
 
 const TAGS = ['Art', 'History', 'Make', 'Nature', 'Science', 'Society'];

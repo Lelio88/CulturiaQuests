@@ -19,20 +19,20 @@ export default factories.createCoreController('api::quiz-attempt.quiz-attempt', 
       return ctx.notFound('Guild not found');
     }
 
-    let session = await strapi.service('api::quiz-session.quiz-session').getTodaySession();
+    const session = await strapi.service('api::quiz-session.quiz-session').getTodaySession();
     if (!session) {
-      // Rattrapage : si le cron de minuit n'a pas tourné (serveur down, etc.), on génère
-      // le quiz du jour à la demande puis on relit. La génération est idempotente grâce à
-      // la contrainte unique sur quiz-session.date (pas de double session en cas de concurrence).
-      strapi.log.info('[quiz] Session du jour absente — génération à la demande');
-      try {
-        await strapi.service('api::quiz-session.quiz-generator').generateDailyQuiz();
-      } catch (err) {
-        strapi.log.error(`[quiz] Génération à la demande échouée : ${err instanceof Error ? err.message : err}`);
-      }
-      session = await strapi.service('api::quiz-session.quiz-session').getTodaySession();
-    }
-    if (!session) {
+      // Rattrapage : si le cron de minuit n'a pas tourné, on génère le quiz du jour — mais en
+      // ARRIÈRE-PLAN (non bloquant). L'appel Ollama peut prendre ~30s+ (inférence CPU) : l'awaiter
+      // ici bloquerait la requête GET → risque de 504 côté proxy. La génération est idempotente
+      // (contrainte unique sur quiz-session.date + claim atomique), donc les déclenchements
+      // concurrents sont sûrs. Le client réessaie et la session apparaît une fois prête. Cf. audit #4.
+      strapi.log.info('[quiz] Session du jour absente — génération en arrière-plan');
+      void strapi
+        .service('api::quiz-session.quiz-generator')
+        .generateDailyQuiz()
+        .catch((err: unknown) =>
+          strapi.log.error(`[quiz] Génération à la demande échouée : ${err instanceof Error ? err.message : err}`)
+        );
       return ctx.notFound('No quiz available for today. Please try again later.');
     }
 
@@ -242,9 +242,13 @@ export default factories.createCoreController('api::quiz-attempt.quiz-attempt', 
       },
     });
 
-    const friendGuildIds = friendships.map((f: any) =>
-      f.requester.documentId === guild.documentId ? f.receiver.documentId : f.requester.documentId
-    );
+    // Garde contre les amitiés orphelines (guilde d'un côté supprimée) : sans ce filtre,
+    // f.requester/f.receiver peut être null → 500 sur le leaderboard (cf. audit #1).
+    const friendGuildIds = friendships
+      .map((f: any) =>
+        f.requester?.documentId === guild.documentId ? f.receiver?.documentId : f.requester?.documentId
+      )
+      .filter((id: any) => Boolean(id));
     friendGuildIds.push(guild.documentId);
 
     const attempts = await strapi.db.query('api::quiz-attempt.quiz-attempt').findMany({

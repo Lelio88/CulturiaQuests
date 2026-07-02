@@ -66,6 +66,14 @@ if grep -q "CHANGE_ME" .env.production; then
 fi
 echo -e "${GREEN}  ✓ .env.production configuré${NC}"
 
+# Identifiants Postgres lus depuis .env.production — ne PAS coder "strapi" en dur : sinon la
+# restauration échoue en silence si POSTGRES_USER/DB sont personnalisés, et la prod démarre sur
+# une base VIDE. Cf. audit #7.
+DB_USER=$(grep -E '^POSTGRES_USER=' .env.production | head -1 | cut -d '=' -f2-)
+DB_NAME=$(grep -E '^POSTGRES_DB=' .env.production | head -1 | cut -d '=' -f2-)
+DB_USER="${DB_USER:-strapi}"
+DB_NAME="${DB_NAME:-strapi}"
+
 # --- 3. Démarrage des services ---
 echo -e "${YELLOW}[3/7] Démarrage des services Docker...${NC}"
 $COMPOSE_CMD up -d --build
@@ -74,7 +82,7 @@ echo -e "${GREEN}  ✓ Services démarrés${NC}"
 # --- 4. Attente PostgreSQL ---
 echo -e "${YELLOW}[4/7] Attente de PostgreSQL...${NC}"
 RETRIES=30
-until docker exec "$CONTAINER_DB" pg_isready -U strapi -d strapi > /dev/null 2>&1; do
+until docker exec "$CONTAINER_DB" pg_isready -U "$DB_USER" -d "$DB_NAME" > /dev/null 2>&1; do
     RETRIES=$((RETRIES - 1))
     if [ "$RETRIES" -le 0 ]; then
         echo -e "${RED}  ✗ PostgreSQL n'a pas démarré à temps${NC}"
@@ -133,10 +141,10 @@ fi
 
 # Nettoyage et restauration de la DB
 echo -e "  Nettoyage de la base de données..."
-docker exec -i "$CONTAINER_DB" psql -U strapi -d strapi -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" > /dev/null 2>&1
+docker exec -i "$CONTAINER_DB" psql -U "$DB_USER" -d "$DB_NAME" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" > /dev/null
 
 echo -e "  Import du dump SQL..."
-if docker exec -i "$CONTAINER_DB" psql -U strapi -d strapi < "$SQL_FILE" > /dev/null 2>&1; then
+if docker exec -i "$CONTAINER_DB" psql -U "$DB_USER" -d "$DB_NAME" < "$SQL_FILE" > /dev/null 2>&1; then
     echo -e "${GREEN}  ✓ Base de données restaurée${NC}"
 else
     echo -e "${RED}  ✗ Erreur lors de la restauration SQL${NC}"

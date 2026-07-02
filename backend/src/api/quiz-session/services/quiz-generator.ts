@@ -202,9 +202,10 @@ async function callOllama(prompt: string, retries = 3): Promise<unknown> {
           stream: false,
           options: { temperature: 0.7 },
         }),
-        // Borne chaque tentative (évite un hang indéfini, notamment via la génération
-        // à la demande déclenchée depuis une requête GET).
-        signal: AbortSignal.timeout(8000),
+        // Borne chaque tentative. Configurable via OLLAMA_TIMEOUT_MS : l'inférence CPU dépasse
+        // souvent 8s → 0 question timeline (prod neuve). Défaut prudent conservé pour le dev.
+        // Cf. audit #4. En prod, docker-compose fixe OLLAMA_TIMEOUT_MS (ex. 120000).
+        signal: AbortSignal.timeout(Number(process.env.OLLAMA_TIMEOUT_MS) || 8000),
       });
 
       if (!response.ok) {
