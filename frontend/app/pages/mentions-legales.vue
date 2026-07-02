@@ -44,10 +44,10 @@
             3. Hébergeur
           </h2>
           <div class="p-4 bg-gray-50 rounded-lg text-sm space-y-1">
-            <p><strong>Raison sociale</strong> : [À compléter une fois l'hébergeur choisi]</p>
-            <p><strong>Adresse</strong> : [À compléter]</p>
-            <p><strong>Téléphone</strong> : [À compléter]</p>
-            <p><strong>Site web</strong> : [À compléter]</p>
+            <p><strong>Raison sociale</strong> : Hetzner Online GmbH</p>
+            <p><strong>Adresse</strong> : Industriestr. 25, 91710 Gunzenhausen, Allemagne</p>
+            <p><strong>Téléphone</strong> : +49 (0)9831 505-0</p>
+            <p><strong>Site web</strong> : https://www.hetzner.com</p>
           </div>
         </section>
 
