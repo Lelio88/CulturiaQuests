@@ -69,8 +69,8 @@ echo -e "${GREEN}  ✓ .env.production configuré${NC}"
 # Identifiants Postgres lus depuis .env.production — ne PAS coder "strapi" en dur : sinon la
 # restauration échoue en silence si POSTGRES_USER/DB sont personnalisés, et la prod démarre sur
 # une base VIDE. Cf. audit #7.
-DB_USER=$(grep -E '^POSTGRES_USER=' .env.production | head -1 | cut -d '=' -f2-)
-DB_NAME=$(grep -E '^POSTGRES_DB=' .env.production | head -1 | cut -d '=' -f2-)
+DB_USER=$(grep -E '^POSTGRES_USER=' .env.production | head -1 | cut -d '=' -f2- | tr -d '\r' | sed -E "s/^['\"]//; s/['\"]$//")
+DB_NAME=$(grep -E '^POSTGRES_DB=' .env.production | head -1 | cut -d '=' -f2- | tr -d '\r' | sed -E "s/^['\"]//; s/['\"]$//")
 DB_USER="${DB_USER:-strapi}"
 DB_NAME="${DB_NAME:-strapi}"
 

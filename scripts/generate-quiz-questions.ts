@@ -26,10 +26,10 @@ import axios, { AxiosError } from 'axios';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Charger le .env (dev) puis .env.production (prod) depuis la racine du projet.
-// dotenv n'écrase pas les clés déjà définies → l'env du conteneur/CI reste prioritaire.
+// Charger le .env depuis la racine du projet.
+// NB : on ne charge PAS .env.production ici — il contient STRAPI_API_TOKEN (full-access prod),
+// donc --save/--force pointeraient la PROD à l'insu de l'opérateur (risque de perte de données).
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
-dotenv.config({ path: path.join(__dirname, '..', '.env.production') });
 
 // Défaut = nom de service Docker (réseau interne app-network). En dev standalone,
 // exporter OLLAMA_BASE_URL=http://localhost:11434 si Ollama est mappé sur l'hôte. Cf. audit #5.
