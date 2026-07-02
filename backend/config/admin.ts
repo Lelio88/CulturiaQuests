@@ -2,8 +2,11 @@ export default ({ env }) => ({
   auth: {
     secret: env('ADMIN_JWT_SECRET'),
     sessions: {
-      maxRefreshTokenLifespan: '90d',
-      maxSessionLifespan: '7d',
+      // Durées en SECONDES : Strapi fait `Number(valeur) * 1000` (cf. session-manager).
+      // Des strings comme '90d'/'7d' donnaient `Number('90d') = NaN` → date d'expiration
+      // invalide → 500 « Failed to create admin refresh session » au login. Toujours des nombres.
+      maxRefreshTokenLifespan: 90 * 24 * 60 * 60, // 90 jours
+      maxSessionLifespan: 7 * 24 * 60 * 60, // 7 jours
     },
   },
   apiToken: {
