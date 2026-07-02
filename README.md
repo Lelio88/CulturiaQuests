@@ -31,6 +31,8 @@ Rendre la culture accessible et attractive pour les jeunes adultes en combinant 
 
 ---
 
+> 🖥️ **Hébergement & déploiement** : ce projet tourne en production sur un serveur dédié (Docker Compose). Détails serveur, domaine, accès et état de mise en place → [`INFRASTRUCTURE.md`](./INFRASTRUCTURE.md). Procédure de déploiement → [`DEPLOYMENT.md`](./DEPLOYMENT.md).
+
 ## ✨ Fonctionnalités
 
 ### 🗺️ Exploration
