@@ -112,6 +112,10 @@ export default {
     if (publicRole) {
       await grantPermissions(strapi, publicRole.id, [
         'plugin::users-permissions.auth.register',
+        // Flux « mot de passe oublié » : demande d'e-mail de reset + soumission du nouveau
+        // mot de passe. Consommés avant authentification (utilisateur déconnecté par nature).
+        'plugin::users-permissions.auth.forgotPassword',
+        'plugin::users-permissions.auth.resetPassword',
         'api::character.character.getCharacterIcons',
       ], 'Public');
     }

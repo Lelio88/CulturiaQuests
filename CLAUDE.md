@@ -25,7 +25,7 @@ Topologie rapide :
 
 *Versions contraintes par `backend/package.json` et `frontend/package.json`. N'introduisez aucune dépendance alternative sans approbation.*
 
-- **Backend** : Strapi 5.34.0, TypeScript 5, Node ≥ 20, PostgreSQL 14, `node-cron` 4, `openai` 6, `strapi-geodata`
+- **Backend** : Strapi 5.34.0, TypeScript 5, Node ≥ 20, PostgreSQL 14, `node-cron` 4, `openai` 6, `strapi-geodata`, `@strapi/provider-email-nodemailer` (SMTP Brevo — reset password)
 - **Frontend** : Nuxt 4.2, Vue 3.5, Pinia + `pinia-plugin-persistedstate` (storage `localStorage`), `@nuxtjs/leaflet`, `@nuxtjs/device`, `@nuxt/icon`, `nuxt-charts`, `animejs` (import direct route-splitté). Auth via BFF (cf. §IV.5) : le module `@nuxtjs/strapi` a été retiré des modules au cutover #17 (paquet conservé en dépendance mais non utilisé) ; `@hypernym/nuxt-anime` a été désinstallé.
 - **Mobile** : Capacitor 8 (`@capacitor/android`, `@capacitor/ios`, `local-notifications`)
 - **Tests E2E** : Playwright (configuré côté frontend uniquement)

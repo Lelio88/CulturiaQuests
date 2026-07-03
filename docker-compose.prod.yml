@@ -45,6 +45,13 @@ services:
       PUBLIC_URL: ${NUXT_PUBLIC_STRAPI_URL}
       # Fuseau du process Node = Paris, cohérent avec le reste de l'app. Cf. audit #9.
       TZ: Europe/Paris
+      # SMTP (reset password) — relais Brevo. Identifiants dans .env.production (jamais versionné).
+      SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_DEFAULT_FROM: ${SMTP_DEFAULT_FROM}
+      SMTP_DEFAULT_REPLY_TO: ${SMTP_DEFAULT_REPLY_TO:-${SMTP_DEFAULT_FROM}}
     volumes:
       - ./backend/public/uploads:/opt/app/public/uploads
     ports:
