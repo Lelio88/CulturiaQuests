@@ -87,6 +87,53 @@ async function ensureCustomIndexes(strapi: Core.Strapi) {
   strapi.log.info('Custom DB indexes ensured (perf #21)');
 }
 
+/**
+ * Force l'expéditeur des e-mails users-permissions (reset password + confirmation de compte)
+ * sur l'adresse validée côté Brevo (`SMTP_DEFAULT_FROM`), à la place du défaut `no-reply@strapi.io`
+ * que Brevo REJETTE (« sender not valid »).
+ *
+ * Motivation : le template e-mail de users-permissions impose son propre `from`, qui écrase le
+ * `defaultFrom` du provider (config/plugins.ts). Sur un déploiement neuf, le store est initialisé
+ * par le plugin avec `no-reply@strapi.io` → tous les envois échouent silencieusement (le controller
+ * renvoie quand même `{ ok: true }` par anti-énumération, d'où un debug pénible). Ce seed idempotent
+ * corrige le `from` à chaque boot SANS toucher au reste du template (sujet/corps personnalisés dans
+ * l'admin sont préservés). No-op si `SMTP_DEFAULT_FROM` est absent (dev local sans SMTP).
+ */
+async function ensureEmailSenders(strapi: Core.Strapi) {
+  const fromEmail = process.env.SMTP_DEFAULT_FROM;
+  if (!fromEmail) return; // pas de SMTP configuré → on ne force rien
+
+  type EmailOptions = { from?: { name?: string; email?: string } };
+  type EmailStore = Record<string, { options?: EmailOptions } | undefined>;
+
+  const pluginStore = strapi.store({ type: 'plugin', name: 'users-permissions' });
+  const emails = (await pluginStore.get({ key: 'email' })) as EmailStore | null;
+  if (!emails) return;
+
+  const senderName = 'CulturiaQuests';
+  let changed = false;
+
+  for (const key of ['reset_password', 'email_confirmation']) {
+    const options = emails[key]?.options;
+    if (!options) continue;
+    if (!options.from) options.from = {};
+    const from = options.from;
+    if (from.email !== fromEmail) {
+      from.email = fromEmail;
+      changed = true;
+    }
+    if (!from.name || from.name === 'Administration Panel') {
+      from.name = senderName;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    await pluginStore.set({ key: 'email', value: emails });
+    strapi.log.info(`users-permissions: expéditeur des e-mails forcé sur ${fromEmail}`);
+  }
+}
+
 export default {
   /**
    * An asynchronous register function that runs before
@@ -277,5 +324,9 @@ export default {
 
     // Vérification des données source du quiz quotidien (log explicite si absentes). #73
     checkQuizDataPresence(strapi);
+
+    // Expéditeur des e-mails users-permissions forcé sur SMTP_DEFAULT_FROM
+    // (évite le piège `no-reply@strapi.io` rejeté par Brevo). Idempotent.
+    await ensureEmailSenders(strapi);
   },
 };
