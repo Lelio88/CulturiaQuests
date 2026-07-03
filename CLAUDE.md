@@ -17,7 +17,7 @@ Résolvez les problèmes sans introduire de régression ni de dette technique ar
 Topologie rapide :
 - `backend/` — API Strapi v5 (29 content-types sous `src/api/`, bootstrap permissions, cron quiz)
 - `frontend/` — Nuxt 4 (`app/{pages,components,stores,composables,middleware,types,utils}`)
-- `frontend/android/` — projet Capacitor (App ID `fr.briceledanois.culturiaquests`)
+- `frontend/android/` — projet Capacitor (App ID `com.culturiaquests.app`)
 - `scripts/` — importers POI/zones (Overpass + Ollama), seed, backup, AI reviewer
 - `docs/` — documentation thématique (api_statistics, fog_system, zones_importer, etc.)
 
@@ -27,7 +27,7 @@ Topologie rapide :
 
 - **Backend** : Strapi 5.34.0, TypeScript 5, Node ≥ 20, PostgreSQL 14, `node-cron` 4, `openai` 6, `strapi-geodata`, `@strapi/provider-email-nodemailer` (SMTP Brevo — reset password)
 - **Frontend** : Nuxt 4.2, Vue 3.5, Pinia + `pinia-plugin-persistedstate` (storage `localStorage`), `@nuxtjs/leaflet`, `@nuxtjs/device`, `@nuxt/icon`, `nuxt-charts`, `animejs` (import direct route-splitté). Auth via BFF (cf. §IV.5) : le module `@nuxtjs/strapi` a été retiré des modules au cutover #17 (paquet conservé en dépendance mais non utilisé) ; `@hypernym/nuxt-anime` a été désinstallé.
-- **Mobile** : Capacitor 8 (`@capacitor/android`, `@capacitor/ios`, `local-notifications`)
+- **Mobile** : Capacitor 8 (`@capacitor/android`, `@capacitor/ios`, `local-notifications`, `@capacitor/app` pour les deep-links / App Links)
 - **Tests E2E** : Playwright (configuré côté frontend uniquement)
 - **IA** : Ollama (`mistral:7b` par défaut en dev **et** en prod ; override possible via `OLLAMA_MODEL`, ex. `mistral-nemo:12b`, si le serveur dispose de la RAM/GPU) pour quiz timeline + catégorisation POI
 - **Infra** : Docker Compose (`database` Postgres alpine + `backend` + `frontend` + `ollama`)

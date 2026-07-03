@@ -18,6 +18,19 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- App Links : le lien HTTPS de réinitialisation de mot de passe ouvre l'app.
+                 autoVerify => Android vérifie /.well-known/assetlinks.json sur le domaine.
+                 Fallback navigateur si la vérification échoue (la page web reset marche aussi). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="culturia.heianenterprise.com"
+                    android:pathPrefix="/account/reset-password" />
+            </intent-filter>
         </activity>
 
         <provider
