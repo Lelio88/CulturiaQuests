@@ -16,8 +16,13 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 2000,
-      backgroundColor: '#1a1a1a',
+      // Le splash reste affiché jusqu'à ce que l'app soit prête : app.vue appelle
+      // SplashScreen.hide() au montage (évite le flash pendant le chargement du site distant).
+      // launchShowDuration = plafond de sécurité : si le web ne se charge pas, le splash se
+      // retire quand même au bout de 4 s.
+      launchShowDuration: 4000,
+      launchAutoHide: true,
+      backgroundColor: '#312e81',
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,
     },
