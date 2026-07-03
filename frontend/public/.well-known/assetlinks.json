@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "com.culturiaquests.app",
       "sha256_cert_fingerprints": [
-        "2B:65:23:FA:0D:2A:CD:CD:9B:4E:76:7A:5A:C3:43:BD:38:E9:EA:96:DD:E9:BE:88:37:14:FE:00:AC:AE:1B:C2"
+        "2B:65:23:FA:0D:2A:CD:CD:9B:4E:76:7A:5A:C3:43:BD:38:E9:EA:96:DD:E9:BE:88:37:14:FE:00:AC:AE:1B:C2",
+        "F1:06:B0:0D:69:8E:C6:10:D2:84:7E:D2:89:7B:5B:91:12:A3:02:6B:92:69:6F:B7:14:3A:C6:DB:AC:20:21:E9"
       ]
     }
   }
