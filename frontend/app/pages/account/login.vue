@@ -22,6 +22,15 @@
           :disabled="loading"
         />
 
+        <div class="text-right -mt-2">
+          <NuxtLink
+            to="/account/forgot-password"
+            class="text-xs font-pixel text-indigo-600 hover:underline"
+          >
+            Mot de passe oublié ?
+          </NuxtLink>
+        </div>
+
         <div v-if="error" class="text-red-500 text-sm mt-2">
           {{ error }}
         </div>

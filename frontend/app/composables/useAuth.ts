@@ -83,5 +83,30 @@ export function useAuth() {
     user.value = null
   }
 
-  return { user, fetchMe, login, register, logout, reconcileUser }
+  /**
+   * Demande un e-mail de réinitialisation. Ne lève jamais pour cause d'e-mail inconnu :
+   * le BFF renvoie toujours un succès (anti-énumération).
+   */
+  async function forgotPassword(email: string): Promise<void> {
+    await $fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      body: { email },
+    })
+  }
+
+  /**
+   * Soumet le nouveau mot de passe avec le `code` reçu par e-mail. En cas de succès, le BFF
+   * pose le cookie de session → l'utilisateur est connecté (comme après un login).
+   */
+  async function resetPassword(code: string, password: string, passwordConfirmation: string): Promise<CqUser> {
+    const res = await $fetch<{ user: CqUser }>('/api/auth/reset-password', {
+      method: 'POST',
+      body: { code, password, passwordConfirmation },
+    })
+    user.value = res.user
+    reconcileUser(res.user?.id)
+    return res.user
+  }
+
+  return { user, fetchMe, login, register, logout, forgotPassword, resetPassword, reconcileUser }
 }

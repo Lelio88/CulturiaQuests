@@ -28,6 +28,8 @@ export default defineNuxtRouteMiddleware((to) => {
     '/error',
     '/account/login',
     '/account/register',
+    '/account/forgot-password',
+    '/account/reset-password',
     '/CGU',
     '/mentions-legales',
     '/politique-confidentialite'
