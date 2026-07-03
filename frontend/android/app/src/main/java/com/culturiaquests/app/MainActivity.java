@@ -1,4 +1,4 @@
-package fr.briceledanois.culturiaquests;
+package com.culturiaquests.app;
 
 import com.getcapacitor.BridgeActivity;
 
