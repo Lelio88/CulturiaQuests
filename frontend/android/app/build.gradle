@@ -10,10 +10,10 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "fr.briceledanois.culturiaquests"
+    namespace = "com.culturiaquests.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "fr.briceledanois.culturiaquests"
+        applicationId "com.culturiaquests.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

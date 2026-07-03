@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'fr.briceledanois.culturiaquests',
+  appId: 'com.culturiaquests.app',
   appName: 'CulturiaQuests',
   webDir: '.output/public',
   server: {
