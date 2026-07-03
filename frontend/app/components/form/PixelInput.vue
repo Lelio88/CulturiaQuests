@@ -11,11 +11,17 @@
           v-bind="$attrs"
           :value="modelValue"
           @input="handleInput"
-          :type="type"
+          :type="effectiveType"
           :placeholder="placeholder"
           :disabled="disabled"
           :autocomplete="autocomplete"
-          :class="inputClasses" /></div>
+          :class="inputClasses" /><button
+          v-if="type === 'password'"
+          type="button"
+          tabindex="-1"
+          :aria-label="showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
+          class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-600 transition-colors"
+          @click="showPassword = !showPassword"><Icon :name="showPassword ? 'mdi:eye-off' : 'mdi:eye'" size="22" /></button></div>
     </div>
   </ClientOnly>
 </template>
@@ -55,10 +61,17 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
+// Toggle de visibilité du mot de passe (bouton œil affiché uniquement si type === 'password').
+const showPassword = ref(false)
+const effectiveType = computed(() =>
+  props.type === 'password' ? (showPassword.value ? 'text' : 'password') : props.type
+)
+
 const wrapperClasses = computed(() => [
   'pixel-input-wrapper',
   'pixel-notch',
   'group',
+  'relative',
   'transition-colors',
   props.disabled ? 'bg-gray-400' : 'bg-indigo-600 hover:bg-indigo-700'
 ])
@@ -74,6 +87,8 @@ const inputClasses = computed(() => [
   'text-lg',
   'focus:outline-none',
   'focus:ring-0',
+  // Réserve la place du bouton œil pour ne pas masquer le texte saisi.
+  props.type === 'password' ? 'pr-11' : '',
   props.disabled ? 'bg-gray-100 cursor-not-allowed' : ''
 ])
 
