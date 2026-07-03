@@ -13,6 +13,7 @@ Depuis 2022, Google Play exige que chaque application remplisse un formulaire "D
 | L'app collecte-t-elle des donnees ? | Oui |
 | L'app partage-t-elle des donnees avec des tiers ? | Non (*) |
 | L'app permet-elle la suppression des donnees ? | Oui (parametres > supprimer le compte) |
+| **URL de suppression de compte** (OBLIGATOIRE, apparait quand creation de compte declaree) | **https://lelio88.github.io/CulturiaQuests/suppression-compte.html** (GitHub Pages, durable) |
 
 (*) Les tuiles OpenStreetMap/CartoDB et Google Fonts (si non locales) transmettent l'IP de l'utilisateur. Selon l'interpretation de Google, cela pourrait etre considere comme un "partage". Heberger les fonts localement simplifie cette declaration.
 
@@ -23,7 +24,7 @@ Depuis 2022, Google Play exige que chaque application remplisse un formulaire "D
 | **Infos personnelles** | Adresse email | Oui | Non | Non (inscription) |
 | **Infos personnelles** | Nom d'utilisateur | Oui | Non | Non (inscription) |
 | **Photos et videos** | Avatar | Oui | Non | Oui |
-| **Localisation** | Localisation precise (GPS) | Oui | Non | Oui (on peut utiliser la position par defaut) |
+| **Localisation** | Localisation precise (GPS) | Oui | Non | **Requis** (choix editeur 2026-07-03 : geoloc au coeur du jeu ; fallback "position par defaut" non retenu comme justification d'optionnalite) — traitee de facon **ephemere** (jamais stockee) |
 | **Activite dans l'app** | Interactions dans l'app (progression, quetes, expeditions) | Oui | Non | Non |
 | **Activite dans l'app** | Historique de recherche | Non | - | - |
 | **Identifiants** | Identifiant utilisateur | Oui | Non | Non |

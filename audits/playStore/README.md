@@ -7,7 +7,7 @@
 | 1 | Icones et assets visuels | A FAIRE | OUI | [01-icones-et-assets.md](./01-icones-et-assets.md) |
 | 2 | Signing / Keystore | A FAIRE | OUI | [02-signing-keystore.md](./02-signing-keystore.md) |
 | 3 | Store Listing (fiche) | A FAIRE | OUI | [03-store-listing.md](./03-store-listing.md) |
-| 4 | Politique de confidentialite (URL) | A FAIRE | OUI | [04-politique-confidentialite.md](./04-politique-confidentialite.md) |
+| 4 | Politique de confidentialite (URL) | ✅ FAIT | OUI | [04-politique-confidentialite.md](./04-politique-confidentialite.md) |
 | 5 | Formulaire Data Safety | A FAIRE | OUI | [05-data-safety.md](./05-data-safety.md) |
 | 6 | Optimisations techniques | RECOMMANDE | NON | [06-optimisations.md](./06-optimisations.md) |
 
@@ -22,6 +22,8 @@
 - Contenu adapte : RPG educatif/culturel
 - Adaptive icons : fichiers XML presents dans mipmap-anydpi-v26
 - Structure Capacitor Android fonctionnelle
+- Politique de confidentialite + mentions legales hebergees sur GitHub Pages (durable, hors serveur/domaine) : https://lelio88.github.io/CulturiaQuests/
+- Nom de package definitif : `com.culturiaquests.app`
 
 ## Ordre recommande
 

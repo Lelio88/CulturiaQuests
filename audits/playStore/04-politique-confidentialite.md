@@ -1,5 +1,13 @@
 # 4. Politique de Confidentialite (URL publique)
 
+> ✅ **RESOLU (2026-07-03)** — Page hebergee sur **GitHub Pages** (durable, independante du serveur Hetzner et du domaine `heianenterprise.com` : reste en ligne meme si les deux tombent).
+> - **Politique de confidentialite** (a renseigner dans le Play Console) : **https://lelio88.github.io/CulturiaQuests/**
+> - **Mentions legales** : https://lelio88.github.io/CulturiaQuests/mentions-legales.html
+> - Source : branche **`gh-pages`** du repo `Lelio88/CulturiaQuests` (HTML statique autonome, sans dependance externe). Contenu identique a la page in-app.
+> - ⚠️ Si la politique change : mettre a jour **et** la page in-app (`frontend/app/pages/politique-confidentialite.vue`) **et** la branche `gh-pages`.
+>
+> Les options ci-dessous sont conservees pour historique.
+
 ## Probleme actuel
 
 Google Play exige une **URL de politique de confidentialite accessible publiquement via un navigateur web** pour toute application qui :
@@ -68,7 +76,8 @@ La politique de confidentialite doit couvrir :
 
 ## URL a renseigner
 
-Une fois la page en ligne, renseigner l'URL dans :
-1. **Google Play Console** > Store listing > Privacy policy URL
-2. **Les CGU de l'app** (ajouter un lien vers la politique)
-3. **Les parametres utilisateur** de l'app
+**URL retenue (en ligne, durable)** : **https://lelio88.github.io/CulturiaQuests/**
+
+A renseigner dans :
+1. **Google Play Console** > Regles de confidentialite (App content) + fiche Store si demande
+2. **Les CGU / parametres** de l'app (liens in-app deja existants vers la page `/politique-confidentialite`)
