@@ -42,8 +42,9 @@ export default defineNuxtRouteMiddleware((to) => {
     }
   }
 
-  // Desktop access is not allowed (mobile-first); the global desktop overlay
-  // handles the UI. We stop here only after auth has been enforced.
+  // Desktop access is not allowed (mobile-first) : l'UI de blocage est gérée par le composant
+  // global `DesktopGate.vue` (overlay plein écran monté dans app.vue). On laisse donc rendre la
+  // route ici — l'overlay recouvre le jeu, tout en gardant dashboard/login/légal accessibles.
   if (!allowDesktop && isDesktop && !isDashboardRoute) {
     return
   }
