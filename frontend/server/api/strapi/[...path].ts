@@ -6,8 +6,12 @@
  * Le client n'a donc jamais besoin du token : il appelle une route same-origin.
  *
  * Garde-fous :
- * - Garde `!jwt` en tout premier : un store appelé sans session échoue en 401 explicite
- *   (au lieu d'un 403 Strapi opaque sur un appel sans Authorization).
+ * - Garde `!jwt` : un store appelé sans session échoue en 401 explicite (au lieu d'un 403
+ *   Strapi opaque sur un appel sans Authorization). EXCEPTION : les routes de `PUBLIC_GET_PATHS`
+ *   (GET uniquement, accordées au rôle Public côté Strapi — cf. `backend/src/index.ts`) sont
+ *   relayées sans session car consommées AVANT authentification (ex. écran d'inscription →
+ *   choix de l'icône du personnage via `/character-icons`). Aucun risque CSRF (GET idempotent),
+ *   et Strapi applique lui-même ses permissions Public.
  * - Défense CSRF : le cookie étant auto-envoyé par le navigateur, on exige une origine
  *   same-origin sur toute mutation (sameSite=lax ne suffit pas pour un BFF relayant tous
  *   les verbes). On s'appuie sur Sec-Fetch-Site, avec repli sur Origin vs Host.
@@ -17,13 +21,20 @@
  */
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
+// Routes Strapi accessibles au rôle Public (bootstrap `backend/src/index.ts`) et appelées
+// avant que l'utilisateur ne dispose d'une session. GET uniquement.
+const PUBLIC_GET_PATHS = new Set(['character-icons'])
+
 export default defineEventHandler(async (event) => {
+  const method = event.method
   const jwt = getCookie(event, 'cq_session')
-  if (!jwt) {
+  const path = getRouterParam(event, 'path') || ''
+
+  const isPublicGet = method === 'GET' && PUBLIC_GET_PATHS.has(path)
+
+  if (!jwt && !isPublicGet) {
     throw createError({ statusCode: 401, statusMessage: 'Non authentifié' })
   }
-
-  const method = event.method
 
   if (MUTATING.has(method)) {
     const secFetchSite = getHeader(event, 'sec-fetch-site')
@@ -42,12 +53,12 @@ export default defineEventHandler(async (event) => {
   }
 
   const strapiUrl = useRuntimeConfig(event).strapi?.url || 'http://localhost:1337'
-  const path = getRouterParam(event, 'path') || ''
   // Forward du query string VERBATIM (déjà sérialisé en notation Strapi par useApi/qs).
   // Ne PAS parser+re-sérialiser : getQuery+ofetch casserait `populate[...]` imbriqué.
   const search = getRequestURL(event).search
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${jwt}` }
+  // Route publique sans session : on relaie sans Authorization (Strapi applique le rôle Public).
+  const headers: Record<string, string> = jwt ? { Authorization: `Bearer ${jwt}` } : {}
 
   let body: unknown
   if (!['GET', 'HEAD'].includes(method)) {
