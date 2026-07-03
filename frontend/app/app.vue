@@ -21,5 +21,7 @@ onMounted(async () => {
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
+    <!-- Garde-fou « mobile uniquement » : overlay bloquant sur desktop (hors dashboard/login/légal). -->
+    <DesktopGate />
   </div>
 </template>
