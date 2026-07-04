@@ -204,7 +204,7 @@ export const useQuizStore = defineStore('quiz', () => {
         },
         score: data.score,
         rewards: data.rewards || { tier: 'bronze', gold: 0, exp: 0, items: [] },
-        detailedAnswers: (data as any).answers || [],
+        detailedAnswers: data.answers || [],
         newStreak: data.guild?.quiz_streak || 0,
       }
     } catch (e: unknown) {

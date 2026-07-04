@@ -33,6 +33,9 @@ const emit = defineEmits<{
   'select-poi': [poi: Poi]
 }>()
 
+// Noms d'icônes de catégorie musée disponibles (fichiers /assets/map/museum/<nom>.webp).
+const MUSEUM_ICON_NAMES = ['Art', 'History', 'Make', 'Nature', 'Science', 'Society']
+
 // Flag pour désactiver le LMarker Vue avant la destruction de la carte
 const isActive = ref(true)
 
@@ -96,7 +99,12 @@ const renderMarkers = () => {
 
   props.museums.forEach(m => {
     if (!m.lat || !m.lng) return
-    const iconUrl = `/assets/map/museum/${m.tags?.[0]?.name || 'Art'}.webp`
+    // tags est un string[] (noms). L'ancien `m.tags?.[0]?.name` valait toujours undefined →
+    // tous les musées affichaient Art.webp. On mappe le 1er tag sur une icône existante
+    // (repli Art), jamais de 404 si le nom ne correspond à aucun fichier.
+    const t = m.tags?.[0]
+    const icon = t && MUSEUM_ICON_NAMES.includes(t) ? t : 'Art'
+    const iconUrl = `/assets/map/museum/${icon}.webp`
     ensure(`m-${m.id}`, m.lat, m.lng, iconUrl, () => emit('select-museum', m))
   })
 

@@ -91,24 +91,37 @@ export function useGeolocation(options: GeolocationOptions = {}) {
   // « position active » à tort. On la masque au passage en arrière-plan et on la réaffiche au retour
   // au premier plan tant que le tracking est actif. Listener natif via @capacitor/app.
   let appStateListener: PluginListenerHandle | null = null
+  // Promesse d'inscription en vol : conservée pour que teardown puisse l'attendre. Sans ça,
+  // un stop rapide pendant qu'App.addListener est en vol verrait appStateListener encore null
+  // (no-op), puis l'inscription se résoudrait → listener natif orphelin jusqu'au reload.
+  let appStateSetupPromise: Promise<void> | null = null
 
   async function setupAppStateListener(): Promise<void> {
     if (!Capacitor.isNativePlatform() || appStateListener) return
-    appStateListener = await App.addListener('appStateChange', ({ isActive }) => {
-      if (!isTracking.value) return
-      if (isActive) {
-        showGeoNotification()
-      } else {
-        hideGeoNotification()
-      }
-    })
+    // L'assignation de appStateSetupPromise est synchrone (avant le premier await) → un teardown
+    // appelé au même tick la voit et l'attend.
+    appStateSetupPromise = (async () => {
+      appStateListener = await App.addListener('appStateChange', ({ isActive }) => {
+        if (!isTracking.value) return
+        if (isActive) {
+          showGeoNotification()
+        } else {
+          hideGeoNotification()
+        }
+      })
+    })()
+    await appStateSetupPromise
   }
 
   async function teardownAppStateListener(): Promise<void> {
+    if (appStateSetupPromise) {
+      await appStateSetupPromise.catch(() => {})
+    }
     if (appStateListener) {
       await appStateListener.remove()
       appStateListener = null
     }
+    appStateSetupPromise = null
   }
 
   /**
@@ -121,6 +134,11 @@ export function useGeolocation(options: GeolocationOptions = {}) {
       console.warn('Geolocation not supported, using default position')
       return
     }
+
+    // Idempotence : le flux d'autorisation déclenche startTracking() deux fois (bouton
+    // « Autoriser » + listener permissions.change) ; sans cette garde, le premier watchPosition
+    // est orphelin (jamais clearWatch) → double fetch réseau + drain batterie jusqu'au reload.
+    if (isTracking.value || watchId.value !== null) return
 
     geolocLoading.value = true
     geolocError.value = null

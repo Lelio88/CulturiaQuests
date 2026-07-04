@@ -120,6 +120,9 @@ export interface GetAttemptResponse {
     guild?: {
       quiz_streak: number
     }
+    // Le backend persiste et renvoie récompenses + réponses détaillées avec l'attempt (findOne).
+    rewards?: QuizRewards
+    answers?: DetailedAnswer[]
   }
 }
 

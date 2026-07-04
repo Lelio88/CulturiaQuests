@@ -25,7 +25,9 @@ const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 // avant que l'utilisateur ne dispose d'une session. GET uniquement.
 const PUBLIC_GET_PATHS = new Set(['character-icons'])
 
-export default defineEventHandler(async (event) => {
+// Retour annoté `Promise<unknown>` : sans ça, l'inférence du type de retour du handler passe par
+// le registre de routes Nitro (auto-référence) → `default` implicitement `any` (TS7022/7024).
+export default defineEventHandler(async (event): Promise<unknown> => {
   const method = event.method
   const jwt = getCookie(event, 'cq_session')
   const path = getRouterParam(event, 'path') || ''
@@ -60,13 +62,15 @@ export default defineEventHandler(async (event) => {
   // Route publique sans session : on relaie sans Authorization (Strapi applique le rôle Public).
   const headers: Record<string, string> = jwt ? { Authorization: `Bearer ${jwt}` } : {}
 
-  let body: unknown
+  let body: Record<string, unknown> | undefined
   if (!['GET', 'HEAD'].includes(method)) {
     body = await readBody(event).catch(() => undefined)
   }
 
   try {
-    return await $fetch(`${strapiUrl}/api/${path}${search}`, { method, headers, body })
+    // `$fetch<unknown>` explicite : sans paramètre de type, l'inférence de retour se réfère au
+    // registre de routes Nitro (récursion) → `any` implicite (TS7022/7024) sur cette route critique.
+    return await $fetch<unknown>(`${strapiUrl}/api/${path}${search}`, { method, headers, body })
   } catch (err: any) {
     // Forme d'erreur robuste : err.response.statusText est vide en HTTP/2 (h2c) et
     // err.response.status n'est pas garanti sur ofetch → on retombe en cascade.

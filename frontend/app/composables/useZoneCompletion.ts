@@ -3,8 +3,6 @@ import { useFogStore, GRID_LAT_STEP, GRID_LNG_STEP } from '~/stores/fog'
 import { useProgressionStore } from '~/stores/progression'
 import { isPointInGeoJSON, computeGeoJSONArea } from '~/utils/geometry'
 
-const COMPLETION_THRESHOLD = 0.5 // 50% — conservé comme seuil de complétion (côté SERVEUR désormais)
-
 function getComcomDocId(comcom: Comcom): string {
   return comcom.documentId || comcom.id.toString()
 }

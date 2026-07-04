@@ -18,12 +18,22 @@ export default defineEventHandler(async (event) => {
 
   let res: { jwt: string; user: Record<string, unknown> }
   try {
-    res = await $fetch(`${strapiUrl}/api/auth/local`, {
+    // Paramètre de type explicite : sans lui, l'inférence de $fetch explose sur le registre de
+    // routes Nitro (TS2321 « Excessive stack depth »).
+    res = await $fetch<{ jwt: string; user: Record<string, unknown> }>(`${strapiUrl}/api/auth/local`, {
       method: 'POST',
       body: { identifier, password },
     })
-  } catch {
-    throw createError({ statusCode: 401, statusMessage: 'Identifiants invalides' })
+  } catch (err: any) {
+    // Distinguer « mauvais identifiants » (Strapi répond 4xx) d'une panne d'infra (Strapi
+    // down / timeout / 5xx) : sans ça, un incident backend était masqué en « Identifiants
+    // invalides » (faux signal support). On loggue toujours côté serveur pour diagnostic.
+    const status = err?.response?.status
+    if (status && status >= 400 && status < 500) {
+      throw createError({ statusCode: 401, statusMessage: 'Identifiants invalides' })
+    }
+    console.error('[auth/login] échec non-authentification:', status ?? err?.message ?? err)
+    throw createError({ statusCode: 503, statusMessage: "Service d'authentification indisponible" })
   }
 
   setCookie(event, 'cq_session', res.jwt, {

@@ -4,10 +4,14 @@
  * 1. Sync: reads role.type from the user state (fast path)
  * 2. Async: calls /admin-dashboard/check endpoint (reliable fallback)
  */
+// Dédup au scope MODULE : garantit un seul appel `/admin-dashboard/check` en vol quel que soit
+// le nombre d'instances de useAdmin() montées simultanément. Un ref local ne dédupliquait pas
+// entre instances → appels BFF redondants au premier chargement.
+let verifyInFlight: Promise<void> | null = null
+
 export function useAdmin() {
   const { user } = useAuth()
   const isAdminVerified = useState<boolean>('is_admin_verified', () => false)
-  const verifyPending = ref(false)
 
   const isAdmin = computed(() => {
     const u = user.value as any
@@ -16,18 +20,21 @@ export function useAdmin() {
 
   const adminChecked = computed(() => !!user.value)
 
-  async function verifyAdmin() {
-    if (!user.value || verifyPending.value) return
-    verifyPending.value = true
-    try {
-      const client = useApi()
-      const result: any = await client('/admin-dashboard/check')
-      isAdminVerified.value = result?.isAdmin === true
-    } catch {
-      isAdminVerified.value = false
-    } finally {
-      verifyPending.value = false
-    }
+  function verifyAdmin(): Promise<void> {
+    if (!user.value || isAdminVerified.value) return Promise.resolve()
+    if (verifyInFlight) return verifyInFlight
+    verifyInFlight = (async () => {
+      try {
+        const client = useApi()
+        const result: any = await client('/admin-dashboard/check')
+        isAdminVerified.value = result?.isAdmin === true
+      } catch {
+        isAdminVerified.value = false
+      } finally {
+        verifyInFlight = null
+      }
+    })()
+    return verifyInFlight
   }
 
   function checkAdminRole(): boolean {

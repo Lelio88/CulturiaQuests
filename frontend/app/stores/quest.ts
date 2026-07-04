@@ -63,27 +63,9 @@ export const useQuestStore = defineStore('quest', () => {
     quests.value.push(quest)
   }
 
-  function removeQuest(questId: number) {
-    quests.value = quests.value.filter(q => q.id !== questId)
-  }
-
-  function updateQuest(questId: number, updates: Partial<Quest>) {
-    const index = quests.value.findIndex(q => q.id === questId)
-    if (index !== -1) {
-      quests.value[index] = { ...quests.value[index], ...updates }
-    }
-  }
-
-  function updateQuestProgress(questId: number, poiCompleted: 'a' | 'b') {
-    const index = quests.value.findIndex(q => q.id === questId)
-    if (index !== -1) {
-      if (poiCompleted === 'a') {
-        quests.value[index] = { ...quests.value[index], is_poi_a_completed: true }
-      } else {
-        quests.value[index] = { ...quests.value[index], is_poi_b_completed: true }
-      }
-    }
-  }
+  // updateQuest / removeQuest / updateQuestProgress retirés (#audit) : jamais appelés
+  // (progression de quête 100% serveur-autoritative via guildStore.fetchAll) + portaient des
+  // erreurs de type (mutation locale d'un index possiblement undefined). YAGNI.
 
   async function generateDailyQuests(poiDocumentIds: string[]) {
     const client = useApi()
@@ -155,9 +137,6 @@ export const useQuestStore = defineStore('quest', () => {
     setQuests,
     clearQuests,
     addQuest,
-    removeQuest,
-    updateQuest,
-    updateQuestProgress,
     fetchQuests,
     generateDailyQuests,
   }

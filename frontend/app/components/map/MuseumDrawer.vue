@@ -150,16 +150,10 @@ const getItemTags = (item: any): string[] => {
 /**
  * Helper pour extraire les tags du musée (pour l'affichage)
  */
-const museumTagsDisplay = computed(() => {
-  const tags = props.museum.tags || props.museum.attributes?.tags
-  if (!tags) return []
-
-  const tagData = tags.data || tags
-  if (!Array.isArray(tagData)) return []
-
-  return tagData.map((tag: any) => {
-    return tag.name || tag.attributes?.name || tag
-  }).filter((name: string) => name)
+const museumTagsDisplay = computed<string[]>(() => {
+  // museum.tags est un string[] de noms (normalisé par le store via extractTags).
+  const tags = props.museum.tags
+  return Array.isArray(tags) ? tags.filter(Boolean) : []
 })
 
 /**
