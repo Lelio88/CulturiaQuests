@@ -447,21 +447,31 @@ export async function scanEpci(epci: EpciEntry, deptNom: string, regionNom: stri
   console.log(`  📍 Scan BBox unique pour ${epci.communes.length} communes…`);
   const query = buildOverpassBBoxQuery(epci.communes);
 
+  // Overpass rate-limite de façon INTERMITTENTE (429, mais aussi 406/403 selon l'instance/charge) ;
+  // on retente donc sur tous ces statuts + erreurs réseau, avec un backoff croissant, et on envoie
+  // un User-Agent descriptif (étiquette Overpass, réduit les blocages sur un run long de 1255 EPCI).
+  const RETRY_STATUSES = new Set([403, 406, 429, 502, 503, 504]);
+  const BACKOFF = [15000, 30000, 60000, 90000, 120000];
+  const MAX_ATTEMPTS = BACKOFF.length + 1;
   let attempts = 0;
   let res = null;
-  while (attempts < 3) {
+  while (attempts < MAX_ATTEMPTS) {
     try {
       res = await axios.post(OVERPASS_API_URL, `data=${encodeURIComponent(query)}`, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        timeout: 90000,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'CulturiaQuests-POI-Importer/1.0 (+https://culturiaquests.app)',
+        },
+        timeout: 120000,
       });
       break;
     } catch (e: any) {
       attempts++;
       const status = e.response?.status;
-      if ((status === 429 || status === 504) && attempts < 3) {
-        const wait = [15000, 30000, 60000][attempts - 1];
-        console.warn(`  ⏳ Overpass ${status}, retry ${attempts}/3 dans ${wait / 1000}s...`);
+      const retryable = RETRY_STATUSES.has(status) || e.code === 'ECONNRESET' || e.code === 'ETIMEDOUT' || e.code === 'ECONNABORTED';
+      if (retryable && attempts < MAX_ATTEMPTS) {
+        const wait = BACKOFF[attempts - 1] || 120000;
+        console.warn(`  ⏳ Overpass ${status || e.code}, retry ${attempts}/${MAX_ATTEMPTS - 1} dans ${wait / 1000}s...`);
         await new Promise(r => setTimeout(r, wait));
         continue;
       }
