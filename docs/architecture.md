@@ -258,7 +258,7 @@ Hors deploy : `.github/workflows/ai_review.yml` poste une review IA sur Discord 
 | **OpenQuizzDB** | Banque de QCM (fichiers JSON locaux dans `backend/src/data/openquizzdb/`). | Fichiers commités dans le repo. Anti-répétition persistée en base (`quiz_questions.source_id`, survit aux redeploys). Repioche dans l'ensemble complet quand le corpus est presque épuisé. |
 | **Ollama (LLM local)** | Génération des questions timeline du quiz quotidien (best-effort) + catégorisation POI à l'import. | Si Ollama indisponible : le service `quiz-generator` skip les timeline (3 retries avec backoff exponentiel) et **complète à 10 QCM** OpenQuizzDB — le quiz reste complet, jamais dégradé. Aucune dépendance bloquante en runtime API. |
 | **Etalab (GeoJSON France)** | Source des géométries région / département / comcom. | Import offline via `scripts/zones_importer`. Données stables. |
-| **Capacitor (Android)** | Packaging mobile. | App ID `fr.briceledanois.culturiaquests`. Scheme HTTPS. Build via Gradle standard. |
+| **Capacitor (Android)** | Packaging mobile. | App ID `com.culturiaquests.app`. Scheme HTTPS. Build via Gradle standard. |
 | **Discord webhook** | Notifications CI/CD. | `DISCORD_WEBHOOK_URL` en secret GitHub. Pas critique — si down, pas d'impact prod. |
 
 ## 12. Variables d'environnement (résumé)

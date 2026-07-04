@@ -12,7 +12,7 @@ La page `/politique-confidentialite` existe dans l'app, mais elle n'est pas acce
 
 Creer une page HTML statique servie par Nginx sur le domaine de production :
 
-**URL** : `https://cqapi.ada.briceledanois.fr/privacy-policy`
+**URL** : `https://api.culturia.heianenterprise.com/privacy-policy`
 
 1. Creer un fichier `privacy-policy.html` avec le contenu de la politique de confidentialite
 2. Configurer Nginx pour servir ce fichier :

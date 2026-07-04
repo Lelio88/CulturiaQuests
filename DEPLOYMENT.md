@@ -2,7 +2,7 @@
 
 ## Architecture
 
-- **Backend** : Strapi (headless CMS) déployé sur serveur privé → `https://cqapi.ada.briceledanois.fr`
+- **Backend** : Strapi (headless CMS) déployé sur serveur privé → `https://api.culturia.heianenterprise.com`
 - **Frontend** : Nuxt.js embarqué dans une app Android via Capacitor
 - **Base de données** : PostgreSQL 14 (uniquement accessible par le backend)
 
@@ -13,8 +13,8 @@
 ### Premier déploiement (sur le serveur)
 
 ```bash
-# 1. SSH sur le serveur
-ssh user@cqapi.ada.briceledanois.fr
+# 1. SSH sur le serveur (hôte/IP réels : voir INFRASTRUCTURE.md, privé hors-repo)
+ssh <user>@<hôte-du-serveur>
 
 # 2. Cloner le repo
 git clone <repo-url> /opt/culturiaquests
@@ -193,13 +193,13 @@ Caddy gère automatiquement HTTPS via Let's Encrypt.
 
 ```bash
 # Health check
-curl https://cqapi.ada.briceledanois.fr/_health
+curl https://api.culturia.heianenterprise.com/_health
 
 # API
-curl https://cqapi.ada.briceledanois.fr/api
+curl https://api.culturia.heianenterprise.com/api
 
 # Admin panel (navigateur)
-https://cqapi.ada.briceledanois.fr/admin
+https://api.culturia.heianenterprise.com/admin
 ```
 
 ### App Android (option A — webview du serveur Nuxt déployé)

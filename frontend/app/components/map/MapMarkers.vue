@@ -16,7 +16,6 @@ import L from 'leaflet'
 import type { Museum } from '~/types/museum'
 import type { Poi } from '~/types/poi'
 import { useVisitStore } from '~/stores/visit'
-import { calculateDistance } from '~/utils/geolocation'
 
 const visitStore = useVisitStore()
 
@@ -78,8 +77,12 @@ const renderMarkers = () => {
     return
   }
 
-  const RADIUS_KM = 10
   const desired = new Set<string>()
+
+  // Le périmètre d'affichage (viewport) est décidé par le parent (`map.vue` → validMuseums /
+  // validPOIs filtrés sur `mapBounds`). Ici on ne rejette QUE les coordonnées invalides : plus
+  // de filtre rayon ancré sur la position GPS (il masquait tout dès que le joueur était loin de
+  // la zone de contenu, cf. fix #bug-carte). L'interaction reste géo-clôturée côté serveur.
 
   // Crée le marqueur seulement s'il n'existe pas déjà (diff incrémental).
   const ensure = (key: string, lat: number, lng: number, iconUrl: string, onClick: () => void) => {
@@ -93,14 +96,12 @@ const renderMarkers = () => {
 
   props.museums.forEach(m => {
     if (!m.lat || !m.lng) return
-    if (calculateDistance(props.userLat, props.userLng, m.lat, m.lng) > RADIUS_KM) return
     const iconUrl = `/assets/map/museum/${m.tags?.[0]?.name || 'Art'}.webp`
     ensure(`m-${m.id}`, m.lat, m.lng, iconUrl, () => emit('select-museum', m))
   })
 
   props.pois.forEach(p => {
     if (!p.lat || !p.lng) return
-    if (calculateDistance(props.userLat, props.userLng, p.lat, p.lng) > RADIUS_KM) return
     // L'état du coffre fait partie de la clé → ouverture/fermeture = nouveau marqueur (bonne icône)
     const available = visitStore.isChestAvailable(p.id || p.documentId)
     ensure(`p-${p.id}-${available ? 1 : 0}`, p.lat, p.lng, getChestIconUrl(p), () => emit('select-poi', p))
@@ -139,8 +140,13 @@ onBeforeUnmount(() => {
   cleanup()
 })
 
-// Réactivité Optimisée
-// On ne redessine que si les données changent ou si on franchit le seuil de zoom 11
+// Réactivité
+// Les listes (props.museums/props.pois) sont déjà filtrées par viewport dans le parent (map.vue) :
+// on redessine quand elles changent ou quand on franchit le seuil de zoom 11.
+// userLat/userLng est conservé dans le watch NON pour filtrer (l'affichage suit le viewport) mais
+// comme SONDE temporelle bon marché : à chaque fix GPS, renderMarkers ré-évalue isChestAvailable
+// (dépendant du temps — cooldown 24 h) → l'icône d'un coffre redevenu ouvrable se met à jour même
+// carte immobile. Le diff incrémental (markerById) rend ce re-render quasi gratuit.
 const isZoomVisible = computed(() => props.zoom >= 11)
 
 watch(() => [props.museums, props.pois, isZoomVisible.value, props.userLat, props.userLng], renderMarkers)

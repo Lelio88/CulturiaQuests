@@ -180,6 +180,9 @@ const drawFog = () => {
   const zoom = map.getZoom()
   const allZones = zoneStore.getZonesForZoom(zoom)
   const viewBounds = map.getBounds().pad(0.3)
+  // Bornes numériques extraites une fois : évite un `new L.LatLng` par zone (bounds.contains([...]))
+  // à chaque frame — le redraw tourne désormais sur 'move' (suivi du doigt), pas seulement 'moveend'.
+  const vS = viewBounds.getSouth(), vN = viewBounds.getNorth(), vW = viewBounds.getWest(), vE = viewBounds.getEast()
 
   const isCompleted = (zone: any) => {
     const id = zone.documentId || zone.id
@@ -190,7 +193,8 @@ const drawFog = () => {
 
   for (const zone of allZones) {
     // Skip les zones hors viewport (évite des milliers de latLngToContainerPoint inutiles)
-    if (zone.centerLat && zone.centerLng && !viewBounds.contains([zone.centerLat, zone.centerLng])) continue
+    if (zone.centerLat && zone.centerLng &&
+        (zone.centerLat < vS || zone.centerLat > vN || zone.centerLng < vW || zone.centerLng > vE)) continue
     if (isCompleted(zone)) {
       drawGeometry(ctx, zone.geometry, map)
     }
@@ -204,17 +208,33 @@ const drawFog = () => {
 
   if (brushCanvas) {
     const bounds = map.getBounds().pad(0.2)
+    // Bornes numériques extraites une fois : le culling évite un `new L.LatLng` par point
+    // (jusqu'à ~5000) à chaque frame — critique maintenant que le redraw tourne sur 'move'.
+    const pS = bounds.getSouth(), pN = bounds.getNorth(), pW = bounds.getWest(), pE = bounds.getEast()
     const points = fogStore.discoveredPoints
     const radiusOffset = brushCanvas.width / 2
 
     for (let i = 0; i < points.length; i++) {
       const pt = points[i]
-      if (!bounds.contains([pt.lat, pt.lng])) continue
+      if (pt.lat < pS || pt.lat > pN || pt.lng < pW || pt.lng > pE) continue
 
       const p = map.latLngToContainerPoint([pt.lat, pt.lng])
       ctx.drawImage(brushCanvas, p.x - radiusOffset, p.y - radiusOffset)
     }
   }
+}
+
+// --- RÉACTIVITÉ (rAF-coalescing) ---
+
+// Coalesce tous les déclencheurs de redraw (events carte + watchers) en AU PLUS un dessin par
+// frame : plusieurs 'move'/'zoomend'/mutations de points au même tick ne produisent qu'un seul
+// drawFog. C'est ce qui rend le suivi du doigt fluide pendant le drag sans exploser le CPU.
+const scheduleFogRedraw = () => {
+  if (fogRafId !== null) return
+  fogRafId = requestAnimationFrame(() => {
+    fogRafId = null
+    drawFog()
+  })
 }
 
 // --- LIFECYCLE ---
@@ -236,8 +256,14 @@ onMounted(() => {
   fogPane?.appendChild(cvs)
   canvas.value = cvs
 
-  map.on('moveend zoomend resize', drawFog)
-  drawFog()
+  // Suivi fluide pendant le déplacement : on écoute aussi 'move' (drag continu), pas seulement
+  // 'moveend'. Avant, le brouillard restait figé pendant le drag et ne se recalait qu'au
+  // relâchement du doigt. Tous les redraws passent par le rAF-coalescing (scheduleFogRedraw) →
+  // au plus 1 dessin/frame. 'zoom' (continu) est volontairement EXCLU : le canvas porte la
+  // classe `leaflet-zoom-animated` → Leaflet gère l'échelle pendant l'animation de zoom, un
+  // redraw en plein zoom entrerait en conflit avec cette transformation (on recale au 'zoomend').
+  map.on('move moveend zoomend resize', scheduleFogRedraw)
+  drawFog() // premier rendu immédiat (pas différé au prochain frame)
 })
 
 function cleanup() {
@@ -246,7 +272,7 @@ function cleanup() {
     fogRafId = null
   }
   if (props.map) {
-    try { (props.map as Map).off('moveend zoomend resize', drawFog) } catch (_) { /* ignore */ }
+    try { (props.map as Map).off('move moveend zoomend resize', scheduleFogRedraw) } catch (_) { /* ignore */ }
   }
   if (canvas.value && fogPane) {
     try { fogPane.removeChild(canvas.value) } catch (_) { /* ignore */ }
@@ -261,15 +287,8 @@ onBeforeUnmount(() => {
   cleanup()
 })
 
-// Réactivité — un seul watcher + rAF pour coalescer les appels
-const scheduleFogRedraw = () => {
-  if (fogRafId !== null) return
-  fogRafId = requestAnimationFrame(() => {
-    fogRafId = null
-    drawFog()
-  })
-}
-
+// Réactivité — le watcher passe par le même rAF-coalescing (scheduleFogRedraw défini plus haut,
+// partagé avec les events carte).
 watch(
   () => [fogStore.discoveredPoints.length, zoneStore.isInitialized, progressionStore.progressions.length],
   scheduleFogRedraw

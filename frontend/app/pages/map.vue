@@ -176,40 +176,39 @@ const guildCharacters = computed(() => {
   return Array.isArray(chars) ? chars : []
 })
 
-// Computed - Valid markers (filtrer les coordonnées invalides ET distance)
-// On utilise directement le store qui contient TOUS les items chargés
-// Affiche uniquement si le zoom permet de voir les Comcoms (>= 11)
-const RADIUS_KM = 20
-
-// Pré-filtre boîte englobante (arithmétique simple) AVANT le Haversine coûteux : on évite
-// de calculer la distance trigonométrique sur les ~5478 entités à chaque fix GPS. La boîte
-// (demi-largeurs dLat/dLng) contient strictement le cercle de rayon RADIUS_KM → résultat
-// identique au filtre Haversine seul, mais sans trigo sur les entités manifestement hors zone.
-function makeRadiusFilter(lat: number, lng: number) {
-  // 110.574 = km par degré de latitude MINIMAL (à l'équateur). L'utiliser (au lieu de
-  // ~111.32) rend la boîte légèrement plus GRANDE que le cercle → garantit aucun faux
-  // négatif quelle que soit la latitude (le résultat reste identique au Haversine seul).
-  const KM_PER_DEG = 110.574
-  const dLat = RADIUS_KM / KM_PER_DEG
-  const cos = Math.max(Math.abs(Math.cos((lat * Math.PI) / 180)), 1e-6)
-  const dLng = RADIUS_KM / (KM_PER_DEG * cos)
-  return (eLat?: number, eLng?: number): boolean => {
-    if (eLat === undefined || eLng === undefined) return false
-    if (Math.abs(eLat - lat) > dLat || Math.abs(eLng - lng) > dLng) return false // hors boîte → skip Haversine
-    return calculateDistance(lat, lng, eLat, eLng) <= RADIUS_KM
+// Computed - Valid markers : on affiche ce qui est DANS LA ZONE VISIBLE de la carte
+// (viewport = `mapBounds`, déjà padé de 0.2), PAS dans un rayon autour du joueur.
+//
+// Choix (fix #bug-carte) : l'ancien filtre était ancré sur la position GPS du joueur
+// (`userLat/userLng`) → un joueur situé hors de la zone de contenu (ex. Caen alors que les
+// POI sont à Saint-Lô, ~55 km) ne voyait AUCUN marqueur, même en déplaçant la carte, car
+// l'ancre restait sa position GPS. En filtrant par le viewport (même logique que
+// `visibleZones`), déplacer la carte révèle les POI de la zone regardée : on peut
+// consulter/planifier n'importe où. L'INTERACTION reste géo-clôturée à ≤ 50 m côté serveur
+// (`visit.openChest`, `run.startExpedition`) → afficher un POI distant n'ouvre aucune faille.
+//
+// Seuil de zoom 11 conservé : en-dessous, le viewport couvre trop d'entités → aucun marqueur.
+function makeBoundsFilter(bounds: Leaflet.LatLngBounds) {
+  const south = bounds.getSouth()
+  const north = bounds.getNorth()
+  const west = bounds.getWest()
+  const east = bounds.getEast()
+  return (lat?: number, lng?: number): boolean => {
+    if (lat === undefined || lng === undefined) return false
+    return lat >= south && lat <= north && lng >= west && lng <= east
   }
 }
 
 const validMuseums = computed<Museum[]>(() => {
-  if (currentZoom.value < 11) return []
-  const inRadius = makeRadiusFilter(userLat.value, userLng.value)
-  return museumStore.museums.filter((m) => inRadius(m.lat, m.lng))
+  if (currentZoom.value < 11 || !mapBounds.value) return []
+  const inView = makeBoundsFilter(mapBounds.value)
+  return museumStore.museums.filter((m) => inView(m.lat, m.lng))
 })
 
 const validPOIs = computed<Poi[]>(() => {
-  if (currentZoom.value < 11) return []
-  const inRadius = makeRadiusFilter(userLat.value, userLng.value)
-  return poiStore.pois.filter((p) => inRadius(p.lat, p.lng))
+  if (currentZoom.value < 11 || !mapBounds.value) return []
+  const inView = makeBoundsFilter(mapBounds.value)
+  return poiStore.pois.filter((p) => inView(p.lat, p.lng))
 })
 
 // Computed - Distance to selected item

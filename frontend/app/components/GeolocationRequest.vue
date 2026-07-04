@@ -6,7 +6,7 @@
     <div class="bg-white p-6 rounded-lg shadow-xl max-w-md mx-4">
       <h2 class="text-xl font-bold mb-4 text-gray-800">Autoriser la géolocalisation</h2>
       <p class="text-gray-600 mb-6">
-        Cette application a besoin de votre position pour afficher les musées et points d'intérêt à proximité (dans un rayon de 10 km).
+        Cette application a besoin de votre position pour vous situer sur la carte, révéler les zones que vous explorez et débloquer les interactions (coffres, expéditions) lorsque vous êtes sur place. Vous pouvez consulter musées et points d'intérêt partout en déplaçant la carte.
       </p>
       <div class="flex gap-3">
         <button

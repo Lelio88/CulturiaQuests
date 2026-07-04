@@ -13,7 +13,7 @@
 
 ## Ce qui est deja pret
 
-- App ID : `fr.briceledanois.culturiaquests` (format reverse domain correct)
+- App ID : `com.culturiaquests.app` (format reverse domain correct)
 - Target SDK : 36 (depasse l'exigence minimale de 34)
 - Permissions Android : 4 declarees, toutes justifiees (INTERNET, FINE/COARSE_LOCATION, NETWORK_STATE)
 - HTTPS : configure (`androidScheme: 'https'`, `cleartext: false`)

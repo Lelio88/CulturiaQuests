@@ -50,6 +50,12 @@ Ce composant utilise l'API **Canvas 2D** HTML5 sur un calque Leaflet (`Pane`) pe
         - On dessine un cercle transparent pour chaque point.
         - *Optimisation* : On ne dessine que les points contenus dans les limites visibles de la carte (`map.getBounds()`).
 
+### Déclenchement du redessin
+- Le redessin est branché sur les events Leaflet `move`, `moveend`, `zoomend`, `resize`, **plus** un watcher réactif (nombre de points découverts, init des zones, progressions).
+- **Suivi fluide pendant le drag** : on écoute `move` (déplacement continu), pas seulement `moveend`. Le brouillard suit donc le doigt au lieu de rester figé jusqu'au relâchement.
+- **`zoom` (continu) est volontairement exclu** : le canvas porte la classe `leaflet-zoom-animated`, Leaflet applique lui-même la transformation d'échelle pendant l'animation de zoom ; un redraw en plein zoom entrerait en conflit avec cette transformation. On recale donc au `zoomend`.
+- **Coalescing rAF (`scheduleFogRedraw`)** : tous les déclencheurs (events carte + watcher) passent par un `requestAnimationFrame` mutualisé → **au plus un `drawFog` par frame**, quel que soit le nombre d'events reçus au même tick. C'est ce qui permet d'écouter `move` sans saturer le CPU.
+
 ### Performance
-- Le redessin est déclenché sur `move`, `moveend`, `zoom`, `zoomend`.
+- Le redessin reste **100 % côté client** : le tracé GPS est privé (RGPD, cf. plus haut) et le dessin dépend du viewport live — rien à déporter vers le serveur. Les leviers réels sont le coalescing rAF (ci-dessus) et le *viewport culling* (on n'itère que sur les points/zones visibles via `map.getBounds()`).
 - Le goulot d'étranglement potentiel est le nombre de points dans `discoveredPoints`. Au-delà de 10 000 points, il faudra envisager une stratégie de "Rasterization" (cuire les points dans une texture de masque statique).

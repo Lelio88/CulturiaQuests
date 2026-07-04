@@ -27,7 +27,7 @@
 - **API & Auth:** a **BFF (Backend-for-Frontend)** — Nuxt server routes `/api/auth/*` + a `/api/strapi/*` proxy that injects the JWT from an HTTP-only `cq_session` cookie server-side. The `@nuxtjs/strapi` module was **removed** at the BFF cutover (#17); the client never holds a token.
 
 ### Mobile (`/frontend/android`)
-- **Capacitor 8** (`@capacitor/android`, `@capacitor/ios`, `@capacitor/local-notifications`). App ID `fr.briceledanois.culturiaquests`.
+- **Capacitor 8** (`@capacitor/android`, `@capacitor/ios`, `@capacitor/local-notifications`). App ID `com.culturiaquests.app`.
 
 ### Local AI
 - **Ollama** (`mistral:7b` by default, override via `OLLAMA_MODEL`) for the timeline quiz generation and POI categorisation.

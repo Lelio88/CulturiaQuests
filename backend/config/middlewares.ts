@@ -48,7 +48,11 @@ export default [
         'http://localhost', // Capacitor Android (http)
         'https://localhost', // Capacitor Android (https)
         'ionic://localhost', // Ionic (si utilisé)
-        'https://cqapi.ada.briceledanois.fr', // Production frontend (si besoin)
+        // Frontend PRODUCTION (Hetzner) : origine du web ET de la WebView Capacitor (Option A =
+        // server.url distant). INDISPENSABLE : sans cette entrée, les fetch directs client→Strapi
+        // (poiStore/museumStore → api.culturia…/api/{pois,museums}) sont bloqués par CORS →
+        // stores vides → aucun marqueur sur la carte. Ne pas retirer.
+        'https://culturia.heianenterprise.com',
       ],
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
       headers: ['Content-Type', 'Authorization', 'Origin', 'Accept'],

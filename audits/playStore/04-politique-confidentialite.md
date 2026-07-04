@@ -23,7 +23,7 @@ Actuellement, la politique de confidentialite est integree dans la page CGU de l
 
 Heberger une page a une URL comme :
 ```
-https://cqapi.ada.briceledanois.fr/privacy-policy
+https://api.culturia.heianenterprise.com/privacy-policy
 ```
 
 Cela peut etre fait via :
