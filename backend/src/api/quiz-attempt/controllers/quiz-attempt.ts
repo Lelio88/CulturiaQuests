@@ -188,8 +188,8 @@ export default factories.createCoreController('api::quiz-attempt.quiz-attempt', 
       data: { rewards },
     });
 
-    // R2 — Appliquer les récompenses (gold/exp) et mettre à jour le streak
-    await service.applyRewardsToGuild(guild.documentId, guild.gold, guild.exp, rewards);
+    // R2 — Appliquer les récompenses (gold/exp, crédit atomique) et mettre à jour le streak
+    await service.applyRewardsToGuild(guild.documentId, rewards);
     const newStreak = await service.updateQuizStreak(guild, session.date);
 
     return ctx.send({

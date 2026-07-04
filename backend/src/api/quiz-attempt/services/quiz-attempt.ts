@@ -1,7 +1,6 @@
 import { factories } from '@strapi/strapi';
 import { previousDateKey } from '../../../utils/quiz-date';
 import { normalizeAnswer } from '../../../utils/quiz-answer';
-import { addExp } from '../../../utils/guild-exp';
 import { getUserGuild as fetchUserGuild } from '../../../utils/guild-helpers';
 
 // ============================================================================
@@ -171,23 +170,19 @@ export default factories.createCoreService('api::quiz-attempt.quiz-attempt', ({ 
   },
 
   /**
-   * Applique les récompenses à la guild (gold + exp)
+   * Applique les récompenses (gold + exp) à la guild via un UPDATE ATOMIQUE (SET x = x + delta).
+   * Évite le lost-update en concurrence (ex : fin d'expédition simultanée entre la lecture et
+   * l'écriture) — même invariant #12 que run.endExpedition / visit.openChest. L'addition d'exp se
+   * fait côté Postgres (bigint) → précision préservée au-delà de 2^53 sans passer par un helper JS.
    */
   async applyRewardsToGuild(
     guildDocumentId: string,
-    currentGold: number,
-    currentExp: string | number,
     rewards: { gold: number; exp: number }
   ): Promise<void> {
-    // exp = biginteger : addition via le helper partagé addExp (BigInt) pour préserver la précision
-    // au-delà de 2^53 et homogénéiser le crédit d'exp avec les autres chemins. #68
-    await strapi.documents('api::guild.guild').update({
-      documentId: guildDocumentId,
-      data: {
-        gold: (currentGold || 0) + rewards.gold,
-        exp: addExp(currentExp, rewards.exp),
-      },
-    });
+    await strapi.db.connection.raw(
+      'UPDATE guilds SET gold = gold + ?, exp = exp + ? WHERE document_id = ?',
+      [rewards.gold, rewards.exp, guildDocumentId]
+    );
   },
 
   /**
