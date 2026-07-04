@@ -19,6 +19,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import fs from 'fs';
+import { isPointInGeoJSON, computeGeoJSONBounds, computeGeoJSONArea } from './geo';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env.production') });
@@ -38,55 +39,7 @@ const authApi = axios.create({
   headers: { 'Content-Type': 'application/json', ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}) },
 });
 
-// ===== GÉOMÉTRIE (porté de frontend/app/utils/geometry.ts, ray-casting anneau extérieur) =====
-type Ring = [number, number][]; // [lng, lat]
-interface BBox { minLat: number; maxLat: number; minLng: number; maxLng: number }
-
-function isPointInRing(lat: number, lng: number, vs: Ring): boolean {
-  let inside = false;
-  for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-    const xi = vs[i][0], yi = vs[i][1];
-    const xj = vs[j][0], yj = vs[j][1];
-    const intersect = ((yi > lat) !== (yj > lat)) && (lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi);
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
-
-function isPointInGeoJSON(lat: number, lng: number, geometry: any): boolean {
-  if (!geometry) return false;
-  if (geometry.type === 'Polygon') return isPointInRing(lat, lng, geometry.coordinates[0]);
-  if (geometry.type === 'MultiPolygon') {
-    for (const poly of geometry.coordinates) if (isPointInRing(lat, lng, poly[0])) return true;
-  }
-  return false;
-}
-
-function computeBounds(geometry: any): BBox | null {
-  if (!geometry) return null;
-  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
-  const scan = (ring: Ring) => { for (const [lng, lat] of ring) {
-    if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
-    if (lng < minLng) minLng = lng; if (lng > maxLng) maxLng = lng;
-  } };
-  if (geometry.type === 'Polygon') scan(geometry.coordinates[0]);
-  else if (geometry.type === 'MultiPolygon') for (const poly of geometry.coordinates) scan(poly[0]);
-  else return null;
-  return Number.isFinite(minLat) ? { minLat, maxLat, minLng, maxLng } : null;
-}
-
-function ringArea(coords: Ring): number {
-  const n = coords.length; if (n < 3) return 0;
-  let area = 0;
-  for (let i = 0; i < n; i++) { const j = (i + 1) % n; area += coords[i][0] * coords[j][1] - coords[j][0] * coords[i][1]; }
-  return Math.abs(area) / 2;
-}
-function geoArea(geometry: any): number {
-  if (!geometry) return 0;
-  if (geometry.type === 'Polygon') return ringArea(geometry.coordinates[0]);
-  if (geometry.type === 'MultiPolygon') return geometry.coordinates.reduce((t: number, p: Ring[]) => t + ringArea(p[0]), 0);
-  return 0;
-}
+// ===== GÉOMÉTRIE : importée du module partagé geo.ts (DRY, même logique que l'importer) =====
 
 // ===== PAGINATION =====
 async function fetchAll(pathStr: string, params: Record<string, string>): Promise<any[]> {
@@ -114,7 +67,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   console.log('2) Comcoms + géométrie (payload volumineux ~19 Mo)…');
   const comcomsRaw = await fetchAll('/api/comcoms', {}); // pas de fields → tous attributs (dont geometry), sans relations
   const comcoms = comcomsRaw
-    .map((c) => ({ documentId: c.documentId, id: c.id, name: c.name, geometry: c.geometry, bbox: computeBounds(c.geometry), area: geoArea(c.geometry) }))
+    .map((c) => ({ documentId: c.documentId, id: c.id, name: c.name, geometry: c.geometry, bbox: computeGeoJSONBounds(c.geometry), area: computeGeoJSONArea(c.geometry) }))
     .filter((c) => c.bbox);
   console.log(`   ${comcoms.length}/${comcomsRaw.length} comcoms avec géométrie exploitable.`);
 

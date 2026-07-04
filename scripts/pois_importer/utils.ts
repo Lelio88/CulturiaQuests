@@ -3,6 +3,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import fs from 'fs';
+import { ZoneResolver } from './geo';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -179,6 +180,8 @@ export class StrapiClient {
   private client: AxiosInstance;
   private tagCache = new Map<string, number>();
   private zoneCache = new Map<string, number>();
+  // Résolveur géographique (point-in-polygon) chargé paresseusement au 1er import.
+  private zoneResolver: ZoneResolver | null = null;
 
   constructor(baseURL: string, token: string) {
     this.client = axios.create({
@@ -219,6 +222,35 @@ export class StrapiClient {
     return null;
   }
 
+  /**
+   * Charge (une seule fois) le résolveur géographique : toutes les comcoms avec leur géométrie +
+   * la chaîne department→region, pour rattacher un POI par POINT-IN-POLYGON plutôt que par nom.
+   */
+  async ensureZoneResolver(): Promise<ZoneResolver> {
+    if (this.zoneResolver) return this.zoneResolver;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows: any[] = [];
+    let page = 1;
+    let pageCount = 1;
+    do {
+      const res = await this.client.get('/api/comcoms', {
+        params: {
+          // On NE restreint PAS les champs de la comcom → sa `geometry` (json) est renvoyée.
+          'populate[department][fields][0]': 'name',
+          'populate[department][populate][region][fields][0]': 'name',
+          'pagination[page]': page,
+          'pagination[pageSize]': 100,
+        },
+      });
+      rows.push(...(res.data.data || []));
+      pageCount = res.data.meta?.pagination?.pageCount || 1;
+      page++;
+    } while (page <= pageCount);
+    this.zoneResolver = ZoneResolver.fromComcomApi(rows);
+    console.log(`  🗺️  Résolveur de zones : ${this.zoneResolver.size} comcoms chargées (rattachement géographique).`);
+    return this.zoneResolver;
+  }
+
   async importPOI(poi: POIOutput): Promise<boolean> {
     const collection = poi.type === 'museum' ? 'museums' : 'pois';
     let duplicate = null;
@@ -249,9 +281,24 @@ export class StrapiClient {
       if (id) tagIds.push(id);
     }
 
-    const regionId = await this.findZoneId('regions', poi.region);
-    const deptId = await this.findZoneId('departments', poi.department);
-    const comcomId = await this.findZoneId('comcoms', poi.epci);
+    // Rattachement GÉOGRAPHIQUE (point-in-polygon) : la comcom qui contient réellement le POI, d'où
+    // l'on dérive département + région via les relations. Remplace l'ancien rattachement PAR NOM
+    // (findZoneId $eq), qui laissait des orphelins (nom EPCI ≠ comcom.name) et de fausses
+    // assignations (le scan Overpass par BBox capte des POI d'EPCI voisines). Fallback nom
+    // uniquement si le point tombe hors de TOUTE bbox de comcom (offshore/coordonnées aberrantes).
+    const zone = (await this.ensureZoneResolver()).resolve(poi.latitude, poi.longitude);
+    let regionId: number | null;
+    let deptId: number | null;
+    let comcomId: number | null;
+    if (zone) {
+      comcomId = zone.comcomId;
+      deptId = zone.departmentId;
+      regionId = zone.regionId;
+    } else {
+      regionId = await this.findZoneId('regions', poi.region);
+      deptId = await this.findZoneId('departments', poi.department);
+      comcomId = await this.findZoneId('comcoms', poi.epci);
+    }
 
     const payload: Record<string, unknown> = {
       name: poi.name,
