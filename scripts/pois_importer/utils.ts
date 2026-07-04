@@ -251,6 +251,45 @@ export class StrapiClient {
     return this.zoneResolver;
   }
 
+  /**
+   * Une EPCI est-elle DÉJÀ importée ? Match la comcom par son `code` (EPCI-xxxxx, unique et
+   * identique côté geo.api.gouv.fr et Strapi — fiable, contrairement au nom), puis compte ses POI.
+   * Permet à un run automatique de sauter les territoires déjà peuplés SANS payer Overpass ni Ollama.
+   */
+  async epciHasPois(epciCode: string): Promise<boolean> {
+    try {
+      const comcom = await this.findOne('comcoms', { 'filters[code][$eq]': epciCode });
+      if (!comcom) return false;
+      const res = await this.client.get('/api/pois', {
+        params: { 'filters[comcom][id][$eq]': comcom.id, 'pagination[pageSize]': 1, 'pagination[withCount]': true },
+      });
+      return (res.data?.meta?.pagination?.total || 0) > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Un POI/musée existe-t-il déjà à ~100 m de ces coordonnées ? Même contrôle que la dédup interne
+   * d'`importPOI`, exposé pour sauter la catégorisation Ollama (coûteuse) d'un lieu déjà en base —
+   * crucial pour la reprise efficace après un crash en cours d'EPCI.
+   */
+  async poiExists(lat: number, lng: number, type: 'museum' | 'poi'): Promise<boolean> {
+    const collection = type === 'museum' ? 'museums' : 'pois';
+    try {
+      const res = await this.client.get(`/api/${collection}`, {
+        params: {
+          'filters[lat][$gte]': lat - 0.001, 'filters[lat][$lte]': lat + 0.001,
+          'filters[lng][$gte]': lng - 0.001, 'filters[lng][$lte]': lng + 0.001,
+          'fields[0]': 'lat',
+        },
+      });
+      return (res.data?.data?.length || 0) > 0;
+    } catch {
+      return false;
+    }
+  }
+
   async importPOI(poi: POIOutput): Promise<boolean> {
     const collection = poi.type === 'museum' ? 'museums' : 'pois';
     let duplicate = null;
