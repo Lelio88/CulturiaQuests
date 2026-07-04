@@ -6,6 +6,7 @@ import { factories } from '@strapi/strapi';
 import { withAdvisoryLock } from '../../../utils/db-lock';
 import { getUserGuild } from '../../../utils/guild-helpers';
 import { recomputeComcomCompletion } from '../../../utils/comcom-completion';
+import { markQuestPoisVisited } from '../../../utils/quest-completion';
 
 /**
  * Calculate distance between two points using Haversine formula
@@ -138,6 +139,15 @@ export default factories.createCoreController('api::visit.visit', ({ strapi }) =
       }
     } else {
       strapi.log.info('[DEBUG] Distance check bypassed (debug mode enabled)');
+    }
+
+    // Complétion de quête : franchir la géofence (≤50m) d'un POI marque les POI de quête
+    // correspondants des quêtes actives de la guilde — INDÉPENDAMMENT du cooldown de loot (on est
+    // arrivé après la vérif de distance). Best-effort : ne bloque jamais l'ouverture du coffre.
+    try {
+      await markQuestPoisVisited(strapi, guild.id, poiId);
+    } catch (err) {
+      strapi.log.warn(`[quest] markQuestPoisVisited a échoué : ${err instanceof Error ? err.message : err}`);
     }
 
     // 4. Récupérer ou créer visit — section critique sérialisée (#66) : deux PREMIÈRES ouvertures

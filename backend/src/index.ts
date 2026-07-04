@@ -228,8 +228,9 @@ export default {
         'api::post.post.delete',
         // GDPR
         'api::gdpr-request.gdpr-request.requestData',
-        // Quest generation
+        // Quest generation + réclamation (complétion des 2 POI → récompense au PNJ, #audit)
         'api::quest.quest.generateDaily',
+        'api::quest.quest.complete',
         // Progression / fog-of-war (le controller filtre tout par la guilde de l'utilisateur)
         'api::progression.progression.find',
         'api::progression.progression.findOne',

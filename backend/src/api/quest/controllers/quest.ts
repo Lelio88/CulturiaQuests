@@ -5,6 +5,7 @@
 import { factories } from '@strapi/strapi';
 import { withAdvisoryLock } from '../../../utils/db-lock';
 import { getUserGuild } from '../../../utils/guild-helpers';
+import { computeQuestReward, incrementNpcQuestFriendship } from '../../../utils/quest-completion';
 
 export default factories.createCoreController('api::quest.quest', ({ strapi }) => ({
   /**
@@ -130,5 +131,63 @@ export default factories.createCoreController('api::quest.quest', ({ strapi }) =
       return ctx.badRequest(result.error);
     }
     return ctx.send({ data: result.quests, alreadyGenerated: result.alreadyGenerated });
+  },
+
+  /**
+   * POST /quests/:id/complete — RÉCLAMATION de la quête au PNJ (#audit : la complétion n'existait
+   * pas). Le joueur a visité les deux POI (marqués serveur via la géofence d'openChest) et revient
+   * au PNJ pour clôturer. On vérifie l'ownership (§IV.1), que les deux POI sont complétés et que la
+   * quête n'est pas déjà réclamée, puis on calcule la récompense (distance poi_a↔poi_b, serveur-
+   * autoritative), on pose date_end + gold/xp_earned via un CLAIM ATOMIQUE (anti double-crédit sur
+   * double-tap), on crédite la guilde atomiquement, et on fait progresser l'amitié avec le PNJ.
+   */
+  async complete(ctx) {
+    const user = ctx.state.user;
+    if (!user) return ctx.unauthorized();
+    const { id } = ctx.params; // documentId
+
+    const guild = await getUserGuild(strapi, user.id, { select: ['id', 'documentId'] });
+    if (!guild) return ctx.notFound('Guild not found');
+
+    const quest = await strapi.db.query('api::quest.quest').findOne({
+      where: { documentId: id, guild: { id: guild.id } },
+      select: ['id', 'documentId', 'is_poi_a_completed', 'is_poi_b_completed', 'date_end'],
+      populate: {
+        poi_a: { select: ['lat', 'lng'] },
+        poi_b: { select: ['lat', 'lng'] },
+        npc: { select: ['id', 'documentId', 'quests_entry_available'] },
+      },
+    });
+    if (!quest) return ctx.notFound('Quest not found');
+    if (quest.date_end) return ctx.badRequest('Quête déjà réclamée');
+    if (!quest.is_poi_a_completed || !quest.is_poi_b_completed) {
+      return ctx.badRequest('Les deux POI doivent être visités avant de réclamer la récompense');
+    }
+
+    const reward = computeQuestReward((quest as any).poi_a, (quest as any).poi_b);
+
+    // Claim ATOMIQUE de date_end (WHERE date_end IS NULL) : un double-tap ne crédite qu'une fois.
+    const claim = await strapi.db.query('api::quest.quest').updateMany({
+      where: { id: quest.id, date_end: { $null: true } },
+      data: { date_end: new Date(), gold_earned: reward.gold, xp_earned: reward.xp },
+    });
+    if (!claim || claim.count === 0) {
+      return ctx.badRequest('Quête déjà réclamée');
+    }
+
+    // Crédit ATOMIQUE de la guilde (SET x = x + delta), comme quiz/expédition/coffre (#12).
+    await strapi.db.connection.raw(
+      'UPDATE guilds SET gold = gold + ?, exp = exp + ? WHERE document_id = ?',
+      [reward.gold, reward.xp, guild.documentId]
+    );
+
+    // Progression d'amitié PNJ (best-effort, sans remettre en cause la récompense déjà créditée).
+    try {
+      await incrementNpcQuestFriendship(strapi, guild, (quest as any).npc);
+    } catch (err) {
+      strapi.log.warn(`[quest] incrementNpcQuestFriendship a échoué : ${err instanceof Error ? err.message : err}`);
+    }
+
+    return ctx.send({ data: { questId: quest.documentId, goldEarned: reward.gold, xpEarned: reward.xp } });
   },
 }));
