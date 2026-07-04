@@ -480,6 +480,12 @@ export async function scanEpci(epci: EpciEntry, deptNom: string, regionNom: stri
     }
   }
 
+  // Échec Overpass après tous les retries : on LÈVE (au lieu de retourner []) pour que l'appelant
+  // NE marque PAS l'EPCI comme faite — sinon un échec transitoire la retirerait à jamais du run.
+  if (!res) {
+    throw new Error(`Overpass indisponible pour ${epci.nom} (échec après retries)`);
+  }
+
   if (res?.data?.elements) {
     for (const el of res.data.elements as Record<string, unknown>[]) {
       const osmId = `${el.type}/${el.id}`;

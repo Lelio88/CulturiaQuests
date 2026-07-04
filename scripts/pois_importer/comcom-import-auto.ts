@@ -30,12 +30,12 @@ import {
   OLLAMA_MODEL, STRAPI_BASE_URL, STRAPI_API_TOKEN,
   ComcomsData, POIOutput,
   StrapiClient, extractPlaceDetails, scanEpci, categorizeWithAI, testOllamaConnection,
-  loadImportState, updateEpciState,
 } from './utils';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROGRESS_FILE = path.join(__dirname, 'import-progress.json');
 const DATA_FILE = path.join(__dirname, 'comcoms-data.json');
+const IN_PROGRESS_FILE = path.join(__dirname, '.import-inprogress');
 
 const ONLY_DEPTS = (process.env.IMPORT_DEPARTMENTS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const LIMIT_EPCI = process.env.IMPORT_LIMIT_EPCI ? parseInt(process.env.IMPORT_LIMIT_EPCI, 10) : Infinity;
@@ -96,7 +96,10 @@ async function main() {
   }
 
   const strapi = new StrapiClient(STRAPI_BASE_URL, STRAPI_API_TOKEN);
-  const state = loadImportState();
+  // Reprise mid-EPCI : l'EPCI marquée .in-progress au dernier crash est re-traitée (sa fin est
+  // complétée grâce à la dédup par POI) au lieu d'être sautée par epciHasPois.
+  let forceEpciCode = '';
+  try { forceEpciCode = fs.readFileSync(IN_PROGRESS_FILE, 'utf8').trim(); } catch { /* pas de reprise en cours */ }
 
   const progress: Progress = {
     startedAt: nowIso(), lastUpdate: nowIso(), ollamaModel: OLLAMA_MODEL,
@@ -111,14 +114,16 @@ async function main() {
     writeProgress(progress);
 
     try {
-      const doneInState = state.departments[dept.code]?.epci?.[epci.code]?.status === 'done';
-      if (doneInState || (await strapi.epciHasPois(epci.code))) {
+      // Saut si la comcom (matchée par code EPCI-xxxxx) a déjà des POI — SAUF l'EPCI interrompue au
+      // dernier crash (forceEpciCode), qu'on re-traite pour compléter sa fin.
+      if (epci.code !== forceEpciCode && (await strapi.epciHasPois(epci.code))) {
         progress.skippedEpcis++;
         progress.processedEpcis++;
         console.log(`⏭️  ${epci.nom} — déjà peuplée, saut`);
         writeProgress(progress);
         continue;
       }
+      fs.writeFileSync(IN_PROGRESS_FILE, epci.code); // marqueur de reprise (nettoyé en fin d'EPCI)
 
       const places = await scanEpci(epci, dept.nom, dept.region);
       let imported = 0;
@@ -168,7 +173,7 @@ async function main() {
         writeProgress(progress);
       }
 
-      updateEpciState(dept, epci, imported);
+      try { fs.unlinkSync(IN_PROGRESS_FILE); } catch { /* déjà absent */ }
       progress.processedEpcis++;
       console.log(`✅ ${epci.nom} — ${imported} POI importés (total ${progress.poisImported})`);
     } catch (e: any) {
