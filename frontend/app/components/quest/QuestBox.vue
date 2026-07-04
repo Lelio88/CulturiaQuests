@@ -1,6 +1,17 @@
 <template>
   <div>
-    <div class="bg-white rounded-xl shadow-md border border-gray-100 flex overflow-hidden hover:shadow-lg transition-shadow duration-300 min-h-[100px]">
+    <div
+      class="relative bg-white rounded-xl shadow-md border flex overflow-hidden hover:shadow-lg transition-shadow duration-300 min-h-[100px]"
+      :class="claimable ? 'border-green-400 ring-2 ring-green-400/60' : 'border-gray-100'"
+    >
+      <!-- Badge d'état « À réclamer » (les 2 POI visités, récompense en attente) -->
+      <span
+        v-if="claimable"
+        class="absolute top-1.5 right-1.5 z-10 bg-[#59B846] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow animate-pulse"
+      >
+        À réclamer
+      </span>
+
       <!-- Partie Gauche : Image (Buste) -->
       <div class="w-24 md:w-32 shrink-0 bg-gray-200 relative">
         <img

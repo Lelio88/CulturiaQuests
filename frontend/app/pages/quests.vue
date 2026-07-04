@@ -9,9 +9,18 @@ import PixelButton from '~/components/form/PixelButton.vue'
 const router = useRouter()
 const questStore = useQuestStore()
 const poiStore = usePOIStore()
-const { availableQuests } = storeToRefs(questStore)
+const { availableQuests, claimableCount } = storeToRefs(questStore)
 
 const generating = ref(false)
+
+// Les quêtes « à réclamer » (2 POI visités, récompense en attente) remontent en tête de liste.
+const displayedQuests = computed(() => {
+  const isClaimable = (q: any) => {
+    const a = q.attributes || q
+    return a.is_poi_a_completed && a.is_poi_b_completed && !a.date_end
+  }
+  return [...availableQuests.value].sort((x, y) => Number(isClaimable(y)) - Number(isClaimable(x)))
+})
 
 onMounted(async () => {
     await questStore.fetchQuests()
@@ -93,8 +102,16 @@ function getCurrentPosition(): Promise<{ lat: number; lng: number }> {
         </div>
 
         <div v-else class="space-y-4 max-w-2xl mx-auto w-full flex-grow">
+            <!-- Bandeau : quêtes prêtes à être réclamées auprès du PNJ -->
+            <div
+                v-if="claimableCount > 0"
+                class="bg-[#59B846]/10 border border-[#59B846]/40 text-[#2f7d22] rounded-xl px-4 py-3 text-center text-sm font-semibold font-onest"
+            >
+                🎁 {{ claimableCount }} quête{{ claimableCount > 1 ? 's' : '' }} à réclamer auprès du PNJ !
+            </div>
+
             <QuestBox
-                v-for="quest in availableQuests"
+                v-for="quest in displayedQuests"
                 :key="quest.id"
                 :quest="quest"
             />

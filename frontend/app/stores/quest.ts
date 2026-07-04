@@ -47,8 +47,19 @@ export const useQuestStore = defineStore('quest', () => {
     })
   })
 
+  // Quêtes « à réclamer » : les 2 POI visités mais pas encore réclamées au PNJ (date_end null).
+  const claimableQuests = computed(() => {
+    return quests.value.filter(q => {
+      const a = q.is_poi_a_completed ?? q.attributes?.is_poi_a_completed
+      const b = q.is_poi_b_completed ?? q.attributes?.is_poi_b_completed
+      const claimed = !!(q.date_end ?? q.attributes?.date_end)
+      return a && b && !claimed
+    })
+  })
+
   const activeQuestCount = computed(() => activeQuests.value.length)
   const completedQuestCount = computed(() => completedQuests.value.length)
+  const claimableCount = computed(() => claimableQuests.value.length)
 
   // Actions
   function setQuests(data: Quest[]) {
@@ -155,8 +166,10 @@ export const useQuestStore = defineStore('quest', () => {
     activeQuests,
     availableQuests,
     completedQuests,
+    claimableQuests,
     activeQuestCount,
     completedQuestCount,
+    claimableCount,
     // Actions
     setQuests,
     clearQuests,
