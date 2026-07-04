@@ -40,6 +40,21 @@ jobs:
               exit 1
             fi
 
+            # Pendant le run d'import POI France, le build (nuxt build ~2-4 Go) tournait en
+            # concurrence avec Ollama mistral (~4,4 Go chargés par l'import) sur le serveur 8 Go
+            # → swap-thrashing, serveur injoignable, health check en timeout, prod DOWN (incident
+            # 2026-07-04). On libère donc les ressources AVANT le build. Ce bloc ne s'exécute QUE si
+            # l'import tourne (conteneur cq-import présent) → aucun effet sur un déploiement normal.
+            # Ollama est redémarré par `up -d` ; l'import est repris par le trap EXIT (filet de
+            # sécurité : reprise garantie même en cas d'échec du build ou de timeout du health check).
+            if [ -n "$(docker ps -q -f name=cq-import)" ]; then
+              echo "Import POI détecté → libération des ressources pour le build"
+              trap 'docker unpause cq-import >/dev/null 2>&1 && echo "Import POI repris" || true' EXIT
+              docker pause cq-import >/dev/null 2>&1 && echo "  import POI en pause" || true
+              OLLAMA_CID=$(docker ps -q -f name=ollama)
+              [ -n "$OLLAMA_CID" ] && docker stop "$OLLAMA_CID" >/dev/null 2>&1 && echo "  Ollama arrêté (RAM libérée)" || true
+            fi
+
             # Build and restart services (réutilise le .env.production présent sur le serveur)
             docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 
