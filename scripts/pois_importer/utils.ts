@@ -498,10 +498,13 @@ export async function scanEpci(epci: EpciEntry, deptNom: string, regionNom: stri
       const tags = (el.tags || {}) as Record<string, string>;
       if (!tags.name) continue; // Ignorer les éléments sans nom
 
-      // Coordonnées : directes pour les nodes, center pour les ways/relations
-      const lat = (el.lat as number) || (el.center as { lat: number })?.lat;
-      const lng = (el.lon as number) || (el.center as { lon: number })?.lon;
-      if (!lat || !lng) continue;
+      // Coordonnées : directes pour les nodes, center pour les ways/relations.
+      // `??` et `Number.isFinite` (pas `||`/`!lng`) : le méridien de Greenwich (lng=0) traverse
+      // la France → `0 || center.lon` basculait à tort sur center (undefined pour un node) et
+      // `!lng` rejetait les POI à lng=0. On garde donc explicitement la valeur 0.
+      const lat = (el.lat as number) ?? (el.center as { lat: number })?.lat;
+      const lng = (el.lon as number) ?? (el.center as { lon: number })?.lon;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
 
       seen.set(osmId, {
         osm_id: osmId,

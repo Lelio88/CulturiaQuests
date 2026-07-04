@@ -88,4 +88,9 @@ client.on(Events.InteractionCreate, async (i) => {
   }
 });
 
-client.login(TOKEN);
+client.login(TOKEN).catch((e) => {
+  // Sans ce .catch, un token invalide provoque un unhandledRejection → crash + boucle de
+  // restart du conteneur sans diagnostic. On échoue proprement avec un message explicite.
+  console.error('Échec de connexion du bot Discord (token invalide ?) :', e?.message ?? e);
+  process.exit(1);
+});

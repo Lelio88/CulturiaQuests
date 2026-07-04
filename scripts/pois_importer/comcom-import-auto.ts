@@ -203,6 +203,9 @@ async function main() {
           await sleep(OLLAMA_DELAY_MS);
         } catch (e) {
           progress.errors++;
+          // Log explicite : sur un run détaché de plusieurs jours, un compteur d'erreurs muet
+          // est indiagnostiquable (cf. le catch EPCI qui loggue déjà).
+          console.error(`  ⚠️ échec import POI « ${(place as { name?: string })?.name ?? '?'} » :`, (e as Error)?.message ?? e);
         }
         writeProgress(progress);
       }
