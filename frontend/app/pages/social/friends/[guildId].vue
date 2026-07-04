@@ -104,12 +104,15 @@ const completedCount = computed(() =>
 
 const displayBadges = computed<DisplayBadge[]>(() => {
   const ids = summary.value?.equippedBadgeIds || []
+  // Comcoms complétées de l'ami → sert à calculer le VRAI palier (bronze/or/plat) des badges
+  // dépt/région, comme le fait stores/badge.ts pour ses propres badges.
+  const completedComcomIds = new Set(summary.value?.completedComcomIds || [])
   return ids
     .map(id => resolveEquippedBadge(id, {
       comcoms: zoneStore.comcoms,
       departments: zoneStore.departments,
       regions: zoneStore.regions,
-    }))
+    }, completedComcomIds))
     .filter((b): b is DisplayBadge => b !== null)
 })
 
