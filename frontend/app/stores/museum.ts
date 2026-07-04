@@ -1,13 +1,10 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import type { Museum } from '~/types/museum'
-import { get, set } from 'idb-keyval'
 import { extractTags } from '~/utils/strapiHelpers'
+import { useTileLoader } from '~/composables/useTileLoader'
 
-const DB_KEY = 'museums-data'
-const DB_VERSION_KEY = 'museums-version'
-const CURRENT_DATA_VERSION = '2.0'
-
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalizeMuseum(raw: any): Museum {
   return {
     id: raw.id,
@@ -20,100 +17,40 @@ function normalizeMuseum(raw: any): Museum {
     location: raw.location || raw.attributes?.location,
     tags: extractTags(raw),
     runs: raw.runs || raw.attributes?.runs,
-    attributes: raw.attributes
+    attributes: raw.attributes,
   }
 }
 
 /**
- * Store des musées, qui servent de points de départ d'expédition.
+ * Store des musées (points de départ d'expédition), chargés PAR TUILES (déport bbox) via
+ * `useTileLoader`, comme les POI — plus de téléchargement intégral du catalogue (inviable dès qu'on
+ * peuple la France entière). `populate: 'tags'` est conservé (icônes de catégorie sur la carte).
  *
- * Charge l'intégralité du catalogue des musées (donnée de référence, non
- * spécifique au joueur) et le met en cache local pour éviter de re-télécharger
- * à chaque démarrage.
+ * API : `loadBounds(bounds)` (carte, à chaque `moveend`), `loadAround(lat, lng, km)`, `museums`
+ * (entités des tuiles chargées cette session), `clearMuseums()` (logout).
  *
- * Choix non-évidents :
- * - Cache via IndexedDB (`idb-keyval`) plutôt que la persistance Pinia : le
- *   volume des musées dépasserait la limite raisonnable de `localStorage`.
- *   `init()` réutilise le cache uniquement si `DB_VERSION_KEY` correspond à
- *   `CURRENT_DATA_VERSION`, sinon il refetch tout (mécanisme d'invalidation
- *   par bump de version).
- * - `fetchAll()` pagine côté Strapi (pageSize 100) avec un garde-fou
- *   `MAX_PAGES` pour éviter toute boucle infinie si la pagination renvoie des
- *   métadonnées incohérentes.
- * - `normalizeMuseum()` aplatit la forme Strapi (gère `attributes` v4 et accès
- *   direct v5) vers un objet `Museum` stable.
- *
- * Invariant : `isInitialized` garantit l'idempotence de `init()` (un seul
- * chargement par session).
+ * Invariant : `museums` ne contient jamais tout le catalogue — seulement les tuiles visitées.
  *
  * @example
  * const museumStore = useMuseumStore()
- * await museumStore.init() // cache IndexedDB ou fetch selon la version
+ * await museumStore.loadBounds({ south, north, west, east })
  */
 export const useMuseumStore = defineStore('museum', () => {
-  const museums = ref<Museum[]>([])
-  const loading = ref(false)
-  const error = ref<string | null>(null)
-  const isInitialized = ref(false)
+  const loader = useTileLoader<Museum>({
+    resource: 'museums',
+    normalize: normalizeMuseum,
+    extraQuery: { populate: 'tags' },
+  })
 
-  const hasMuseums = computed(() => museums.value.length > 0)
+  const hasMuseums = computed(() => loader.items.value.length > 0)
 
-  async function init() {
-    if (isInitialized.value) return
-    const storedVersion = await get(DB_VERSION_KEY)
-    const storedData = await get(DB_KEY)
-
-    if (storedVersion === CURRENT_DATA_VERSION && storedData) {
-      museums.value = storedData
-      isInitialized.value = true
-    } else {
-      await fetchAll()
-    }
+  return {
+    museums: loader.items,
+    loading: loader.loading,
+    error: loader.error,
+    hasMuseums,
+    loadBounds: loader.loadBounds,
+    loadAround: loader.loadAround,
+    clearMuseums: loader.clear,
   }
-
-  async function fetchAll() {
-    const config = useRuntimeConfig()
-    loading.value = true
-    const allMuseums: any[] = []
-    const MAX_PAGES = 200
-    let page = 1
-    let hasMore = true
-
-    try {
-      while (hasMore && page <= MAX_PAGES) {
-        const response: any = await $fetch(`${config.public.strapi.url}/api/museums`, {
-          query: {
-            'pagination[page]': page,
-            'pagination[pageSize]': 100,
-            populate: 'tags'
-          }
-        })
-        const data = response.data || []
-        allMuseums.push(...data)
-        
-        if (response.meta?.pagination && page < response.meta.pagination.pageCount) {
-          page++
-        } else {
-          hasMore = false
-        }
-      }
-
-      museums.value = allMuseums.map(normalizeMuseum)
-      await set(DB_KEY, museums.value)
-      await set(DB_VERSION_KEY, CURRENT_DATA_VERSION)
-      isInitialized.value = true
-    } catch (e: any) {
-      error.value = e.message
-    } finally {
-      loading.value = false
-    }
-  }
-
-  function clearMuseums() {
-    museums.value = []
-    isInitialized.value = false
-    error.value = null
-  }
-
-  return { museums, loading, error, isInitialized, init, fetchAll, hasMuseums, clearMuseums }
 })

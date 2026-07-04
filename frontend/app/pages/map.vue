@@ -12,6 +12,14 @@
         Localisation en cours...
       </MapLoadingState>
 
+      <!-- Indicateur discret de chargement des lieux (déport bbox : fetch de la zone visible) -->
+      <div
+        v-if="poiStore.loading || museumStore.loading"
+        class="absolute left-1/2 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[1000] -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-white pointer-events-none"
+      >
+        Chargement des lieux…
+      </div>
+
       <!-- Carte Leaflet -->
       <ClientOnly>
         <LMap
@@ -243,6 +251,7 @@ function onMapMove(e?: any) {
     const map = mapRef.value?.leafletObject || e?.target
     if (map && map.getBounds) {
       mapBounds.value = map.getBounds().pad(0.2)
+      loadVisibleEntities()
     }
   }, 150)
 }
@@ -253,6 +262,7 @@ function onMapReady() {
   const map = mapRef.value?.leafletObject
   if (map?.getBounds) {
     mapBounds.value = map.getBounds().pad(0.2)
+    loadVisibleEntities() // chargement initial de la zone visible
   }
 
   // Patch Leaflet map.remove() pour absorber les erreurs internes pendant le teardown.
@@ -319,13 +329,16 @@ async function handleStartExpedition() {
   }
 }
 
-// Fetch ALL locations (Global load)
-async function fetchAllLocations(): Promise<void> {
-  // init() gère automatiquement le cache IndexedDB et le fetch paginé si besoin
-  await Promise.all([
-    museumStore.init(),
-    poiStore.init()
-  ])
+// Chargement PAR TUILES (déport bbox) : on ne récupère que les POI/musées de la zone VISIBLE
+// à chaque moveend, au lieu de télécharger tout le catalogue (inviable à l'échelle nationale :
+// dizaines de milliers d'entités → download + mémoire mobile explosifs). Le chargeur dédup et
+// ne re-fetch que les tuiles ~0,1° pas encore vues. Gate zoom<11 : en-dessous on n'affiche rien.
+function loadVisibleEntities(): void {
+  if (currentZoom.value < 11 || !mapBounds.value) return
+  const b = mapBounds.value
+  const bounds = { south: b.getSouth(), north: b.getNorth(), west: b.getWest(), east: b.getEast() }
+  poiStore.loadBounds(bounds)
+  museumStore.loadBounds(bounds)
 }
 
 // Register geolocation callbacks
@@ -352,10 +365,11 @@ onMounted(async () => {
   // Garde : la guilde est chargée au login (et persistée) → pas de re-fetch profond à
   // chaque arrivée sur la carte (navigation). On ne (re)charge que si elle est absente.
   if (!guildStore.guild) await guildStore.fetchAll()
-  await fetchAllLocations() // Chargement global au démarrage
-  
+  // POI/musées : plus de chargement global ici — ils sont chargés PAR TUILES quand la carte est
+  // prête et à chaque déplacement (cf. loadVisibleEntities / onMapReady / onMapMove).
+
   // Optimisation Fog: Nettoyage des points dans les régions complétées
-  // Note: zoneStore est initialisé dans app.vue via zoneStore.init(), pas par fetchAllLocations
+  // Note: zoneStore est initialisé dans app.vue via zoneStore.init(), pas par la carte
   if (zoneStore.regions.length > 0) {
     const completedRegions = zoneStore.regions.filter(r => 
       progressionStore.isRegionCompleted(r.documentId || r.id.toString())

@@ -1,12 +1,9 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import type { Poi } from '~/types/poi'
-import { get, set } from 'idb-keyval'
+import { useTileLoader } from '~/composables/useTileLoader'
 
-const DB_KEY = 'pois-data'
-const DB_VERSION_KEY = 'pois-version'
-const CURRENT_DATA_VERSION = '2.0'
-
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalizePoi(raw: any): Poi {
   return {
     id: raw.id,
@@ -19,99 +16,42 @@ function normalizePoi(raw: any): Poi {
     visits: raw.visits || raw.attributes?.visits,
     quests_a: raw.quests_a || raw.attributes?.quests_a,
     quests_b: raw.quests_b || raw.attributes?.quests_b,
-    attributes: raw.attributes
+    attributes: raw.attributes,
   }
 }
 
 /**
- * Store des points d'intérêt (POI) affichés sur la carte (musées, monuments,
- * lieux porteurs de quêtes), chargés en masse depuis Strapi puis mis en cache.
+ * Store des points d'intérêt (POI) affichés sur la carte, chargés PAR TUILES (déport bbox) via
+ * `useTileLoader` — et NON plus en téléchargement intégral. Motivation : avec le peuplement de la
+ * France entière (dizaines de milliers de POI), tout télécharger côté client (download + mémoire)
+ * casserait le mobile. On ne charge donc que la zone visible / demandée.
  *
- * Le store télécharge l'intégralité des POI via une boucle de pagination
- * (`fetchAll`), les normalise (`normalizePoi` tolère le format plat ou
- * `attributes.*` de Strapi v5), et les conserve en IndexedDB (idb-keyval) avec
- * une clé de version pour éviter de re-télécharger à chaque ouverture.
+ * API :
+ * - `loadBounds(bounds)` : appelé par la carte à chaque `moveend` (charge la frange visible).
+ * - `loadAround(lat, lng, km)` : charge un rayon autour d'un point (ex. quêtes du jour).
+ * - `pois` : entités accumulées (dédupliquées) des tuiles déjà chargées cette session.
+ * - `clearPOIs()` : reset complet (appelé au logout).
  *
- * Choix non-évidents :
- * - Cache en IndexedDB plutôt qu'en localStorage car la liste complète des POI
- *   peut être volumineuse.
- * - `normalizePoi` aplatit deux formes de payload possibles (champs racine vs
- *   `attributes`) pour absorber les variations de sérialisation Strapi.
- *
- * Invariants à préserver :
- * - `init()` est idempotent (no-op si `isInitialized`) ; il sert le cache si la
- *   version stockée == CURRENT_DATA_VERSION, sinon délègue à `fetchAll`.
- * - Bumper CURRENT_DATA_VERSION à chaque changement de forme du POI normalisé
- *   pour invalider le cache IndexedDB.
+ * Invariant : `pois` ne contient JAMAIS l'intégralité du catalogue — seulement les tuiles visitées.
+ * Tout consommateur qui a besoin de POI proches doit d'abord appeler `loadBounds`/`loadAround`.
  *
  * @example
  * const poi = usePOIStore()
- * await poi.init()
- * if (poi.hasPOIs) renderMarkers(poi.pois)
+ * await poi.loadAround(49.11, -1.08, 25)
+ * const nearby = poi.pois
  */
 export const usePOIStore = defineStore('poi', () => {
-  const pois = ref<Poi[]>([])
-  const loading = ref(false)
-  const error = ref<string | null>(null)
-  const isInitialized = ref(false)
+  const loader = useTileLoader<Poi>({ resource: 'pois', normalize: normalizePoi })
 
-  const hasPOIs = computed(() => pois.value.length > 0)
+  const hasPOIs = computed(() => loader.items.value.length > 0)
 
-  async function init() {
-    if (isInitialized.value) return
-    const storedVersion = await get(DB_VERSION_KEY)
-    const storedData = await get(DB_KEY)
-
-    if (storedVersion === CURRENT_DATA_VERSION && storedData) {
-      pois.value = storedData
-      isInitialized.value = true
-    } else {
-      await fetchAll()
-    }
+  return {
+    pois: loader.items,
+    loading: loader.loading,
+    error: loader.error,
+    hasPOIs,
+    loadBounds: loader.loadBounds,
+    loadAround: loader.loadAround,
+    clearPOIs: loader.clear,
   }
-
-  async function fetchAll() {
-    const config = useRuntimeConfig()
-    loading.value = true
-    const allPois: any[] = []
-    const MAX_PAGES = 200
-    let page = 1
-    let hasMore = true
-
-    try {
-      while (hasMore && page <= MAX_PAGES) {
-        const response: any = await $fetch(`${config.public.strapi.url}/api/pois`, {
-          query: {
-            'pagination[page]': page,
-            'pagination[pageSize]': 100,
-          }
-        })
-        const data = response.data || []
-        allPois.push(...data)
-        
-        if (response.meta?.pagination && page < response.meta.pagination.pageCount) {
-          page++
-        } else {
-          hasMore = false
-        }
-      }
-
-      pois.value = allPois.map(normalizePoi)
-      await set(DB_KEY, pois.value)
-      await set(DB_VERSION_KEY, CURRENT_DATA_VERSION)
-      isInitialized.value = true
-    } catch (e: any) {
-      error.value = e.message
-    } finally {
-      loading.value = false
-    }
-  }
-
-  function clearPOIs() {
-    pois.value = []
-    isInitialized.value = false
-    error.value = null
-  }
-
-  return { pois, loading, error, isInitialized, init, fetchAll, hasPOIs, clearPOIs }
 })

@@ -26,11 +26,12 @@ async function generateQuests() {
     generating.value = true
 
     try {
-        // S'assurer que les POIs sont chargés
-        await poiStore.init()
-
         // Récupérer la position GPS (ou position par défaut Saint-Lô)
         const position = await getCurrentPosition()
+
+        // Charger les POI AUTOUR du joueur (déport bbox : plus de téléchargement global du
+        // catalogue). 25 km couvre largement de quoi choisir les 8 quêtes les plus proches.
+        await poiStore.loadAround(position.lat, position.lng, 25)
 
         // Trier les POIs par distance et prendre les 8 plus proches (tous différents)
         const sortedPois = [...poiStore.pois]
