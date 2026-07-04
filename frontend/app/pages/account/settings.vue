@@ -228,7 +228,6 @@
 <script setup lang="ts">
 const user = useAuth().user
 const { isAdmin, verifyAdmin } = useAdmin()
-const { logout } = useLogout()
 const {
   settings,
   loading,
@@ -268,10 +267,6 @@ watch(isAuthenticated, async (newValue) => {
     await fetchSettings()
   }
 })
-
-const handleLogout = () => {
-  logout('/')
-}
 
 const triggerFileInput = () => {
   fileInput.value?.click()

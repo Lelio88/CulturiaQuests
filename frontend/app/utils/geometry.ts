@@ -24,11 +24,11 @@ export function computeGeoJSONArea(geometry: any): number {
   if (!geometry) return 0
 
   if (geometry.type === 'Polygon') {
-    return computeRingArea(geometry.coordinates[0])
+    return computeRingArea(geometry.coordinates?.[0] || [])
   } else if (geometry.type === 'MultiPolygon') {
     let total = 0
-    for (const poly of geometry.coordinates) {
-      total += computeRingArea(poly[0])
+    for (const poly of geometry.coordinates || []) {
+      total += computeRingArea(poly?.[0] || [])
     }
     return total
   }
@@ -95,11 +95,14 @@ export function isPointInGeoJSON(point: [number, number], geometry: any): boolea
 
   if (geometry.type === 'Polygon') {
     // On check seulement l'anneau extérieur (index 0) pour la performance
-    // (Ignorer les trous pour le nettoyage est acceptable)
-    return isPointInPolygon(point, geometry.coordinates[0])
+    // (Ignorer les trous pour le nettoyage est acceptable). Garde sur une géométrie malformée
+    // (coordinates vide) → pas de TypeError sur `coordinates[0]`.
+    const ring = geometry.coordinates?.[0]
+    return Array.isArray(ring) ? isPointInPolygon(point, ring) : false
   } else if (geometry.type === 'MultiPolygon') {
-    for (const poly of geometry.coordinates) {
-      if (isPointInPolygon(point, poly[0])) return true
+    for (const poly of geometry.coordinates || []) {
+      const ring = poly?.[0]
+      if (Array.isArray(ring) && isPointInPolygon(point, ring)) return true
     }
   }
 

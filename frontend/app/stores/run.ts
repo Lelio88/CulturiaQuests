@@ -110,13 +110,6 @@ export const useRunStore = defineStore('run', () => {
     runs.value.push(run)
   }
 
-  function updateRun(runId: number, updates: Partial<Run>) {
-    const index = runs.value.findIndex(r => r.id === runId)
-    if (index !== -1) {
-      runs.value[index] = { ...runs.value[index], ...updates }
-    }
-  }
-
   async function fetchRuns() {
     const client = useApi()
     loading.value = true
@@ -295,7 +288,6 @@ export const useRunStore = defineStore('run', () => {
     setRuns,
     clearRuns,
     addRun,
-    updateRun,
     fetchRuns,
     startExpedition,
     endExpedition,

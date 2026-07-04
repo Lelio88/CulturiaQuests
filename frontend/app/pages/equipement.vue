@@ -97,7 +97,6 @@ import { getImageUrl } from '~/utils/strapiHelpers';
 const characterStore = useCharacterStore();
 const guildStore = useGuildStore();
 const inventoryStore = useInventoryStore();
-const config = useRuntimeConfig(); 
 
 // 2. RÉCUPÉRATION DE LA FONCTION DE CALCUL
 const { calculateItemPower } = useDamageCalculator();
