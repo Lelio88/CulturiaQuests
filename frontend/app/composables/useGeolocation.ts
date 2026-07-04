@@ -1,3 +1,5 @@
+import { App } from '@capacitor/app'
+import { Capacitor, type PluginListenerHandle } from '@capacitor/core'
 import { calculateDistance } from '~/utils/geolocation'
 
 /**
@@ -27,6 +29,11 @@ interface GeolocationCallbacks {
 /**
  * Composable pour gérer la géolocalisation en temps réel.
  * Gère le tracking continu, le throttling des reloads, et l'état de la permission.
+ *
+ * Le bandeau de notification « Géolocalisation active » est affiché pendant le tracking et masqué
+ * automatiquement quand l'app passe en arrière-plan (le watchPosition web y est de toute façon
+ * suspendu par l'OS), puis réaffiché au retour au premier plan si le tracking est toujours actif.
+ * Aucun tracking en arrière-plan : API web premier-plan uniquement, pas de foreground service.
  *
  * @param options - Options de configuration
  * @returns État et actions pour la géolocalisation
@@ -78,6 +85,31 @@ export function useGeolocation(options: GeolocationOptions = {}) {
   // pas dans startTracking/stopTracking qui s'exécutent plus tard, hors setup → risque de
   // fuite/avertissement si rappelés plusieurs fois. #34
   const { showGeoNotification, hideGeoNotification } = useNotifications()
+
+  // Masquage automatique du bandeau géo en arrière-plan : quand l'app passe en background, le
+  // watchPosition web est suspendu par l'OS (aucune position lue) → laisser la notif afficherait
+  // « position active » à tort. On la masque au passage en arrière-plan et on la réaffiche au retour
+  // au premier plan tant que le tracking est actif. Listener natif via @capacitor/app.
+  let appStateListener: PluginListenerHandle | null = null
+
+  async function setupAppStateListener(): Promise<void> {
+    if (!Capacitor.isNativePlatform() || appStateListener) return
+    appStateListener = await App.addListener('appStateChange', ({ isActive }) => {
+      if (!isTracking.value) return
+      if (isActive) {
+        showGeoNotification()
+      } else {
+        hideGeoNotification()
+      }
+    })
+  }
+
+  async function teardownAppStateListener(): Promise<void> {
+    if (appStateListener) {
+      await appStateListener.remove()
+      appStateListener = null
+    }
+  }
 
   /**
    * Démarre le tracking de position en temps réel.
@@ -156,6 +188,7 @@ export function useGeolocation(options: GeolocationOptions = {}) {
 
     isTracking.value = true
     showGeoNotification()
+    setupAppStateListener()
   }
 
   /**
@@ -168,6 +201,7 @@ export function useGeolocation(options: GeolocationOptions = {}) {
       watchId.value = null
       isTracking.value = false
       hideGeoNotification()
+      teardownAppStateListener()
     }
   }
 

@@ -12,9 +12,9 @@ const GEO_NOTIFICATION_ID = 1002
 let actionListenerHandle: PluginListenerHandle | null = null
 
 /**
- * Gère les notifications locales Capacitor : rappel du quiz quotidien et bandeau persistant de
- * géolocalisation active. Toutes les fonctions sont no-op hors plateforme native (web/desktop),
- * via le garde `Capacitor.isNativePlatform()`.
+ * Gère les notifications locales Capacitor : rappel du quiz quotidien et bandeau silencieux
+ * (balayable) de géolocalisation active. Toutes les fonctions sont no-op hors plateforme native
+ * (web/desktop), via le garde `Capacitor.isNativePlatform()`.
  *
  * Détails non-évidents :
  * - Deux canaux Android distincts : `quiz-channel` (importance DEFAULT, son + vibration) et
@@ -126,7 +126,8 @@ export function useNotifications() {
   }
 
   /**
-   * Affiche la notification persistante de géolocalisation active.
+   * Affiche le bandeau silencieux de géolocalisation active (balayable). À réafficher au retour au
+   * premier plan si le tracking est toujours actif — géré par useGeolocation.
    */
   async function showGeoNotification(): Promise<void> {
     if (!isNative) return
@@ -141,7 +142,10 @@ export function useNotifications() {
           title: 'Géolocalisation active',
           body: 'CulturiaQuests utilise votre position pour afficher la carte.',
           ...(isAndroid
-            ? { channelId: 'geo-channel', ongoing: true, autoCancel: false }
+            // ongoing:false → l'utilisateur peut la balayer ; autoCancel:true → elle disparaît si
+            // tapée. On ne veut PLUS de bandeau persistant non-balayable (#géoloc-notif). Le masquage
+            // automatique en arrière-plan est géré côté useGeolocation via @capacitor/app.
+            ? { channelId: 'geo-channel', ongoing: false, autoCancel: true }
             : {}),
         },
       ],
