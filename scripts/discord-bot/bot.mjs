@@ -64,12 +64,18 @@ client.once(Events.ClientReady, async (c) => {
   console.log(`✅ Bot connecté : ${c.user.tag}`);
   try {
     const rest = new REST().setToken(TOKEN);
-    if (GUILD_ID) {
-      await rest.put(Routes.applicationGuildCommands(c.user.id, GUILD_ID), { body: commands });
-      console.log('Slash-command /import-status enregistrée (serveur, instantané).');
+    // Enregistrement INSTANTANÉ : on cible chaque serveur où le bot est présent (auto-détecté),
+    // + l'éventuel DISCORD_GUILD_ID explicite. À défaut de serveur, repli sur la commande globale.
+    const guildIds = new Set([...c.guilds.cache.keys()]);
+    if (GUILD_ID) guildIds.add(GUILD_ID);
+    if (guildIds.size) {
+      for (const gid of guildIds) {
+        await rest.put(Routes.applicationGuildCommands(c.user.id, gid), { body: commands });
+      }
+      console.log(`Slash-command /import-status enregistrée sur ${guildIds.size} serveur(s) (instantané).`);
     } else {
       await rest.put(Routes.applicationCommands(c.user.id), { body: commands });
-      console.log('Slash-command /import-status enregistrée (globale, ~1 h de propagation).');
+      console.log('Aucun serveur détecté → commande globale (~1 h de propagation).');
     }
   } catch (e) {
     console.error('Échec enregistrement de la commande :', e?.message);
