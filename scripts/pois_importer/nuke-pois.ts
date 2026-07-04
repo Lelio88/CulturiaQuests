@@ -22,9 +22,8 @@ async function nukeCollection(collection: string) {
   });
 
   let totalDeleted = 0;
-  let hasItems = true;
 
-  while (hasItems) {
+  while (true) {
     // Get a batch of items
     // We use fields[0]=id to be light
     const res = await client.get(`/api/${collection}`, {
@@ -36,27 +35,32 @@ async function nukeCollection(collection: string) {
     });
 
     const items = res.data.data;
-    if (items.length === 0) {
-      hasItems = false;
-      break;
-    }
+    if (items.length === 0) break;
 
     console.log(`   Found batch of ${items.length} items to delete...`);
 
     // Delete them one by one (Strapi doesn't have bulk delete endpoint by default)
-    // We use Promise.all for speed
+    // We use Promise.all for speed. On compte les suppressions RÉELLEMENT réussies.
+    let deletedThisPass = 0;
     await Promise.all(items.map(async (item: any) => {
       const idToDelete = item.documentId || item.id;
       try {
         await client.delete(`/api/${collection}/${idToDelete}`);
+        deletedThisPass++;
         process.stdout.write('x');
       } catch (e: any) {
         process.stdout.write('E');
       }
     }));
-    
-    totalDeleted += items.length;
     console.log(''); // New line
+    totalDeleted += deletedThisPass;
+
+    // Aucune suppression réussie alors qu'il reste des items (token en lecture seule ?) → on
+    // arrête pour éviter une boucle infinie qui martèlerait l'API indéfiniment.
+    if (deletedThisPass === 0) {
+      console.error(`⚠️  Aucun item supprimé sur ce lot (${items.length} restants). Token en lecture seule ou permissions manquantes ? Arrêt.`);
+      break;
+    }
   }
 
   console.log(`✅ Deleted ${totalDeleted} items from ${collection}.`);
@@ -64,6 +68,10 @@ async function nukeCollection(collection: string) {
 
 async function main() {
   console.log('☢️  NUKE POIS & MUSEUMS SCRIPT ☢️');
+  if (!STRAPI_API_TOKEN) {
+    console.error('❌ STRAPI_API_TOKEN manquant — sans token en écriture, les suppressions échoueront. Abandon.');
+    process.exit(1);
+  }
   console.log('This will DELETE ALL data in "museums" and "pois".');
   console.log('Waiting 3 seconds before start... (Ctrl+C to cancel)');
   

@@ -88,7 +88,12 @@ async function main() {
       
       if (communes.length === 0) return;
 
-      const communeEntries: CommuneEntry[] = communes.map((c: any) => ({
+      // Garde : une commune sans `centre` ferait planter tout le script (accès
+      // c.centre.coordinates sur undefined). On filtre celles sans coordonnées valides.
+      const validCommunes = communes.filter((c: any) => c?.centre?.coordinates);
+      if (validCommunes.length === 0) return;
+
+      const communeEntries: CommuneEntry[] = validCommunes.map((c: any) => ({
         code: c.code,
         nom: c.nom,
         lat: c.centre.coordinates[1],
@@ -99,18 +104,28 @@ async function main() {
       const entry: EpciEntry = {
         code: epci.code,
         nom: epci.nom,
-        communesCount: communes.length,
+        communesCount: validCommunes.length,
         communes: communeEntries
       };
 
-      // Rattacher l'EPCI au département majoritaire
-      const deptCode = communes[0].departement?.code;
+      // Rattacher l'EPCI au département MAJORITAIRE (le plus représenté parmi ses communes),
+      // et non arbitrairement à celui de la première commune.
+      const deptCounts = new Map<string, number>();
+      for (const c of validCommunes) {
+        const dc = c.departement?.code;
+        if (dc) deptCounts.set(dc, (deptCounts.get(dc) || 0) + 1);
+      }
+      let deptCode: string | undefined;
+      let maxCount = 0;
+      for (const [dc, count] of deptCounts) {
+        if (count > maxCount) { maxCount = count; deptCode = dc; }
+      }
       if (deptCode) {
         if (!deptsContent.has(deptCode)) deptsContent.set(deptCode, []);
         deptsContent.get(deptCode)!.push(entry);
       }
 
-      totalCommunes += communes.length;
+      totalCommunes += validCommunes.length;
     }));
 
     processed += batch.length;
