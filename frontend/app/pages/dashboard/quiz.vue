@@ -203,9 +203,9 @@
                 <td class="py-3 px-4 text-center">
                   <span
                     class="font-bold"
-                    :class="rankColor(idx + 1)"
+                    :class="rankColor(Number(idx) + 1)"
                   >
-                    #{{ idx + 1 }}
+                    #{{ Number(idx) + 1 }}
                   </span>
                 </td>
                 <td class="py-3 px-4 text-white font-medium">{{ entry.guildName }}</td>

@@ -48,7 +48,7 @@ export function useDrawerLogic(distanceToUser: Ref<number>, debugMode: Ref<boole
    * @returns URL complète de l'icône ou fallback
    */
   function getCharacterIcon(char: Character): string {
-    const icon = char.icon?.data || char.icon
+    const icon = (char.icon as { data?: typeof char.icon })?.data || char.icon
     if (!icon?.url) return '/assets/helmet1.png' // Fallback
     if (icon.url.startsWith('http')) return icon.url
     return `${config.public.strapi.url}${icon.url}`

@@ -215,7 +215,7 @@ const drawFog = () => {
     const radiusOffset = brushCanvas.width / 2
 
     for (let i = 0; i < points.length; i++) {
-      const pt = points[i]
+      const pt = points[i]!
       if (pt.lat < pS || pt.lat > pN || pt.lng < pW || pt.lng > pE) continue
 
       const p = map.latLngToContainerPoint([pt.lat, pt.lng])
@@ -248,7 +248,7 @@ onMounted(() => {
     fogPane.style.zIndex = '300'
     fogPane.style.pointerEvents = 'none'
   } else {
-    fogPane = map.getPane('fogPane')
+    fogPane = map.getPane('fogPane') ?? null
   }
 
   const cvs = document.createElement('canvas')

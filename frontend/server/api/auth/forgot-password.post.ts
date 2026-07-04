@@ -13,7 +13,8 @@ export default defineEventHandler(async (event) => {
 
   if (email && typeof email === 'string') {
     try {
-      await $fetch(`${strapiUrl}/api/auth/forgot-password`, {
+      // Paramètre de type explicite : coupe l'inférence via le registre de routes Nitro (TS2321).
+      await $fetch<unknown>(`${strapiUrl}/api/auth/forgot-password`, {
         method: 'POST',
         body: { email },
       })

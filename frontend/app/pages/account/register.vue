@@ -120,7 +120,7 @@
         </div>
 
         <!-- Error Message -->
-        <Alert :message="error" variant="error" />
+        <Alert :message="error ?? undefined" variant="error" />
 
         <!-- Navigation Buttons -->
         <div class="flex gap-3 pt-4">
@@ -189,6 +189,7 @@ import IconPicker from '~/components/form/IconPicker.vue'
 import Alert from '~/components/form/Alert.vue'
 import OverlayPanel from '~/components/ui/OverlayPanel.vue'
 import CguContent from '~/components/legal/CguContent.vue'
+import type { StrapiMedia } from '~/types/strapi'
 
 const { register, user } = useAuth()
 const router = useRouter()
@@ -297,7 +298,7 @@ function previousStep() {
 }
 
 // Charger les icônes de personnage
-const icons = ref([])
+const icons = ref<StrapiMedia[]>([])
 const iconsLoading = computed(() => characterStore.iconsLoading)
 
 onMounted(async () => {

@@ -43,7 +43,7 @@ export const useCharacterStore = defineStore('character', () => {
     return characters.value
       .map(c => {
         const attrs = c.attributes || c
-        const icon = attrs.icon?.data || attrs.icon
+        const icon = ((attrs.icon as { data?: StrapiMedia })?.data || attrs.icon) as { id?: number } | null | undefined
         return icon?.id ?? null
       })
       .filter((id): id is number => id !== null)
@@ -74,7 +74,7 @@ export const useCharacterStore = defineStore('character', () => {
   function updateCharacter(characterId: number, updates: Partial<Character>) {
     const index = characters.value.findIndex(c => c.id === characterId)
     if (index !== -1) {
-      characters.value[index] = { ...characters.value[index], ...updates }
+      characters.value[index] = { ...characters.value[index], ...updates } as Character
     }
   }
 

@@ -26,4 +26,7 @@ export interface Poi {
   lng?: number
   geohash?: string
   location?: GeoJSON
+  visits?: { data: Visit[] }
+  quests_a?: { data: Quest[] }
+  quests_b?: { data: Quest[] }
 }

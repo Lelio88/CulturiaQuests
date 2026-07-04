@@ -158,7 +158,7 @@ export const useFriendshipStore = defineStore('friendship', () => {
   function updateFriendship(friendshipId: number, updates: Partial<NormalizedFriendship>) {
     const index = friendships.value.findIndex(f => f.id === friendshipId)
     if (index !== -1) {
-      friendships.value[index] = { ...friendships.value[index], ...updates }
+      friendships.value[index] = { ...friendships.value[index], ...updates } as NormalizedFriendship
     }
   }
 

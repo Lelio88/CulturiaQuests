@@ -26,7 +26,7 @@
         <select
           v-model="sortBy"
           class="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-200 font-onest focus:outline-none focus:border-amber-400/50"
-          @change="loadPlayers"
+          @change="loadPlayersOnChange"
         >
           <option value="createdAt">Date d'inscription</option>
           <option value="username">Nom d'utilisateur</option>
@@ -219,6 +219,11 @@ function loadPlayers(page = 1) {
     sortOrder: sortOrder.value,
   })
 }
+
+// Cast type-only : Vue invoque le handler @change du <select> avec l'Event natif,
+// alors que loadPlayers est typé (page?: number). On aligne la signature sur
+// onChange sans changer le comportement runtime (même fonction, même invocation).
+const loadPlayersOnChange = loadPlayers as unknown as (event: Event) => void
 
 function toggleSortOrder() {
   sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'

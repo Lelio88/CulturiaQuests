@@ -31,7 +31,7 @@ const colorMap: Record<string, { iconBg: string; iconColor: string; subColor: st
 }
 
 const resolved = computed(() => colorMap[props.color || 'blue'] || colorMap.blue)
-const iconBg = computed(() => resolved.value.iconBg)
-const iconColor = computed(() => resolved.value.iconColor)
-const subColor = computed(() => resolved.value.subColor)
+const iconBg = computed(() => resolved.value?.iconBg)
+const iconColor = computed(() => resolved.value?.iconColor)
+const subColor = computed(() => resolved.value?.subColor)
 </script>

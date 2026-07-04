@@ -10,8 +10,10 @@ export function computeRingArea(coords: [number, number][]): number {
   let area = 0
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n
-    area += coords[i][0] * coords[j][1]
-    area -= coords[j][0] * coords[i][1]
+    const ci = coords[i]!
+    const cj = coords[j]!
+    area += ci[0] * cj[1]
+    area -= cj[0] * ci[1]
   }
   return Math.abs(area) / 2
 }
@@ -76,8 +78,9 @@ export function isPointInPolygon(point: [number, number], vs: [number, number][]
 
   let inside = false
   for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-    const xi = vs[i][0], yi = vs[i][1]
-    const xj = vs[j][0], yj = vs[j][1]
+    const vi = vs[i]!, vj = vs[j]!
+    const xi = vi[0], yi = vi[1]
+    const xj = vj[0], yj = vj[1]
 
     const intersect = ((yi > y) !== (yj > y))
         && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)

@@ -28,7 +28,13 @@
 import { stringify } from 'qs'
 
 export function useApi() {
-  const fetcher = import.meta.server ? useRequestFetch() : $fetch
+  // Cast de CHAQUE branche vers une signature générique simple : sans ça, TS calcule le type UNION
+  // `useRequestFetch() | $fetch` et fait résoudre le registre de routes Nitro (récursif) → TS2321
+  // « Excessive stack depth ». (En SSR, useRequestFetch propage le cookie httpOnly entrant.)
+  type SimpleFetch = <T>(request: string, opts?: Record<string, unknown>) => Promise<T>
+  const fetcher: SimpleFetch = import.meta.server
+    ? (useRequestFetch() as unknown as SimpleFetch)
+    : ($fetch as unknown as SimpleFetch)
 
   return <T = unknown>(path: string, opts: Record<string, unknown> = {}): Promise<T> => {
     const cleanPath = path.replace(/^\/+/, '')

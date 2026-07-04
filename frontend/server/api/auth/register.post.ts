@@ -11,7 +11,8 @@ export default defineEventHandler(async (event) => {
 
   let res: { jwt: string; user: Record<string, unknown> }
   try {
-    res = await $fetch(`${strapiUrl}/api/auth/local/register`, {
+    // Paramètre de type explicite : coupe l'inférence via le registre de routes Nitro (TS2321).
+    res = await $fetch<{ jwt: string; user: Record<string, unknown> }>(`${strapiUrl}/api/auth/local/register`, {
       method: 'POST',
       body,
     })

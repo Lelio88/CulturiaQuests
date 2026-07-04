@@ -136,7 +136,7 @@
               :y-grid-line="true"
               :x-num-ticks="6"
               :y-num-ticks="5"
-              curve-type="monotoneX"
+              :curve-type="CurveType.MonotoneX"
             />
           </div>
         </div>

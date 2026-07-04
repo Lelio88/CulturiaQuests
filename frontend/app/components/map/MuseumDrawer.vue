@@ -178,7 +178,12 @@ const guildItems = computed(() => {
   const characterIds = props.guildCharacters.map(c => c.id)
 
   return allItems.filter(item => {
-    const charId = item.character?.id || item.attributes?.character?.data?.id
+    // Forme Strapi polymorphe (relation aplatie ou wrappée) : cast local.
+    const itemRel = item as {
+      character?: { id?: number }
+      attributes?: { character?: { data?: { id?: number } } }
+    }
+    const charId = itemRel.character?.id || itemRel.attributes?.character?.data?.id
     return charId && characterIds.includes(charId)
   })
 })
@@ -224,7 +229,8 @@ const SYNERGY_BONUS = [
  */
 const globalMultiplier = computed(() => {
   const index = Math.min(matchingItemsCount.value, SYNERGY_BONUS.length - 1)
-  return SYNERGY_BONUS[index]
+  // index toujours dans les bornes (0 <= index <= length-1) ; ?? 1 pour noUncheckedIndexedAccess.
+  return SYNERGY_BONUS[index] ?? 1
 })
 
 /**

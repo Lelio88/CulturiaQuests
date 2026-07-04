@@ -48,7 +48,9 @@ export const useInventoryStore = defineStore('inventory', () => {
   const itemsByRarity = computed(() => {
     return (rarityName: string) => {
       return items.value.filter(i => {
-        const rarity = i.rarity || i.attributes?.rarity
+        const rarity = (i.rarity || i.attributes?.rarity) as
+          | { name?: string; data?: { attributes?: { name?: string } } }
+          | undefined
         return rarity?.name === rarityName || rarity?.data?.attributes?.name === rarityName
       })
     }
@@ -87,7 +89,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   function updateItem(itemId: number, updates: Partial<Item>) {
     const index = items.value.findIndex(i => i.id === itemId)
     if (index !== -1) {
-      items.value[index] = { ...items.value[index], ...updates }
+      items.value[index] = { ...items.value[index], ...updates } as Item
     }
   }
 

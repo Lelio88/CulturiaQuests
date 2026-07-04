@@ -109,7 +109,7 @@ export const useAdminStore = defineStore('admin', () => {
     try {
       const response = await client<{ id: number; username: string; blocked: boolean }>(`/admin-dashboard/players/${userId}/toggle-block`, { method: 'PUT' })
       const idx = players.value.findIndex((p) => p.id === userId)
-      if (idx !== -1) players.value[idx].blocked = response.blocked
+      if (idx !== -1) players.value[idx]!.blocked = response.blocked
       if (playerDetail.value?.id === userId) playerDetail.value.blocked = response.blocked
       return response
     } catch (e: any) { error.value = e?.message || 'Failed to toggle block'; throw e }
@@ -120,7 +120,7 @@ export const useAdminStore = defineStore('admin', () => {
     try {
       const response = await client<{ id: number; username: string; role: { id: number; name: string; type: string } }>(`/admin-dashboard/players/${userId}/role`, { method: 'PUT', body: { role } })
       const idx = players.value.findIndex((p) => p.id === userId)
-      if (idx !== -1) players.value[idx].role = response.role
+      if (idx !== -1) players.value[idx]!.role = response.role
       if (playerDetail.value?.id === userId) playerDetail.value.role = response.role
       return response
     } catch (e: any) { error.value = e?.message || 'Failed to change role'; throw e }

@@ -28,4 +28,5 @@ export interface Museum {
   radius?: number
   location?: GeoJSON
   tags?: string[] // noms des tags (le store peuple via extractTags() → string[])
+  runs?: Run[] | { data: Run[] } // copié tel quel depuis raw.runs || raw.attributes?.runs
 }

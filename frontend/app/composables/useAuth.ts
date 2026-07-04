@@ -48,7 +48,12 @@ export function useAuth() {
   }
 
   async function fetchMe(): Promise<CqUser | null> {
-    const fetcher = import.meta.server ? useRequestFetch() : $fetch
+    // Cast par branche (cf. useApi) : évite le calcul du type union `useRequestFetch() | $fetch`
+    // qui fait résoudre le registre de routes Nitro (récursif) → TS2321 « Excessive stack depth ».
+    type SimpleFetch = <T>(request: string, opts?: Record<string, unknown>) => Promise<T>
+    const fetcher: SimpleFetch = import.meta.server
+      ? (useRequestFetch() as unknown as SimpleFetch)
+      : ($fetch as unknown as SimpleFetch)
     try {
       user.value = await fetcher<CqUser>('/api/auth/me')
       reconcileUser(user.value?.id)
