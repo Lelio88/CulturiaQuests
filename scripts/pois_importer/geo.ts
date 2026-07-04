@@ -15,9 +15,9 @@
  * - Pré-filtre BBox (rectangle englobant, sur-ensemble du polygone → zéro faux négatif) avant le
  *   ray-casting coûteux.
  * - `resolve` privilégie la comcom dont le POLYGONE contient le point (la plus petite en aire si
- *   plusieurs, cas des frontières) ; à défaut (point hors de tout polygone : littoral au-delà du
- *   tracé, offshore) il retombe sur la plus petite comcom dont la BBox contient le point
- *   (`exact:false`) — jamais de rattachement par nom ici.
+ *   plusieurs, cas des frontières internes) ; à défaut (point hors de tout polygone : littoral
+ *   au-delà du tracé, frontière, décalage OSM) il retombe sur la comcom dont le polygone est le
+ *   plus PROCHE (distance point→arête, `exact:false`) — jamais de rattachement par nom ici.
  *
  * @example
  * const resolver = ZoneResolver.fromComcomApi(rows); // rows = /api/comcoms?populate[department][populate][region]
@@ -79,6 +79,40 @@ export function computeGeoJSONArea(geometry: any): number {
   return 0;
 }
 
+/** Distance² (planaire, lng mis à l'échelle par cos(lat)) d'un point à un segment [a,b]. */
+function pointToSegmentDist2(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  let t = len2 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const ex = px - (ax + t * dx), ey = py - (ay + t * dy);
+  return ex * ex + ey * ey;
+}
+
+/**
+ * Distance² approx. (planaire, lng × cos(lat)) d'un point (lat,lng) à l'arête la plus proche des
+ * anneaux extérieurs d'une géométrie. Sert de départage « comcom la plus proche » quand le point
+ * est HORS de tout polygone (littoral au-delà du tracé, bord) — meilleur que la bbox.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function distanceToGeoJSON(lat: number, lng: number, geometry: any): number {
+  if (!geometry) return Infinity;
+  const cosLat = Math.cos((lat * Math.PI) / 180) || 1e-6;
+  const px = lng * cosLat, py = lat;
+  const rings: Ring[] =
+    geometry.type === 'Polygon' ? [geometry.coordinates[0]]
+    : geometry.type === 'MultiPolygon' ? geometry.coordinates.map((p: Ring[]) => p[0])
+    : [];
+  let min = Infinity;
+  for (const ring of rings) {
+    for (let i = 0; i < ring.length - 1; i++) {
+      const d = pointToSegmentDist2(px, py, ring[i][0] * cosLat, ring[i][1], ring[i + 1][0] * cosLat, ring[i + 1][1]);
+      if (d < min) min = d;
+    }
+  }
+  return min;
+}
+
 export interface ZoneEntry {
   comcomId: number;
   departmentId: number | null;
@@ -105,12 +139,29 @@ export class ZoneResolver {
 
   resolve(lat: number, lng: number): ResolvedZone | null {
     if (typeof lat !== 'number' || typeof lng !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+    // 1. Cas exact : le point est DANS un polygone → la plus petite en aire (cas frontières internes).
     const inBbox = this.entries.filter((e) => lat >= e.bbox.minLat && lat <= e.bbox.maxLat && lng >= e.bbox.minLng && lng <= e.bbox.maxLng);
-    if (!inBbox.length) return null;
     const inPoly = inBbox.filter((e) => isPointInGeoJSON(lat, lng, e.geometry));
-    const exact = inPoly.length > 0;
-    const pick = (exact ? inPoly : inBbox).sort((a, b) => a.area - b.area)[0];
-    return { comcomId: pick.comcomId, departmentId: pick.departmentId, regionId: pick.regionId, exact };
+    if (inPoly.length) {
+      const pick = inPoly.sort((a, b) => a.area - b.area)[0];
+      return { comcomId: pick.comcomId, departmentId: pick.departmentId, regionId: pick.regionId, exact: true };
+    }
+
+    // 2. Hors de tout polygone (littoral au-delà du tracé, frontière, léger décalage OSM) :
+    //    la comcom dont le POLYGONE est le plus PROCHE (distance point→arête). C'est ce qui
+    //    rattache correctement une plage / pointe à SA comcom et non à une voisine dont la bbox
+    //    déborde. Recherche bornée à une fenêtre ~15 km (élargie à tout si rien) pour rester rapide.
+    const M = 0.15;
+    const near = this.entries.filter((e) => lat >= e.bbox.minLat - M && lat <= e.bbox.maxLat + M && lng >= e.bbox.minLng - M && lng <= e.bbox.maxLng + M);
+    const pool = near.length ? near : this.entries;
+    let best: ZoneEntry | null = null;
+    let bestD = Infinity;
+    for (const e of pool) {
+      const d = distanceToGeoJSON(lat, lng, e.geometry);
+      if (d < bestD) { bestD = d; best = e; }
+    }
+    return best ? { comcomId: best.comcomId, departmentId: best.departmentId, regionId: best.regionId, exact: false } : null;
   }
 
   /**
