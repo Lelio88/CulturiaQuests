@@ -215,4 +215,62 @@ export default factories.createCoreController('api::character.character', ({ str
     const sanitizedEntity = await this.sanitizeOutput(populatedCharacter, ctx);
     return this.transformResponse(sanitizedEntity);
   },
+
+  /**
+   * Update character (#audit HIGH#1) — override du core update pour l'ISOLATION : le personnage doit
+   * appartenir à la guilde de l'utilisateur (§IV.1), et seuls firstname/lastname/icon sont modifiables
+   * (whitelist anti mass-assignment : jamais `guild`/`items` depuis le client). Sans cet override, la
+   * permission core update serait soit absente (403 sur base neuve) soit dangereuse (réassignation).
+   */
+  async update(ctx) {
+    const user = ctx.state.user;
+    if (!user) return ctx.unauthorized();
+    const { id } = ctx.params; // documentId (Strapi v5)
+
+    const guild = await getUserGuild(strapi, user.id, { select: ['id', 'documentId'] });
+    if (!guild) return ctx.notFound('Guild not found');
+
+    const existing = await strapi.db.query('api::character.character').findOne({
+      where: { documentId: id, guild: { id: guild.id } },
+      select: ['id', 'documentId'],
+    });
+    if (!existing) return ctx.notFound('Character not found');
+
+    const data = (ctx.request.body?.data || {}) as { firstname?: unknown; lastname?: unknown; icon?: unknown };
+    const patch: Record<string, unknown> = {};
+    if (typeof data.firstname === 'string') patch.firstname = data.firstname;
+    if (typeof data.lastname === 'string') patch.lastname = data.lastname;
+    if (data.icon !== undefined) patch.icon = data.icon;
+
+    const updated = await strapi.documents('api::character.character').update({
+      documentId: id,
+      data: patch,
+      populate: { icon: { fields: ['id', 'url', 'name'] }, items: { populate: ['icon', 'rarity'] } },
+    });
+    const sanitizedEntity = await this.sanitizeOutput(updated, ctx);
+    return this.transformResponse(sanitizedEntity);
+  },
+
+  /**
+   * Delete character (#audit HIGH#1) — override du core delete pour l'ISOLATION : suppression permise
+   * uniquement si le personnage appartient à la guilde de l'utilisateur.
+   */
+  async delete(ctx) {
+    const user = ctx.state.user;
+    if (!user) return ctx.unauthorized();
+    const { id } = ctx.params;
+
+    const guild = await getUserGuild(strapi, user.id, { select: ['id'] });
+    if (!guild) return ctx.notFound('Guild not found');
+
+    const existing = await strapi.db.query('api::character.character').findOne({
+      where: { documentId: id, guild: { id: guild.id } },
+      select: ['id', 'documentId'],
+    });
+    if (!existing) return ctx.notFound('Character not found');
+
+    const deleted = await strapi.documents('api::character.character').delete({ documentId: id });
+    const sanitizedEntity = await this.sanitizeOutput(deleted, ctx);
+    return this.transformResponse(sanitizedEntity);
+  },
 }));

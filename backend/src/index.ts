@@ -222,6 +222,10 @@ export default {
         'api::post.post.find',
         'api::post.post.create',
         'api::post.post.toggleLike',
+        // update/delete : override controller impose l'ownership (author) + whitelist des champs
+        // (#audit HIGH#1). Sans ces grants : édition/suppression de post en 403 sur base neuve.
+        'api::post.post.update',
+        'api::post.post.delete',
         // GDPR
         'api::gdpr-request.gdpr-request.requestData',
         // Quest generation
@@ -248,8 +252,17 @@ export default {
         'api::guild.guild.equipBadges',
         'api::character.character.find',
         'api::character.character.findOne',
+        // update/delete : override controller impose l'ownership (guilde) + whitelist firstname/
+        // lastname/icon (#audit HIGH#1). Sans ces grants : édition/suppression perso en 403 base neuve.
+        'api::character.character.update',
+        'api::character.character.delete',
         'api::item.item.find',
         'api::item.item.findOne',
+        // Économie serveur-autoritative (#audit HIGH#1) : recyclage/amélioration calculés serveur.
+        // Remplacent les PUT /items,/guilds pilotés par le client (trichables). item.update /
+        // guild.update NE sont volontairement PAS accordés (le client ne doit pas écrire l'économie).
+        'api::item.item.recycle',
+        'api::item.item.upgrade',
         'api::run.run.find',
         'api::run.run.findOne',
         'api::visit.visit.find',

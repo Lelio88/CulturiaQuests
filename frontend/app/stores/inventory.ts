@@ -133,62 +133,50 @@ export const useInventoryStore = defineStore('inventory', () => {
   }
 
   /**
-   * Recycle une liste d'items (#37) : marque chaque item `isScrapped` côté API (et le détache de
-   * son personnage), crédite la guilde du scrap gagné, puis met à jour l'état local de façon
-   * IMMUABLE (via `updateItem`, plus de mutation directe).
-   *
-   * `scrapGain` est calculé et fourni par l'appelant (depuis le view-model, rareté en string) —
-   * NE PAS le recalculer ici sur les items bruts du store (rareté en objet), au risque d'un
-   * multiplicateur erroné. L'écriture du scrap guilde est ABSOLUE (scrap courant + gain), iso au
-   * comportement existant.
+   * Recycle une liste d'items via l'endpoint SERVEUR-AUTORITATIF `POST /items/recycle` (#audit HIGH#1).
+   * Le serveur vérifie l'ownership, calcule le scrap gagné (barème serveur, plus de valeur fournie par
+   * le client) et crédite la guilde atomiquement. Le store ne fait plus AUCUN calcul ni écriture
+   * d'économie ; il se contente d'envoyer les documentId, puis de rafraîchir les stats + l'état local.
    */
-  async function recycleItems(itemIds: number[], scrapGain: number): Promise<void> {
+  async function recycleItems(itemIds: number[]): Promise<void> {
     const client = useApi()
     const guildStore = useGuildStore()
 
-    // 1. Marquer chaque item recyclé côté API
-    for (const id of itemIds) {
-      const item = items.value.find(i => i.id === id)
-      if (!item) continue
-      const apiId = item.documentId || item.id
-      await client(`/items/${apiId}`, { method: 'PUT', body: { data: { isScrapped: true, character: null } } })
-    }
+    // L'API attend des documentId (Strapi v5) — résolution depuis les items du store.
+    const docIds = itemIds
+      .map(id => items.value.find(i => i.id === id))
+      .filter((i): i is Item => !!i)
+      .map(i => i.documentId || i.id)
+    if (docIds.length === 0) return
 
-    // 2. Créditer la guilde (écriture absolue : iso comportement existant)
-    if (guildStore.guild) {
-      const guildApiId = guildStore.guild.documentId || guildStore.guild.id
-      await client(`/guilds/${guildApiId}`, { method: 'PUT', body: { data: { scrap: (guildStore.scrap || 0) + scrapGain } } })
-      await guildStore.refetchStats()
-    }
+    await client('/items/recycle', { method: 'POST', body: { itemIds: docIds } })
+    await guildStore.refetchStats()
 
-    // 3. Mise à jour locale IMMUABLE
+    // Mise à jour locale IMMUABLE
     for (const id of itemIds) {
       updateItem(id, { isScrapped: true } as Partial<Item>)
     }
   }
 
   /**
-   * Améliore un item au niveau `newLevel` (#37) : débite la guilde de `cost` (or + scrap, écriture
-   * ABSOLUE iso à l'existant), monte le niveau de l'item côté API, puis met à jour l'état local de
-   * façon IMMUABLE. L'appelant a déjà vérifié la solvabilité (`canAffordUpgrade`).
+   * Améliore un item de `levels` niveaux via l'endpoint SERVEUR-AUTORITATIF `POST /items/upgrade`
+   * (#audit HIGH#1). Le serveur calcule le coût (or + scrap) et débite la guilde atomiquement après
+   * vérification de solvabilité — le client ne fournit plus ni le coût ni le nouveau solde. Le store
+   * envoie l'item + le nombre de niveaux, puis applique le `newLevel` renvoyé par le serveur.
    */
-  async function upgradeItem(itemId: number, newLevel: number, cost: { gold: number; scrap: number }): Promise<void> {
+  async function upgradeItem(itemId: number, levels: number): Promise<void> {
     const client = useApi()
     const guildStore = useGuildStore()
     const item = items.value.find(i => i.id === itemId)
     const apiId = item?.documentId || itemId
 
-    // 1. Débiter la guilde (écriture absolue : iso)
-    if (guildStore.guild) {
-      const guildApiId = guildStore.guild.documentId || guildStore.guild.id
-      await client(`/guilds/${guildApiId}`, { method: 'PUT', body: { data: { gold: guildStore.gold - cost.gold, scrap: guildStore.scrap - cost.scrap } } })
-      await guildStore.refetchStats()
-    }
+    const res = await client<{ data?: { newLevel?: number } }>('/items/upgrade', {
+      method: 'POST',
+      body: { itemId: apiId, levels },
+    })
+    await guildStore.refetchStats()
 
-    // 2. Monter le niveau de l'item côté API
-    await client(`/items/${apiId}`, { method: 'PUT', body: { data: { level: newLevel } } })
-
-    // 3. Mise à jour locale IMMUABLE
+    const newLevel = res?.data?.newLevel ?? (item?.level || 1) + levels
     updateItem(itemId, { level: newLevel } as Partial<Item>)
   }
 

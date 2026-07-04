@@ -211,8 +211,9 @@ const totalScrapGain = computed(() => {
 const confirmRecycle = async () => {
     if (itemsToRecycle.value.size === 0) return;
     try {
-        // Appels API + mutation d'état centralisés dans le store (#37, plus de PUT/mutation directe).
-        await inventoryStore.recycleItems(Array.from(itemsToRecycle.value), totalScrapGain.value);
+        // Recyclage serveur-autoritatif (#audit HIGH#1) : le store n'envoie que les ids, le scrap est
+        // calculé + crédité côté serveur. totalScrapGain reste utilisé pour l'aperçu UI uniquement.
+        await inventoryStore.recycleItems(Array.from(itemsToRecycle.value));
         resetAllModes();
     } catch (e) { console.error("Erreur recyclage", e); }
 };
@@ -260,8 +261,9 @@ const setMaxUpgrade = () => {
 const confirmUpgrade = async () => {
     if (!selectedItemObject.value || !canAffordUpgrade.value) return;
     try {
-        // Appels API (débit guilde + montée niveau) + mutation d'état centralisés dans le store (#37).
-        await inventoryStore.upgradeItem(selectedItemObject.value.id, projectedStats.value.newLevel, upgradeCost.value);
+        // Amélioration serveur-autoritative (#audit HIGH#1) : le store envoie l'item + le nombre de
+        // niveaux ; le coût est calculé + débité côté serveur (upgradeCost reste pour l'aperçu UI).
+        await inventoryStore.upgradeItem(selectedItemObject.value.id, upgradeIncrement.value);
         upgradeIncrement.value = 1;
     } catch (e) { console.error("Erreur upgrade", e); }
 };

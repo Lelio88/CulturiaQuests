@@ -159,6 +159,73 @@ export default factories.createCoreController('api::post.post', ({ strapi }) => 
     return this.transformResponse(enriched);
   },
 
+  /**
+   * Update post (#audit HIGH#1) — override du core update pour l'ISOLATION : seul l'AUTEUR peut
+   * éditer son post. Whitelist des champs éditables (show_loot / tags / best_loot) : jamais `author`
+   * ni `likes` depuis le client ; `best_loot` est revalidé comme possédé (comme à la création).
+   */
+  async update(ctx) {
+    const user = ctx.state.user;
+    if (!user) return ctx.unauthorized();
+    const { id } = ctx.params;
+
+    const existing = await strapi.db.query('api::post.post').findOne({
+      where: { documentId: id },
+      populate: { author: { select: ['id', 'documentId'] } },
+    });
+    if (!existing) return ctx.notFound('Post not found');
+    const author = existing.author as { id?: number; documentId?: string } | null;
+    if (!author || (author.id !== user.id && author.documentId !== user.documentId)) {
+      return ctx.forbidden('Not your post');
+    }
+
+    const data = (ctx.request.body?.data || {}) as { show_loot?: unknown; tags?: unknown; best_loot?: unknown };
+    const patch: Record<string, unknown> = {};
+    if (typeof data.show_loot === 'boolean') patch.show_loot = data.show_loot;
+    if (data.tags !== undefined) patch.tags = data.tags ?? null;
+    if (data.best_loot !== undefined) {
+      const lootDocId = typeof data.best_loot === 'string' ? data.best_loot : (data.best_loot as { documentId?: string })?.documentId;
+      if (lootDocId) {
+        const myGuild = await getUserGuild(strapi, user.id, { select: ['id'] });
+        const ownedItem = await strapi.db.query('api::item.item').findOne({
+          where: { documentId: lootDocId, guild: { id: myGuild?.id } },
+          select: ['documentId'],
+        });
+        if (!ownedItem) return ctx.badRequest('best_loot invalide ou non possédé');
+        patch.best_loot = lootDocId;
+      } else {
+        patch.best_loot = null;
+      }
+    }
+
+    const updated = await strapi.documents('api::post.post').update({ documentId: id, data: patch });
+    const sanitized = await this.sanitizeOutput(updated, ctx);
+    return this.transformResponse(sanitized);
+  },
+
+  /**
+   * Delete post (#audit HIGH#1) — override du core delete : seul l'AUTEUR peut supprimer son post.
+   */
+  async delete(ctx) {
+    const user = ctx.state.user;
+    if (!user) return ctx.unauthorized();
+    const { id } = ctx.params;
+
+    const existing = await strapi.db.query('api::post.post').findOne({
+      where: { documentId: id },
+      populate: { author: { select: ['id', 'documentId'] } },
+    });
+    if (!existing) return ctx.notFound('Post not found');
+    const author = existing.author as { id?: number; documentId?: string } | null;
+    if (!author || (author.id !== user.id && author.documentId !== user.documentId)) {
+      return ctx.forbidden('Not your post');
+    }
+
+    const deleted = await strapi.documents('api::post.post').delete({ documentId: id });
+    const sanitized = await this.sanitizeOutput(deleted, ctx);
+    return this.transformResponse(sanitized);
+  },
+
   async toggleLike(ctx) {
       const user = ctx.state.user;
       if (!user) return ctx.unauthorized();
