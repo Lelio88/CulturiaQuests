@@ -40,9 +40,23 @@ const IN_PROGRESS_FILE = path.join(__dirname, '.import-inprogress');
 const ONLY_DEPTS = (process.env.IMPORT_DEPARTMENTS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const LIMIT_EPCI = process.env.IMPORT_LIMIT_EPCI ? parseInt(process.env.IMPORT_LIMIT_EPCI, 10) : Infinity;
 const OLLAMA_DELAY_MS = 500;
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || '';
+const HEARTBEAT_EVERY = 25; // message d'avancement toutes les N EPCI traitées
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const nowIso = () => new Date().toISOString();
+
+/** Poste un message Discord via webhook (no-op si non configuré ; n'interrompt JAMAIS l'import). */
+async function postDiscord(content: string): Promise<void> {
+  if (!DISCORD_WEBHOOK_URL) return;
+  try {
+    await fetch(DISCORD_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: content.slice(0, 1900), allowed_mentions: { parse: [] } }),
+    });
+  } catch { /* Discord indisponible → on ignore, l'import continue */ }
+}
 
 interface Progress {
   startedAt: string;
@@ -88,12 +102,31 @@ async function main() {
   }
   const selected = epcis.slice(0, LIMIT_EPCI);
 
+  // Comptes pour les notifications Discord : total EPCI par dépt / région, et compteur « fait » vivant
+  // → on en déduit le nombre restant dans le dépt, la région et la France à chaque EPCI.
+  const totalByDept = new Map<string, number>();
+  const totalByRegion = new Map<string, number>();
+  for (const { dept } of selected) {
+    totalByDept.set(dept.code, (totalByDept.get(dept.code) || 0) + 1);
+    totalByRegion.set(dept.region, (totalByRegion.get(dept.region) || 0) + 1);
+  }
+  const doneByDept = new Map<string, number>();
+  const doneByRegion = new Map<string, number>();
+  let doneTotal = 0;
+  const markDone = (dept: { code: string; region: string }) => {
+    doneByDept.set(dept.code, (doneByDept.get(dept.code) || 0) + 1);
+    doneByRegion.set(dept.region, (doneByRegion.get(dept.region) || 0) + 1);
+    doneTotal++;
+  };
+
   console.log(`🌍 Import auto — ${selected.length} EPCI${ONLY_DEPTS.length ? ` (dépts ${ONLY_DEPTS.join(',')})` : ' (France entière)'} — modèle ${OLLAMA_MODEL}`);
 
   if (!(await testOllamaConnection())) {
     console.error('❌ Ollama inaccessible. Abandon.');
     process.exit(1);
   }
+
+  await postDiscord(`🚀 **Import CulturiaQuests démarré** — ${selected.length} EPCI (${ONLY_DEPTS.length ? `dépts ${ONLY_DEPTS.join(',')}` : 'France entière'}) · modèle ${OLLAMA_MODEL}.`);
 
   const strapi = new StrapiClient(STRAPI_BASE_URL, STRAPI_API_TOKEN);
   // Reprise mid-EPCI : l'EPCI marquée .in-progress au dernier crash est re-traitée (sa fin est
@@ -119,6 +152,7 @@ async function main() {
       if (epci.code !== forceEpciCode && (await strapi.epciHasPois(epci.code))) {
         progress.skippedEpcis++;
         progress.processedEpcis++;
+        markDone(dept);
         console.log(`⏭️  ${epci.nom} — déjà peuplée, saut`);
         writeProgress(progress);
         continue;
@@ -175,10 +209,25 @@ async function main() {
 
       try { fs.unlinkSync(IN_PROGRESS_FILE); } catch { /* déjà absent */ }
       progress.processedEpcis++;
+      markDone(dept);
       console.log(`✅ ${epci.nom} — ${imported} POI importés (total ${progress.poisImported})`);
+      if (imported > 0) {
+        const remDept = (totalByDept.get(dept.code) || 0) - (doneByDept.get(dept.code) || 0);
+        const remRegion = (totalByRegion.get(dept.region) || 0) - (doneByRegion.get(dept.region) || 0);
+        const remFrance = selected.length - doneTotal;
+        await postDiscord(
+          `✅ **${epci.nom}** — ${imported} POI ajoutés\n` +
+          `📍 ${dept.nom} · ${dept.region}\n` +
+          `⏳ Restant : **${remDept}** EPCI dans le dépt · **${remRegion}** dans la région · **${remFrance}** en France`,
+        );
+      }
+      if (doneTotal % HEARTBEAT_EVERY === 0) {
+        await postDiscord(`⏳ En cours — ${doneTotal}/${selected.length} EPCI traitées · ${progress.poisImported} POI · ETA ~${progress.etaHours ?? '?'} h`);
+      }
     } catch (e: any) {
       progress.errors++;
       progress.processedEpcis++; // évite une boucle infinie sur une EPCI qui plante systématiquement
+      markDone(dept);
       console.error(`⚠️  ${epci.nom} — erreur EPCI: ${e?.message?.substring(0, 80)}`);
     }
     writeProgress(progress);
@@ -187,6 +236,7 @@ async function main() {
   progress.currentEpci = 'TERMINÉ';
   progress.finished = true;
   writeProgress(progress);
+  await postDiscord(`🎉 **Import terminé** — ${progress.poisImported} POI importés · ${progress.skippedEpcis} EPCI déjà peuplées · ${progress.errors} erreurs.`);
   console.log(`\n🎉 Import terminé : ${progress.poisImported} POI importés, ${progress.skippedEpcis} EPCI sautées, ${progress.errors} erreurs.`);
 }
 

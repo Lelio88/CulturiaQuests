@@ -258,7 +258,11 @@ export class StrapiClient {
    */
   async epciHasPois(epciCode: string): Promise<boolean> {
     try {
-      const comcom = await this.findOne('comcoms', { 'filters[code][$eq]': epciCode });
+      // Les comcoms Strapi ont un code PRÉFIXÉ "EPCI-<siren>", alors que geo.api.gouv.fr
+      // (comcoms-data.json) fournit le SIREN BRUT (ex. "200071751"). On normalise pour que le
+      // match fonctionne — sinon aucune EPCI n'est jamais reconnue comme déjà faite.
+      const code = epciCode.startsWith('EPCI-') ? epciCode : `EPCI-${epciCode}`;
+      const comcom = await this.findOne('comcoms', { 'filters[code][$eq]': code });
       if (!comcom) return false;
       const res = await this.client.get('/api/pois', {
         params: { 'filters[comcom][id][$eq]': comcom.id, 'pagination[pageSize]': 1, 'pagination[withCount]': true },
