@@ -259,6 +259,15 @@ export default {
         // NPC : contenu de jeu partagé (lecture, comme museum/poi)
         'api::npc.npc.find',
         'api::npc.npc.findOne',
+        // Zones géographiques (région/département/comcom) : contenu public de la carte, lu via le
+        // BFF par le zone store (fog-of-war, contours, badges de zone). Sans ces grants → 403 sur
+        // déploiement neuf → carte sans zones + tous les badges de zone vides. #audit HIGH
+        'api::region.region.find',
+        'api::region.region.findOne',
+        'api::department.department.find',
+        'api::department.department.findOne',
+        'api::comcom.comcom.find',
+        'api::comcom.comcom.findOne',
         // BFF httpOnly (#17) : /users/me-with-role peuple le role (le /users/me natif le strippe).
         // Requis par useAuth/useAdmin côté front. L'Admin l'hérite via la copie des perms authenticated.
         'plugin::users-permissions.user.meWithRole',

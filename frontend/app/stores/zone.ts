@@ -128,33 +128,34 @@ export const useZoneStore = defineStore('zone', () => {
    * Crawler générique pour télécharger toute une collection (Paginé)
    */
   async function fetchFullCollection(endpoint: string): Promise<any[]> {
-    const config = useRuntimeConfig()
+    // Passage par le proxy BFF (`useApi` → /api/strapi/*) : la requête porte le cookie de session
+    // httpOnly et Strapi applique les permissions du rôle authenticated. L'ancien `$fetch` DIRECT
+    // cross-origin vers `config.public.strapi.url` était non authentifié (rôle public) → 403 sur un
+    // déploiement neuf si les zones ne sont pas publiques, et rejouait l'anti-pattern CORS du « aucun
+    // POI ». POI/museum passent déjà par le BFF (useTileLoader) ; zone.ts s'aligne. #audit HIGH
+    const api = useApi()
     const pageSize = 100
     const MAX_PAGES = 200
     let page = 1
     let hasMore = true
     const allItems: any[] = []
 
-    // Query params additionnels pour récupérer les relations parent
-    const extraQuery: Record<string, string> = {}
-    if (endpoint === 'comcoms') {
-      extraQuery['populate[department][fields][0]'] = 'documentId'
-    } else if (endpoint === 'departments') {
-      extraQuery['populate[region][fields][0]'] = 'documentId'
-    }
+    // Relations parent (documentId seul) selon la collection.
+    const populate =
+      endpoint === 'comcoms'
+        ? { department: { fields: ['documentId'] } }
+        : endpoint === 'departments'
+          ? { region: { fields: ['documentId'] } }
+          : undefined
 
     while (hasMore && page <= MAX_PAGES) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const response: any = await $fetch(`${config.public.strapi.url}/api/${endpoint}`, {
+      const response: any = await api(`/${endpoint}`, {
         query: {
-          'pagination[page]': page,
-          'pagination[pageSize]': pageSize,
-          'fields[0]': 'name',
-          'fields[1]': 'code',
-          'fields[2]': 'geometry',
-          'fields[3]': 'documentId', // Important pour Strapi v5
-          ...extraQuery
-        }
+          pagination: { page, pageSize },
+          fields: ['name', 'code', 'geometry', 'documentId'],
+          ...(populate ? { populate } : {}),
+        },
       })
 
       const dataBatch = response.data || []
