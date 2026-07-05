@@ -94,6 +94,17 @@ services:
     image: ollama/ollama:latest
     container_name: ollama
     restart: unless-stopped
+    # Garde-fous mémoire (cf. incident swap-death du 2026-07-05). Non borné, ollama a chargé
+    # mistral:7b (~4,6 Go) + des slots KV parallèles et, sous la charge continue de l'import POI
+    # France, a débordé sur le swap jusqu'à figer l'hôte (8 Go) en ~16 h. On le PLAFONNE sans swap :
+    # en cas de dépassement, c'est SON cgroup qui est tué (l'appelant réessaie), jamais la prod qui
+    # gèle. mistral:7b résident ≈ 4,6 Go → le plafond 5,5 Go laisse ~0,9 Go de marge.
+    mem_limit: 5632m
+    memswap_limit: 5632m        # == mem_limit → aucun swap pour ollama (pas de thrashing de l'hôte)
+    environment:
+      OLLAMA_NUM_PARALLEL: "1"        # 1 séquence à la fois (l'import est séquentiel) → borne le KV-cache
+      OLLAMA_MAX_LOADED_MODELS: "1"   # ne jamais garder plus d'un modèle résident
+      OLLAMA_KEEP_ALIVE: "5m"         # décharge le modèle après 5 min d'inactivité → rend ~4,6 Go à la prod
     # Entrypoint robuste (cf. audit #6) : `ollama serve` reste vivant même si le pull échoue
     # (pull best-effort, retenté à la demande) → plus de boucle de restart du conteneur.
     entrypoint: ["/bin/sh", "-c", "ollama serve & serve_pid=$$!; until ollama list >/dev/null 2>&1; do sleep 1; done; ollama pull ${OLLAMA_MODEL:-mistral:7b} || echo '[ollama] pull echoue - sera retente a la demande'; wait $$serve_pid"]
