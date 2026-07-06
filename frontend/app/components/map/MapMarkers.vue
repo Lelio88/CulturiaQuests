@@ -1,17 +1,12 @@
 <template>
-  <!-- Marqueur position utilisateur (Géré par Vue car unique et très dynamique) -->
-  <!-- isActive empêche LMarker d'essayer un removeLayer sur une carte déjà détruite -->
-  <LMarker v-if="isActive" :lat-lng="[userLat, userLng]">
-    <LIcon
-      icon-url="/assets/map/userpoint.svg"
-      :icon-size="[20, 20]"
-      :icon-anchor="[10, 10]"
-    />
-  </LMarker>
+  <!-- Aucun rendu Vue : POI/musées ET point utilisateur sont des couches Leaflet NATIVES gérées en
+       JS (renderMarkers / renderUserMarker). L'ancien <LMarker> Vue du point utilisateur a été retiré :
+       avec use-global-leaflet=false il ne s'initialisait pas de façon fiable (point bleu invisible) et
+       ses mises à jour à chaque fix GPS déclenchaient le bug Leaflet « _leaflet_events undefined ». -->
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, toRaw, computed } from 'vue'
+import { onMounted, onBeforeUnmount, watch, toRaw, computed } from 'vue'
 import L from 'leaflet'
 // Plugin de clustering : augmente `L` avec `L.markerClusterGroup`/`L.MarkerClusterGroup`. Import
 // en side-effect APRÈS leaflet (dépendance déjà chargée). Ce composant n'est rendu que côté client
@@ -41,8 +36,11 @@ const emit = defineEmits<{
 // Noms d'icônes de catégorie musée disponibles (fichiers /assets/map/museum/<nom>.webp).
 const MUSEUM_ICON_NAMES = ['Art', 'History', 'Make', 'Nature', 'Science', 'Society']
 
-// Flag pour désactiver le LMarker Vue avant la destruction de la carte
-const isActive = ref(true)
+// Marqueur natif de la position utilisateur (point bleu). Ajouté DIRECTEMENT à la carte (pas dans
+// markersLayer) pour rester visible même sous le seuil de zoom qui masque les POI, et pour ne pas être
+// balayé par le clearLayers du gate zoom.
+let userMarker: L.Marker | null = null
+const userIcon = L.icon({ iconUrl: '/assets/map/userpoint.svg', iconSize: [20, 20], iconAnchor: [10, 10] })
 
 // Couche des marqueurs POI/musées : clustering (leaflet.markercluster) si disponible, sinon repli
 // sur un simple layerGroup (voir renderMarkers). Type LayerGroup = base commune aux deux :
@@ -72,6 +70,24 @@ function getChestIconUrl(poi: Poi): string {
   return visitStore.isChestAvailable(poiId)
     ? '/assets/map/chest.png'
     : '/assets/map/chest-opened.png'
+}
+
+// Crée (une fois) puis repositionne le point bleu de l'utilisateur. Marqueur natif non interactif,
+// au-dessus des autres (zIndexOffset). Robuste : un échec ici n'affecte pas le rendu des POI.
+function renderUserMarker(): void {
+  const rawMap = toRaw(props.map)
+  if (!rawMap) return
+  if (props.userLat == null || props.userLng == null) return
+  const pos: [number, number] = [props.userLat, props.userLng]
+  try {
+    if (!userMarker) {
+      userMarker = L.marker(pos, { icon: userIcon, interactive: false, zIndexOffset: 1000 }).addTo(rawMap)
+    } else {
+      userMarker.setLatLng(pos)
+    }
+  } catch (e) {
+    console.warn('[MapMarkers] rendu point utilisateur échoué', e)
+  }
 }
 
 // --- RENDERING ---
@@ -117,7 +133,10 @@ const renderMarkersInner = () => {
 
   // Zoom trop faible : on retire tout (une seule fois)
   if (props.zoom < 11) {
-    if (markerById.size) { markersLayer.clearLayers(); markerById.clear() }
+    if (markerById.size) {
+      try { markersLayer.clearLayers() } catch (_) { /* icône déjà détachée (bug leaflet _leaflet_events) */ }
+      markerById.clear()
+    }
     return
   }
 
@@ -159,7 +178,7 @@ const renderMarkersInner = () => {
   // Retirer uniquement les marqueurs qui ne sont plus voulus (sortis du rayon / coffre changé)
   for (const [key, marker] of markerById) {
     if (!desired.has(key)) {
-      markersLayer!.removeLayer(marker)
+      try { markersLayer!.removeLayer(marker) } catch (_) { /* icône déjà détachée (bug leaflet _leaflet_events) */ }
       markerById.delete(key)
     }
   }
@@ -168,14 +187,18 @@ const renderMarkersInner = () => {
 // --- LIFECYCLE ---
 
 onMounted(() => {
-  if (props.map) renderMarkers()
+  if (props.map) { renderMarkers(); renderUserMarker() }
 })
 
 function cleanup() {
-  if (markersLayer && props.map) {
-    const rawMap = toRaw(props.map)
+  const rawMap = props.map ? toRaw(props.map) : null
+  if (markersLayer && rawMap) {
     try { rawMap.removeLayer(markersLayer) } catch (_) { /* ignore */ }
     markersLayer = null
+  }
+  if (userMarker && rawMap) {
+    try { rawMap.removeLayer(userMarker) } catch (_) { /* ignore */ }
+    userMarker = null
   }
   markerById.clear()
 }
@@ -183,23 +206,27 @@ function cleanup() {
 defineExpose({ cleanup })
 
 onBeforeUnmount(() => {
-  // Désactiver le LMarker Vue AVANT que la carte soit détruite
-  // Cela permet à Vue de faire un unmount propre du LMarker pendant que le map est encore intact
-  isActive.value = false
   cleanup()
 })
 
 // Réactivité
 // Les listes (props.museums/props.pois) sont déjà filtrées par viewport dans le parent (map.vue) :
 // on redessine quand elles changent ou quand on franchit le seuil de zoom 11.
-// userLat/userLng est conservé dans le watch NON pour filtrer (l'affichage suit le viewport) mais
-// comme SONDE temporelle bon marché : à chaque fix GPS, renderMarkers ré-évalue isChestAvailable
-// (dépendant du temps — cooldown 24 h) → l'icône d'un coffre redevenu ouvrable se met à jour même
-// carte immobile. Le diff incrémental (markerById) rend ce re-render quasi gratuit.
+//
+// userLat/userLng NE SONT PLUS dans ce watch. Auparavant ils y étaient comme « sonde temporelle »
+// pour ré-évaluer isChestAvailable (cooldown 24 h) à chaque fix GPS — mais avec une géoloc active,
+// chaque tick relançait renderMarkers → removeLayer/clearLayers en boucle → bug Leaflet
+// « _leaflet_events undefined » attrapé par le filet → reconstruction de la couche → clignotement
+// des POI. La disponibilité des coffres est déjà ré-évaluée au watch visits (ouverture) et à chaque
+// changement de POI (déplacement de carte), ce qui suffit largement.
 const isZoomVisible = computed(() => props.zoom >= 11)
 
-watch(() => [props.museums, props.pois, isZoomVisible.value, props.userLat, props.userLng], renderMarkers)
+watch(() => [props.museums, props.pois, isZoomVisible.value], renderMarkers)
 
 // Watch spécifique pour l'état des coffres
 watch(() => visitStore.visits.length, renderMarkers)
+
+// Le point bleu suit la position en continu — opération légère (un simple setLatLng), séparée du
+// rendu des POI pour ne jamais le perturber.
+watch(() => [props.userLat, props.userLng], renderUserMarker)
 </script>
