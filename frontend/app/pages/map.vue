@@ -106,10 +106,33 @@ const fogStore = useFogStore()
 const zoneStore = useZoneStore()
 const progressionStore = useProgressionStore()
 
+// Dernière position connue (localStorage) → au rechargement, la carte s'ouvre LÀ où le joueur était,
+// pas sur Saint-Lô : évite le flash « Saint-Lô » au démarrage le temps du 1er fix GPS. Repli Saint-Lô
+// au tout premier lancement (aucune position mémorisée). Guard client : pas de localStorage en SSR.
+const LAST_POSITION_KEY = 'cq_last_position'
+function readLastPosition(): { lat: number; lng: number } {
+  if (import.meta.client) {
+    try {
+      const raw = localStorage.getItem(LAST_POSITION_KEY)
+      if (raw) {
+        const p = JSON.parse(raw)
+        if (Number.isFinite(p?.lat) && Number.isFinite(p?.lng)) return { lat: p.lat, lng: p.lng }
+      }
+    } catch { /* JSON invalide / storage indisponible → repli défaut */ }
+  }
+  return { lat: 49.1167, lng: -1.0833 } // Saint-Lô
+}
+function saveLastPosition(lat: number, lng: number): void {
+  if (import.meta.client) {
+    try { localStorage.setItem(LAST_POSITION_KEY, JSON.stringify({ lat, lng })) } catch { /* quota / private */ }
+  }
+}
+const initialPos = readLastPosition()
+
 // Composables
 const geolocation = useGeolocation({
-  defaultLat: 49.1167,  // Saint-Lô
-  defaultLng: -1.0833,
+  defaultLat: initialPos.lat,
+  defaultLng: initialPos.lng,
   reloadThresholdKm: 5
 })
 
@@ -122,12 +145,12 @@ const mapRef = ref<{ leafletObject?: Leaflet.Map } | null>(null)
 const fogLayerRef = ref<InstanceType<typeof FogLayer> | null>(null)
 const mapMarkersRef = ref<InstanceType<typeof MapMarkers> | null>(null)
 const currentZoom = ref(16)
-// Centre de la carte DÉCOUPLÉ de la position live du joueur. Il est initialisé sur la position par
-// défaut (Saint-Lô) puis recentré UNE SEULE FOIS sur le joueur au 1er fix GPS (voir onFirstPosition).
-// Auparavant `:center="[userLat, userLng]"` suivait la position en continu → chaque tick GPS
-// ramenait la carte sur le joueur, empêchant d'explorer les environs et faisant « disparaître » les
-// POI de la zone regardée. Le point bleu, lui, continue de suivre la position (dans MapMarkers).
-const mapCenter = ref<[number, number]>([49.1167, -1.0833])
+// Centre de la carte DÉCOUPLÉ de la position live du joueur. Initialisé sur la DERNIÈRE position connue
+// (initialPos, cf. readLastPosition) plutôt que Saint-Lô en dur, puis recentré UNE SEULE FOIS sur le
+// joueur au 1er fix GPS (voir onFirstPosition). Auparavant `:center="[userLat, userLng]"` suivait la
+// position en continu → chaque tick GPS ramenait la carte sur le joueur, empêchant d'explorer les
+// environs et faisant « disparaître » les POI regardés. Le point bleu suit la position (dans MapMarkers).
+const mapCenter = ref<[number, number]>([initialPos.lat, initialPos.lng])
 const mapBounds = ref<Leaflet.LatLngBounds | null>(null) // Limites visibles de la carte
 const isMapReady = ref(false) // Flag de sécurité pour l'initialisation
 const selectedItem = ref<LocationItem | null>(null)
@@ -355,10 +378,12 @@ geolocation.registerCallbacks({
     // Aucun recentrage sur les positions suivantes → le joueur peut explorer la carte librement.
     mapCenter.value = [lat, lng]
     currentZoom.value = 13
+    saveLastPosition(lat, lng) // mémorise pour rouvrir la carte ici au prochain lancement
     fogStore.addPosition(lat, lng)
     zoneCompletion.checkFogCoverage(lat, lng)
   },
   onPositionUpdate: (lat, lng) => {
+    saveLastPosition(lat, lng)
     fogStore.addPosition(lat, lng)
     zoneCompletion.checkFogCoverage(lat, lng)
   },
