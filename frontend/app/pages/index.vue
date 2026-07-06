@@ -30,15 +30,9 @@
 <script setup lang="ts">
 import PixelButton from '~/components/form/PixelButton.vue'
 
-const user = useAuth().user
-
-onMounted(async () => {
-  // Redirect authenticated users to map page
-  if (user.value) {
-    navigateTo('/map')
-    return
-  }
-})
+// Les utilisateurs déjà connectés sont redirigés vers /map AVANT le rendu par le middleware global
+// (00-device-check.global.ts), en SSR (302) comme côté client (phase middleware) : cette page
+// d'accueil anonyme n'est donc jamais peinte pour un utilisateur authentifié → plus de flash au boot.
 
 definePageMeta({
   layout: 'blank',

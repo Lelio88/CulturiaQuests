@@ -44,6 +44,16 @@ export default defineNuxtRouteMiddleware((to) => {
     }
   }
 
+  // Utilisateur DÉJÀ connecté : ne jamais servir les pages d'entrée anonymes (accueil / login /
+  // inscription), même brièvement. La redirection est faite ICI, en phase middleware → en SSR c'est
+  // une 302 serveur (aucun HTML de landing envoyé), côté client elle a lieu avant le paint. Cela
+  // supprime le flash de l'écran d'accueil aperçu « quelques frames » quand la bascule vers /map
+  // était faite en onMounted (index.vue), donc APRÈS le premier rendu.
+  const entryRoutes = ['/', '/account/login', '/account/register']
+  if (user.value && entryRoutes.includes(to.path)) {
+    return navigateTo('/map')
+  }
+
   // Desktop access is not allowed (mobile-first) : l'UI de blocage est gérée par le composant
   // global `DesktopGate.vue` (overlay plein écran monté dans app.vue). On laisse donc rendre la
   // route ici — l'overlay recouvre le jeu, tout en gardant dashboard/login/légal accessibles.
