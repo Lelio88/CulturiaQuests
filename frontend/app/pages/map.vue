@@ -25,7 +25,7 @@
         <LMap
           ref="mapRef"
           v-model:zoom="currentZoom"
-          :center="[userLat, userLng]"
+          :center="mapCenter"
           :use-global-leaflet="false"
           :zoom-control="false"
           :max-zoom="20"
@@ -122,6 +122,12 @@ const mapRef = ref<{ leafletObject?: Leaflet.Map } | null>(null)
 const fogLayerRef = ref<InstanceType<typeof FogLayer> | null>(null)
 const mapMarkersRef = ref<InstanceType<typeof MapMarkers> | null>(null)
 const currentZoom = ref(16)
+// Centre de la carte DÉCOUPLÉ de la position live du joueur. Il est initialisé sur la position par
+// défaut (Saint-Lô) puis recentré UNE SEULE FOIS sur le joueur au 1er fix GPS (voir onFirstPosition).
+// Auparavant `:center="[userLat, userLng]"` suivait la position en continu → chaque tick GPS
+// ramenait la carte sur le joueur, empêchant d'explorer les environs et faisant « disparaître » les
+// POI de la zone regardée. Le point bleu, lui, continue de suivre la position (dans MapMarkers).
+const mapCenter = ref<[number, number]>([49.1167, -1.0833])
 const mapBounds = ref<Leaflet.LatLngBounds | null>(null) // Limites visibles de la carte
 const isMapReady = ref(false) // Flag de sécurité pour l'initialisation
 const selectedItem = ref<LocationItem | null>(null)
@@ -344,9 +350,11 @@ function loadVisibleEntities(): void {
 // Register geolocation callbacks
 geolocation.registerCallbacks({
   onFirstPosition: (lat, lng) => {
-    if (mapRef.value?.leafletObject) {
-      mapInteraction.flyToCoords(mapRef.value, lat, lng, 13, 1.5)
-    }
+    // Recentrage UNIQUE sur le joueur au 1er fix. On met à jour mapCenter (fiable même si la carte
+    // n'est pas encore prête, contrairement à un flyTo impératif qui serait alors sauté) + le zoom.
+    // Aucun recentrage sur les positions suivantes → le joueur peut explorer la carte librement.
+    mapCenter.value = [lat, lng]
+    currentZoom.value = 13
     fogStore.addPosition(lat, lng)
     zoneCompletion.checkFogCoverage(lat, lng)
   },
