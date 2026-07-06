@@ -3,7 +3,7 @@
     <!-- Card Musée -->
     <div class="bg-white p-4 rounded-2xl grid grid-cols-2 gap-2">
       <img
-        :src="`/assets/map/museum/${firstTag}.webp`"
+        :src="`/assets/map/museum/${museumIcon}.webp`"
         :alt="museum.name"
         class="w-full h-36 object-contain"
       />
@@ -90,6 +90,7 @@ import type { Character } from '~/types/character'
 import { useGuildStore } from '~/stores/guild'
 import { useInventoryStore } from '~/stores/inventory'
 import { useDamageCalculator } from '~/composables/useDamageCalculator'
+import { museumIconFile } from '~/utils/museumIcon'
 
 /**
  * Composant d'affichage du drawer pour un musée sélectionné.
@@ -121,14 +122,15 @@ const { calculateItemPower } = useDamageCalculator()
 
 const { isTooFar, formattedDistance, getCharacterIcon } = useDrawerLogic(toRef(props, 'distanceToUser'), debugMode)
 
-/** Map des icônes par catégorie de tag */
+/** Emoji par catégorie. Les clés DOIVENT matcher GAME_CATEGORIES (scripts/pois_importer/utils.ts) :
+ *  'Science' (pas 'Sciences') et 'Savoir-faire' (pas 'Savoir Faire') — sinon repli 🏷️ à tort. */
 const tagIcons: Record<string, string> = {
   'Histoire': '📜',
   'Art': '🎨',
-  'Sciences': '🔬',
+  'Science': '🔬',
   'Nature': '🌿',
   'Société': '👥',
-  'Savoir Faire': '🛠️',
+  'Savoir-faire': '🛠️',
 }
 
 /**
@@ -157,11 +159,10 @@ const museumTagsDisplay = computed<string[]>(() => {
 })
 
 /**
- * Premier tag du musée pour l'image
+ * Nom de fichier d'icône (.webp) du musée, dérivé de sa 1re catégorie. Passe par museumIconFile pour
+ * mapper la catégorie FR → fichier EN (ex. « Histoire » → History) et éviter un 404 (repli 'Art').
  */
-const firstTag = computed(() => {
-  return museumTagsDisplay.value[0] || 'Art'
-})
+const museumIcon = computed(() => museumIconFile(museumTagsDisplay.value[0]))
 
 /**
  * Helper pour extraire les tags du musée en lowercase (pour la comparaison)

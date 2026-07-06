@@ -16,6 +16,7 @@ import 'leaflet.markercluster'
 import type { Museum } from '~/types/museum'
 import type { Poi } from '~/types/poi'
 import { useVisitStore } from '~/stores/visit'
+import { museumIconFile } from '~/utils/museumIcon'
 
 const visitStore = useVisitStore()
 
@@ -32,9 +33,6 @@ const emit = defineEmits<{
   'select-museum': [museum: Museum]
   'select-poi': [poi: Poi]
 }>()
-
-// Noms d'icônes de catégorie musée disponibles (fichiers /assets/map/museum/<nom>.webp).
-const MUSEUM_ICON_NAMES = ['Art', 'History', 'Make', 'Nature', 'Science', 'Society']
 
 // Marqueur natif de la position utilisateur (point bleu). Ajouté DIRECTEMENT à la carte (pas dans
 // markersLayer) pour rester visible même sous le seuil de zoom qui masque les POI, et pour ne pas être
@@ -170,12 +168,9 @@ const renderMarkersInner = () => {
 
   props.museums.forEach(m => {
     if (!m.lat || !m.lng) return
-    // tags est un string[] (noms). L'ancien `m.tags?.[0]?.name` valait toujours undefined →
-    // tous les musées affichaient Art.webp. On mappe le 1er tag sur une icône existante
-    // (repli Art), jamais de 404 si le nom ne correspond à aucun fichier.
-    const t = m.tags?.[0]
-    const icon = t && MUSEUM_ICON_NAMES.includes(t) ? t : 'Art'
-    const iconUrl = `/assets/map/museum/${icon}.webp`
+    // Icône = 1re catégorie du musée mappée sur un fichier existant via museumIconFile (catégorie FR
+    // → fichier EN, ex. « Histoire » → History ; repli 'Art'). Jamais de 404, et bonne icône affichée.
+    const iconUrl = `/assets/map/museum/${museumIconFile(m.tags?.[0])}.webp`
     ensure(`m-${m.id}`, m.lat, m.lng, iconUrl, () => emit('select-museum', m))
   })
 
