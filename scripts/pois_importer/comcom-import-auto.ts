@@ -119,6 +119,30 @@ async function main() {
     doneTotal++;
   };
 
+  // Ligne « Restant » (dépt / région / France) recalculée à la volée APRÈS markDone. DRY : réutilisée
+  // par chaque notification d'EPCI (POI ajoutés, 0 POI, erreur). `remFrance = selected.length - doneTotal`
+  // décrémente de 1 par EPCI PARCOURUE ; auparavant le message n'était posté que si `imported > 0`,
+  // donc les EPCI silencieuses (sautées / 0 POI) décrémentaient sans jamais s'afficher → sauts
+  // inexpliqués du compteur (ex. 1150 → 1148, le 1149 « manquant » était une itération muette).
+  const remainingLine = (d: { code: string; region: string }): string => {
+    const remDept = (totalByDept.get(d.code) || 0) - (doneByDept.get(d.code) || 0);
+    const remRegion = (totalByRegion.get(d.region) || 0) - (doneByRegion.get(d.region) || 0);
+    const remFrance = selected.length - doneTotal;
+    return `⏳ Restant : **${remDept}** EPCI dans le dépt · **${remRegion}** dans la région · **${remFrance}** en France`;
+  };
+
+  // Anti-flood : les EPCI déjà peuplées (sautées SANS scan) ne postent pas de message individuel —
+  // sur une reprise France entière il y en aurait des milliers (429 Discord garanti). On les compte
+  // et on annonce le total en préfixe du prochain message réel, ce qui explique visiblement les
+  // « sauts » du compteur restant sans noyer le salon.
+  let pendingSkipped = 0;
+  const flushSkipPrefix = (): string => {
+    if (pendingSkipped <= 0) return '';
+    const n = pendingSkipped;
+    pendingSkipped = 0;
+    return `⏭️ ${n} EPCI déjà peuplée${n > 1 ? 's' : ''} passée${n > 1 ? 's' : ''} (sans scan)\n`;
+  };
+
   console.log(`🌍 Import auto — ${selected.length} EPCI${ONLY_DEPTS.length ? ` (dépts ${ONLY_DEPTS.join(',')})` : ' (France entière)'} — modèle ${OLLAMA_MODEL}`);
 
   if (!(await testOllamaConnection())) {
@@ -153,6 +177,7 @@ async function main() {
         progress.skippedEpcis++;
         progress.processedEpcis++;
         markDone(dept);
+        pendingSkipped++; // pas de message individuel (anti-flood) — annoncé en préfixe du prochain
         console.log(`⏭️  ${epci.nom} — déjà peuplée, saut`);
         writeProgress(progress);
         continue;
@@ -161,6 +186,13 @@ async function main() {
 
       const places = await scanEpci(epci, dept.nom, dept.region);
       let imported = 0;
+      // Compteurs LOCAUX à l'EPCI, pour expliquer un « 0 POI » sur Discord (voir le bloc de
+      // notification plus bas). Les compteurs globaux progress.* restent cumulés séparément.
+      const scanned = places.length;
+      let epciDedup = 0;      // lieux déjà présents en base (~100 m)
+      let epciNotPublic = 0;  // rejetés par l'IA : jugés non accessibles au public
+      let epciAiError = 0;    // l'IA (Ollama) a échoué / renvoyé une réponse invalide
+      let epciErrors = 0;     // exception d'import dans la boucle
 
       for (const place of places) {
         try {
@@ -172,13 +204,23 @@ async function main() {
           // Dédup AVANT Ollama (reprise efficace).
           if (await strapi.poiExists(lat, lng, isMuseum ? 'museum' : 'poi')) {
             progress.poisSkippedExisting++;
+            epciDedup++;
             continue;
           }
 
           const details = extractPlaceDetails(place);
           const ai = await categorizeWithAI(place, details);
-          if (ai._error || !ai.isPubliclyAccessible) {
+          // Distinguer les deux causes de rejet pour le rapport Discord : échec technique de l'IA
+          // (timeout / parse) vs décision « lieu non accessible au public ». Les deux comptent comme
+          // rejet global (progress.poisRejected) mais sont rapportés séparément par EPCI.
+          if (ai._error) {
             progress.poisRejected++;
+            epciAiError++;
+            continue;
+          }
+          if (!ai.isPubliclyAccessible) {
+            progress.poisRejected++;
+            epciNotPublic++;
             continue;
           }
 
@@ -203,6 +245,7 @@ async function main() {
           await sleep(OLLAMA_DELAY_MS);
         } catch (e) {
           progress.errors++;
+          epciErrors++;
           // Log explicite : sur un run détaché de plusieurs jours, un compteur d'erreurs muet
           // est indiagnostiquable (cf. le catch EPCI qui loggue déjà).
           console.error(`  ⚠️ échec import POI « ${(place as { name?: string })?.name ?? '?'} » :`, (e as Error)?.message ?? e);
@@ -214,24 +257,52 @@ async function main() {
       progress.processedEpcis++;
       markDone(dept);
       console.log(`✅ ${epci.nom} — ${imported} POI importés (total ${progress.poisImported})`);
+
+      // Notification par EPCI SCANNÉE — qu'elle ajoute des POI ou non. Sortir ce message du garde
+      // « imported > 0 » supprime les sauts inexpliqués du compteur, et le cas « 0 POI » explique
+      // désormais POURQUOI rien n'a été retenu (dédup, IA non-public, erreur IA, erreur d'import).
       if (imported > 0) {
-        const remDept = (totalByDept.get(dept.code) || 0) - (doneByDept.get(dept.code) || 0);
-        const remRegion = (totalByRegion.get(dept.region) || 0) - (doneByRegion.get(dept.region) || 0);
-        const remFrance = selected.length - doneTotal;
         await postDiscord(
+          flushSkipPrefix() +
           `✅ **${epci.nom}** — ${imported} POI ajoutés\n` +
           `📍 ${dept.nom} · ${dept.region}\n` +
-          `⏳ Restant : **${remDept}** EPCI dans le dépt · **${remRegion}** dans la région · **${remFrance}** en France`,
+          remainingLine(dept),
+        );
+      } else {
+        const reasons: string[] = [];
+        if (epciDedup > 0) reasons.push(`${epciDedup} déjà en base`);
+        if (epciNotPublic > 0) reasons.push(`${epciNotPublic} jugé${epciNotPublic > 1 ? 's' : ''} non accessible${epciNotPublic > 1 ? 's' : ''} au public (IA)`);
+        if (epciAiError > 0) reasons.push(`${epciAiError} erreur${epciAiError > 1 ? 's' : ''} IA`);
+        if (epciErrors > 0) reasons.push(`${epciErrors} erreur${epciErrors > 1 ? 's' : ''} d'import`);
+        const detail = scanned === 0
+          ? '🔎 Aucun lieu trouvé par Overpass sur ce périmètre'
+          : `🔎 ${scanned} lieu${scanned > 1 ? 'x' : ''} analysé${scanned > 1 ? 's' : ''} : ${reasons.join(' · ') || 'aucun retenu'}`;
+        await postDiscord(
+          flushSkipPrefix() +
+          `⏭️ **${epci.nom}** — 0 POI ajouté\n` +
+          `📍 ${dept.nom} · ${dept.region}\n` +
+          `${detail}\n` +
+          remainingLine(dept),
         );
       }
+
       if (doneTotal % HEARTBEAT_EVERY === 0) {
-        await postDiscord(`⏳ En cours — ${doneTotal}/${selected.length} EPCI traitées · ${progress.poisImported} POI · ETA ~${progress.etaHours ?? '?'} h`);
+        await postDiscord(`⏳ En cours — ${doneTotal}/${selected.length} EPCI traitées · ${selected.length - doneTotal} restantes en France · ${progress.poisImported} POI · ETA ~${progress.etaHours ?? '?'} h`);
       }
     } catch (e: any) {
       progress.errors++;
       progress.processedEpcis++; // évite une boucle infinie sur une EPCI qui plante systématiquement
       markDone(dept);
       console.error(`⚠️  ${epci.nom} — erreur EPCI: ${e?.message?.substring(0, 80)}`);
+      // On notifie aussi les échecs de scan : sans ça, une EPCI qui plante décrémentait le compteur
+      // en silence (autre source de « saut »).
+      await postDiscord(
+        flushSkipPrefix() +
+        `⚠️ **${epci.nom}** — échec du scan (0 POI)\n` +
+        `📍 ${dept.nom} · ${dept.region}\n` +
+        `🔎 Erreur : ${String(e?.message ?? e).slice(0, 120)}\n` +
+        remainingLine(dept),
+      );
     }
     writeProgress(progress);
   }
