@@ -143,63 +143,67 @@ export function useGeolocation(options: GeolocationOptions = {}) {
     geolocLoading.value = true
     geolocError.value = null
 
-    watchId.value = navigator.geolocation.watchPosition(
-      (position: GeolocationPosition) => {
-        const newLat = position.coords.latitude
-        const newLng = position.coords.longitude
+    // Traite une position reçue, quelle que soit sa source (fix initial getCurrentPosition OU tick
+    // watchPosition). Le 1er appel (isFirstPosition) recentre la carte + déclenche onFirstPosition ;
+    // les suivants mettent à jour la position et déclenchent le reload au-delà du seuil de distance.
+    // JS étant mono-thread, le 1er appel bascule isFirstPosition à false de façon synchrone : aucun
+    // risque de double-déclenchement même si les deux sources résolvent quasi simultanément.
+    const applyPosition = (position: GeolocationPosition) => {
+      const newLat = position.coords.latitude
+      const newLng = position.coords.longitude
 
-        if (isFirstPosition.value) {
-          // Première position obtenue
-          userLat.value = newLat
-          userLng.value = newLng
-          geolocLoading.value = false
-          isFirstPosition.value = false
-          lastFetchLat.value = newLat
-          lastFetchLng.value = newLng
+      if (isFirstPosition.value) {
+        userLat.value = newLat
+        userLng.value = newLng
+        geolocLoading.value = false
+        isFirstPosition.value = false
+        lastFetchLat.value = newLat
+        lastFetchLng.value = newLng
+        if (onFirstPosition.value) onFirstPosition.value(newLat, newLng)
+      } else {
+        userLat.value = newLat
+        userLng.value = newLng
+        if (onPositionUpdate.value) onPositionUpdate.value(newLat, newLng)
 
-          // Callback externe
-          if (onFirstPosition.value) {
-            onFirstPosition.value(newLat, newLng)
-          }
-        } else {
-          // Mises à jour suivantes
-          userLat.value = newLat
-          userLng.value = newLng
-
-          // Callback position update
-          if (onPositionUpdate.value) {
-            onPositionUpdate.value(newLat, newLng)
-          }
-
-          // Vérifier si besoin de reload (threshold dépassé)
-          if (lastFetchLat.value !== null && lastFetchLng.value !== null) {
-            const distance = calculateDistance(
-              lastFetchLat.value,
-              lastFetchLng.value,
-              newLat,
-              newLng
-            )
-
-            if (distance > reloadThresholdKm) {
-              lastFetchLat.value = newLat
-              lastFetchLng.value = newLng
-
-              // Callback threshold
-              if (onDistanceThresholdReached.value) {
-                onDistanceThresholdReached.value(distance)
-              }
-            }
+        // Vérifier si besoin de reload (threshold dépassé)
+        if (lastFetchLat.value !== null && lastFetchLng.value !== null) {
+          const distance = calculateDistance(lastFetchLat.value, lastFetchLng.value, newLat, newLng)
+          if (distance > reloadThresholdKm) {
+            lastFetchLat.value = newLat
+            lastFetchLng.value = newLng
+            if (onDistanceThresholdReached.value) onDistanceThresholdReached.value(distance)
           }
         }
+      }
+    }
+
+    // Fix initial RAPIDE et fiable : sans lui, le recentrage dépend uniquement du 1er tick de
+    // watchPosition, qui peut expirer (signal faible, desktop, timeout court) → la carte reste
+    // bloquée sur la position par défaut (Saint-Lô) sans jamais recentrer. getCurrentPosition en
+    // haute précision avec un timeout large fournit ce premier fix ; watchPosition prend le suivi.
+    navigator.geolocation.getCurrentPosition(
+      applyPosition,
+      (error: GeolocationPositionError) => {
+        // Échec du fix initial : on log seulement — watchPosition reste en lice pour recentrer.
+        console.warn('Initial geolocation fix failed:', error.message)
       },
+      {
+        enableHighAccuracy: true,   // GPS : premier point précis dès que possible
+        timeout: 15000,             // laisse le temps au GPS de fixer (vs 5 s trop court)
+        maximumAge: 60000           // accepte un point récent en cache pour un recentrage immédiat
+      }
+    )
+
+    watchId.value = navigator.geolocation.watchPosition(
+      applyPosition,
       (error: GeolocationPositionError) => {
         console.warn('Geolocation tracking failed:', error.message)
         geolocError.value = error.message
         geolocLoading.value = false
       },
       {
-        enableHighAccuracy: false,  // Plus rapide, utilise WiFi/réseau au lieu de GPS
-        timeout: 5000,              // Timeout de 5 secondes par tentative
+        enableHighAccuracy: false,  // Suivi : plus rapide/économe, WiFi/réseau au lieu de GPS
+        timeout: 10000,             // tolérant (le fix précis est déjà assuré par getCurrentPosition)
         maximumAge: 10000           // Accepte une position de moins de 10 secondes
       }
     )
