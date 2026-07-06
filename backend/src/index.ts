@@ -164,6 +164,18 @@ export default {
         'plugin::users-permissions.auth.forgotPassword',
         'plugin::users-permissions.auth.resetPassword',
         'api::character.character.getCharacterIcons',
+        // Zones géographiques (contours de région/département/comcom) : données PUBLIQUES non
+        // sensibles, chargées par le zone store dès l'ouverture de la carte. Accordées au rôle Public
+        // (le proxy BFF les relaie sans Bearer via PUBLIC_GET_PATHS → Strapi évalue le rôle Public).
+        // Le rôle Authenticated les a aussi (plus bas), mais le chemin nominal est désormais Public.
+        // Sans ce grant → 401/403 sur regions/comcoms/departments (carte sans contours + badges de
+        // zone vides). Régression du routage BFF (commit 7899ab8).
+        'api::region.region.find',
+        'api::region.region.findOne',
+        'api::department.department.find',
+        'api::department.department.findOne',
+        'api::comcom.comcom.find',
+        'api::comcom.comcom.findOne',
       ], 'Public');
     }
 

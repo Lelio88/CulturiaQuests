@@ -82,4 +82,4 @@ Le système attend désormais 3 Content-Types distincts avec des relations hiér
 - `is_completed` (Boolean, def: false)
 - `department` (Relation: Many-to-One)
 
-**Permissions** : L'accès `find` sur ces 3 collections doit être autorisé pour le rôle **Public**.
+**Permissions** : `find`/`findOne` sur ces 3 collections sont accordés aux rôles **Public** ET **Authenticated** au bootstrap (`backend/src/index.ts`). Le chargement passe par le proxy BFF (`frontend/server/api/strapi/[...path].ts`), qui relaie ces GET **sans Bearer** (`PUBLIC_GET_PATHS`) → Strapi évalue le rôle **Public**. Ne pas retirer ce grant : sans lui, `regions/comcoms/departments` renvoient 401/403 → carte sans contours et badges de zone vides (cf. régression du commit `7899ab8`, corrigée en rendant les zones publiques bout-en-bout).

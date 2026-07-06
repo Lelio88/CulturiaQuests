@@ -21,9 +21,13 @@
  */
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
-// Routes Strapi accessibles au rôle Public (bootstrap `backend/src/index.ts`) et appelées
-// avant que l'utilisateur ne dispose d'une session. GET uniquement.
-const PUBLIC_GET_PATHS = new Set(['character-icons'])
+// Routes Strapi accessibles au rôle Public (bootstrap `backend/src/index.ts`). GET uniquement.
+// - character-icons : consommé avant authentification (écran d'inscription).
+// - regions/comcoms/departments : contours géographiques PUBLICS (non sensibles) chargés dès
+//   l'ouverture de la carte par le zone store. Relayés SANS Bearer (voir `headers` plus bas) → Strapi
+//   évalue le rôle Public, ce qui évite de dépendre du grant `authenticated` (régression 7899ab8 :
+//   le fetch anonyme direct des zones a été remplacé par le BFF, qui attachait alors le Bearer).
+const PUBLIC_GET_PATHS = new Set(['character-icons', 'regions', 'comcoms', 'departments'])
 
 // Retour annoté `Promise<unknown>` : sans ça, l'inférence du type de retour du handler passe par
 // le registre de routes Nitro (auto-référence) → `default` implicitement `any` (TS7022/7024).
@@ -59,8 +63,11 @@ export default defineEventHandler(async (event): Promise<unknown> => {
   // Ne PAS parser+re-sérialiser : getQuery+ofetch casserait `populate[...]` imbriqué.
   const search = getRequestURL(event).search
 
-  // Route publique sans session : on relaie sans Authorization (Strapi applique le rôle Public).
-  const headers: Record<string, string> = jwt ? { Authorization: `Bearer ${jwt}` } : {}
+  // Les routes de PUBLIC_GET_PATHS sont TOUJOURS relayées sans Authorization (même si l'utilisateur a
+  // une session) → Strapi évalue le rôle Public. Sinon, on injecte le JWT de session. Sans le
+  // `!isPublicGet`, un utilisateur connecté forçait l'évaluation du rôle `authenticated` sur des
+  // ressources voulues publiques (ex. zones de la carte) → 401/403 si ce rôle n'a pas le grant.
+  const headers: Record<string, string> = (jwt && !isPublicGet) ? { Authorization: `Bearer ${jwt}` } : {}
 
   let body: Record<string, unknown> | undefined
   if (!['GET', 'HEAD'].includes(method)) {
