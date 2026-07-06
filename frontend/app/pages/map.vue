@@ -26,7 +26,7 @@
           ref="mapRef"
           v-model:zoom="currentZoom"
           :center="mapCenter"
-          :use-global-leaflet="false"
+          :use-global-leaflet="true"
           :zoom-control="false"
           :max-zoom="20"
           class="h-full w-full"

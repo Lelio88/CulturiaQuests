@@ -97,14 +97,25 @@ function renderUserMarker(): void {
 // sur deux instances Leaflet distinctes → un MarkerClusterGroup peut throw à l'ajout. On tente une fois ;
 // au moindre échec on bascule définitivement sur layerGroup (POI garantis, sans regroupement visuel).
 const buildMarkersLayer = (rawMap: L.Map): L.LayerGroup => {
-  // ⚠️ Clustering DÉSACTIVÉ au runtime (repli layerGroup fiable = comportement d'avant le clustering).
-  // Raison : avec use-global-leaflet=false, un MarkerClusterGroup (instance leaflet main) ajouté sur
-  // une carte (instance leaflet-src.esm de vue-leaflet) échoue ; pire, l'option `chunkedLoading`
-  // traite une partie des ajouts en ASYNCHRONE (setTimeout) → l'erreur n'est PAS rattrapable par un
-  // try/catch synchrone et fait disparaître tous les POI. On force donc layerGroup. Réactiver
-  // markerClusterGroup UNIQUEMENT après avoir unifié les instances Leaflet (dedupe/alias Vite dans
-  // nuxt.config) ET vérifié AU NAVIGATEUR (le build/typecheck ne détecte pas ce bug runtime).
-  // Cf. docs/zone_display_system.md.
+  // Clustering des POI/musées via leaflet.markercluster. Fonctionne car `use-global-leaflet="true"`
+  // (map.vue) : vue-leaflet, MapMarkers et le plugin partagent alors la MÊME instance Leaflet. Sans
+  // ça (ancien use-global-leaflet=false), la carte (build esm) et le MarkerClusterGroup (build main)
+  // étaient deux instances distinctes → l'ajout throwait au runtime et faisait disparaître les POI.
+  // Fallback layerGroup si le plugin est absent/échoue : les POI restent affichés (sans regroupement).
+  if (typeof (L as unknown as { markerClusterGroup?: unknown }).markerClusterGroup === 'function') {
+    try {
+      const cluster = L.markerClusterGroup({
+        maxClusterRadius: 60,        // rayon d'agrégation (px)
+        showCoverageOnHover: false,  // pas de polygone d'emprise au survol (mobile)
+        spiderfyOnMaxZoom: true,     // éclate les marqueurs superposés au zoom max
+        disableClusteringAtZoom: 16, // marqueurs individuels au plus près (rue)
+      })
+      cluster.addTo(rawMap)
+      return cluster
+    } catch (e) {
+      console.warn('[MapMarkers] clustering indisponible, repli layerGroup', e)
+    }
+  }
   const lg = L.layerGroup()
   lg.addTo(rawMap)
   return lg
