@@ -30,8 +30,13 @@ export default defineNuxtConfig({
     storage: 'localStorage',
   },
 
-  // CSS principal
-  css: ['~/assets/css/main.css'],
+  // CSS principal + styles du plugin de clustering Leaflet (bulles de regroupement des POI au
+  // dézoom). Sans ces feuilles, les clusters s'affichent en marqueurs empilés non stylés.
+  css: [
+    '~/assets/css/main.css',
+    'leaflet.markercluster/dist/MarkerCluster.css',
+    'leaflet.markercluster/dist/MarkerCluster.Default.css',
+  ],
 
   // Configuration des fonts avec @nuxt/fonts
   fonts: {

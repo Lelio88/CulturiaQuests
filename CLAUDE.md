@@ -26,7 +26,7 @@ Topologie rapide :
 *Versions contraintes par `backend/package.json` et `frontend/package.json`. N'introduisez aucune dépendance alternative sans approbation.*
 
 - **Backend** : Strapi 5.34.0, TypeScript 5, Node ≥ 20, PostgreSQL 14, `node-cron` 4, `openai` 6, `strapi-geodata`, `@strapi/provider-email-nodemailer` (SMTP Brevo — reset password)
-- **Frontend** : Nuxt 4.2, Vue 3.5, Pinia + `pinia-plugin-persistedstate` (storage `localStorage`), `@nuxtjs/leaflet`, `@nuxtjs/device`, `@nuxt/icon`, `nuxt-charts`, `animejs` (import direct route-splitté). Auth via BFF (cf. §IV.5) : le module `@nuxtjs/strapi` a été retiré des modules au cutover #17 (paquet conservé en dépendance mais non utilisé) ; `@hypernym/nuxt-anime` a été désinstallé.
+- **Frontend** : Nuxt 4.2, Vue 3.5, Pinia + `pinia-plugin-persistedstate` (storage `localStorage`), `@nuxtjs/leaflet`, `leaflet.markercluster` (clustering des marqueurs POI/musées au zoom ≥ 11), `@nuxtjs/device`, `@nuxt/icon`, `nuxt-charts`, `animejs` (import direct route-splitté). Auth via BFF (cf. §IV.5) : le module `@nuxtjs/strapi` a été retiré des modules au cutover #17 (paquet conservé en dépendance mais non utilisé) ; `@hypernym/nuxt-anime` a été désinstallé.
 - **Mobile** : Capacitor 8 (`@capacitor/android`, `@capacitor/ios`, `local-notifications`, `@capacitor/app` pour les deep-links / App Links)
 - **Tests E2E** : Playwright (configuré côté frontend uniquement)
 - **IA** : Ollama (`mistral:7b` par défaut en dev **et** en prod ; override possible via `OLLAMA_MODEL`, ex. `mistral-nemo:12b`, si le serveur dispose de la RAM/GPU) pour quiz timeline + catégorisation POI

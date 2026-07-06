@@ -47,6 +47,9 @@ Les zones affichées dépendent du niveau de zoom. Le store sélectionne la coll
 - **Contours** : Rendus via `L.geoJSON` avec un Canvas renderer Leaflet (évite les bugs SVG liés aux proxies Vue 3). Style blanc, contour gras, sans fond.
 - **Labels** : Markers `L.divIcon` positionnés au centroïde de chaque zone. Affichés pour les comcoms et départements. Pour les régions, affichés uniquement si la région n'est pas complétée.
 
+### Marqueurs POI / Musées (clustering)
+Distinct du rendu des zones ci-dessus, les **POI et musées** sont rendus dans `components/map/MapMarkers.vue` via un **groupe de clustering** `leaflet.markercluster` (`L.markerClusterGroup`) : au même seuil **zoom ≥ 11** (niveau ComCom), les marqueurs proches sont regroupés en une bulle comptée qui se scinde en zoomant, et redeviennent individuels au plus près (`disableClusteringAtZoom: 16`). Sous zoom 11, aucun marqueur POI n'est affiché ni chargé (le chargement par tuiles est coupé, cf. `map.vue` `loadVisibleEntities`) : la France entière reste lisible. Le clustering évite l'affichage de centaines de marqueurs éparpillés quand on dézoome sur une ComCom dense.
+
 ---
 
 ## 3. Configuration Requise (Backend)

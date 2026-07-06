@@ -13,6 +13,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, toRaw, computed } from 'vue'
 import L from 'leaflet'
+// Plugin de clustering : augmente `L` avec `L.markerClusterGroup`/`L.MarkerClusterGroup`. Import
+// en side-effect APRÈS leaflet (dépendance déjà chargée). Ce composant n'est rendu que côté client
+// (map.vue le monte sous <ClientOnly> via v-if="isMapReady") ; le module markercluster ne touche pas
+// au DOM à l'import (il ne fait qu'étendre L), donc l'import statique reste SSR-safe.
+import 'leaflet.markercluster'
 import type { Museum } from '~/types/museum'
 import type { Poi } from '~/types/poi'
 import { useVisitStore } from '~/stores/visit'
@@ -39,8 +44,10 @@ const MUSEUM_ICON_NAMES = ['Art', 'History', 'Make', 'Nature', 'Science', 'Socie
 // Flag pour désactiver le LMarker Vue avant la destruction de la carte
 const isActive = ref(true)
 
-// LayerGroup natif pour les performances
-let markersLayer: L.LayerGroup | null = null
+// Groupe de clustering natif (regroupe les POI/musées proches en une bulle comptée qui se scinde
+// au zoom). Remplace L.layerGroup : même API addLayer/removeLayer/clearLayers, donc le diff
+// incrémental markerById ci-dessous reste inchangé.
+let markersLayer: L.MarkerClusterGroup | null = null
 // Marqueurs vivants indexés par clé stable (id + état) → mise à jour incrémentale (diff)
 // au lieu de clearLayers()+recréation complète à chaque fix GPS.
 const markerById = new Map<string, L.Marker>()
@@ -72,7 +79,15 @@ function getChestIconUrl(poi: Poi): string {
 const renderMarkers = () => {
   const rawMap = toRaw(props.map)
   if (!rawMap) return
-  if (!markersLayer) markersLayer = L.layerGroup().addTo(rawMap)
+  if (!markersLayer) {
+    markersLayer = L.markerClusterGroup({
+      chunkedLoading: true,        // rendu par lots : pas de gel quand une comcom dense arrive d'un coup
+      maxClusterRadius: 60,        // rayon d'agrégation (px) — un peu resserré vs le défaut 80
+      showCoverageOnHover: false,  // pas de polygone d'emprise au survol (inutile/gênant sur mobile)
+      spiderfyOnMaxZoom: true,     // au zoom max, éclate les marqueurs superposés
+      disableClusteringAtZoom: 16, // au plus près (rue), marqueurs individuels — plus de bulle
+    }).addTo(rawMap)
+  }
 
   // Zoom trop faible : on retire tout (une seule fois)
   if (props.zoom < 11) {
