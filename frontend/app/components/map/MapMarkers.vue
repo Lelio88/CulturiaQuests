@@ -48,9 +48,6 @@ const isActive = ref(true)
 // sur un simple layerGroup (voir renderMarkers). Type LayerGroup = base commune aux deux :
 // addLayer/removeLayer/clearLayers sont identiques, donc le diff incrémental markerById reste inchangé.
 let markersLayer: L.LayerGroup | null = null
-// Une fois le clustering détecté défaillant au runtime (mélange d'instances Leaflet, cf. buildMarkersLayer
-// et le filet de renderMarkers), on ne le retente plus : layerGroup pour le reste de la session.
-let clusterFailed = false
 // Marqueurs vivants indexés par clé stable (id + état) → mise à jour incrémentale (diff)
 // au lieu de clearLayers()+recréation complète à chaque fix GPS.
 const markerById = new Map<string, L.Marker>()
@@ -84,39 +81,27 @@ function getChestIconUrl(poi: Poi): string {
 // sur deux instances Leaflet distinctes → un MarkerClusterGroup peut throw à l'ajout. On tente une fois ;
 // au moindre échec on bascule définitivement sur layerGroup (POI garantis, sans regroupement visuel).
 const buildMarkersLayer = (rawMap: L.Map): L.LayerGroup => {
-  const canCluster = !clusterFailed
-    && typeof (L as unknown as { markerClusterGroup?: unknown }).markerClusterGroup === 'function'
-  if (canCluster) {
-    try {
-      const cluster = L.markerClusterGroup({
-        chunkedLoading: true,        // rendu par lots : pas de gel quand une comcom dense arrive d'un coup
-        maxClusterRadius: 60,        // rayon d'agrégation (px) — un peu resserré vs le défaut 80
-        showCoverageOnHover: false,  // pas de polygone d'emprise au survol (inutile/gênant sur mobile)
-        spiderfyOnMaxZoom: true,     // au zoom max, éclate les marqueurs superposés
-        disableClusteringAtZoom: 16, // au plus près (rue), marqueurs individuels — plus de bulle
-      })
-      cluster.addTo(rawMap)
-      return cluster
-    } catch (e) {
-      console.warn('[MapMarkers] clustering indisponible à la création, repli layerGroup', e)
-      clusterFailed = true
-    }
-  }
+  // ⚠️ Clustering DÉSACTIVÉ au runtime (repli layerGroup fiable = comportement d'avant le clustering).
+  // Raison : avec use-global-leaflet=false, un MarkerClusterGroup (instance leaflet main) ajouté sur
+  // une carte (instance leaflet-src.esm de vue-leaflet) échoue ; pire, l'option `chunkedLoading`
+  // traite une partie des ajouts en ASYNCHRONE (setTimeout) → l'erreur n'est PAS rattrapable par un
+  // try/catch synchrone et fait disparaître tous les POI. On force donc layerGroup. Réactiver
+  // markerClusterGroup UNIQUEMENT après avoir unifié les instances Leaflet (dedupe/alias Vite dans
+  // nuxt.config) ET vérifié AU NAVIGATEUR (le build/typecheck ne détecte pas ce bug runtime).
+  // Cf. docs/zone_display_system.md.
   const lg = L.layerGroup()
   lg.addTo(rawMap)
   return lg
 }
 
-// Point d'entrée du rendu : enveloppe renderMarkersInner d'un filet. Si le rendu échoue (ex. le
-// MarkerClusterGroup throw à l'ajout d'un marqueur à cause du mélange d'instances Leaflet), on détruit
-// la couche, on force layerGroup et on re-render → les POI réapparaissent au lieu d'une carte muette
-// (l'ancien bug : throw non attrapé dans un watcher = 0 POI, silencieux).
+// Point d'entrée du rendu : enveloppe renderMarkersInner d'un filet défensif. Si le rendu échoue pour
+// une raison inattendue, on détruit la couche et on re-render → on évite qu'une exception avalée dans
+// un watcher Vue ne laisse une carte muette (l'ancien bug du clustering : throw non attrapé = 0 POI).
 const renderMarkers = () => {
   try {
     renderMarkersInner()
   } catch (e) {
-    console.warn('[MapMarkers] rendu échoué, bascule sur layerGroup', e)
-    clusterFailed = true
+    console.warn('[MapMarkers] rendu échoué, reconstruction de la couche', e)
     const rawMap = toRaw(props.map)
     if (markersLayer && rawMap) { try { rawMap.removeLayer(markersLayer) } catch (_) { /* ignore */ } }
     markersLayer = null
