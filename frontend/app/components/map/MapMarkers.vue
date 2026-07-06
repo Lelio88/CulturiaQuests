@@ -44,10 +44,13 @@ const MUSEUM_ICON_NAMES = ['Art', 'History', 'Make', 'Nature', 'Science', 'Socie
 // Flag pour désactiver le LMarker Vue avant la destruction de la carte
 const isActive = ref(true)
 
-// Groupe de clustering natif (regroupe les POI/musées proches en une bulle comptée qui se scinde
-// au zoom). Remplace L.layerGroup : même API addLayer/removeLayer/clearLayers, donc le diff
-// incrémental markerById ci-dessous reste inchangé.
-let markersLayer: L.MarkerClusterGroup | null = null
+// Couche des marqueurs POI/musées : clustering (leaflet.markercluster) si disponible, sinon repli
+// sur un simple layerGroup (voir renderMarkers). Type LayerGroup = base commune aux deux :
+// addLayer/removeLayer/clearLayers sont identiques, donc le diff incrémental markerById reste inchangé.
+let markersLayer: L.LayerGroup | null = null
+// Une fois le clustering détecté défaillant au runtime (mélange d'instances Leaflet, cf. buildMarkersLayer
+// et le filet de renderMarkers), on ne le retente plus : layerGroup pour le reste de la session.
+let clusterFailed = false
 // Marqueurs vivants indexés par clé stable (id + état) → mise à jour incrémentale (diff)
 // au lieu de clearLayers()+recréation complète à chaque fix GPS.
 const markerById = new Map<string, L.Marker>()
@@ -76,18 +79,56 @@ function getChestIconUrl(poi: Poi): string {
 
 // --- RENDERING ---
 
+// Crée la couche de marqueurs : clustering si possible, sinon layerGroup. Avec use-global-leaflet=false,
+// la carte (vue-leaflet → leaflet-src.esm) et le plugin markercluster (leaflet « main ») peuvent être
+// sur deux instances Leaflet distinctes → un MarkerClusterGroup peut throw à l'ajout. On tente une fois ;
+// au moindre échec on bascule définitivement sur layerGroup (POI garantis, sans regroupement visuel).
+const buildMarkersLayer = (rawMap: L.Map): L.LayerGroup => {
+  const canCluster = !clusterFailed
+    && typeof (L as unknown as { markerClusterGroup?: unknown }).markerClusterGroup === 'function'
+  if (canCluster) {
+    try {
+      const cluster = L.markerClusterGroup({
+        chunkedLoading: true,        // rendu par lots : pas de gel quand une comcom dense arrive d'un coup
+        maxClusterRadius: 60,        // rayon d'agrégation (px) — un peu resserré vs le défaut 80
+        showCoverageOnHover: false,  // pas de polygone d'emprise au survol (inutile/gênant sur mobile)
+        spiderfyOnMaxZoom: true,     // au zoom max, éclate les marqueurs superposés
+        disableClusteringAtZoom: 16, // au plus près (rue), marqueurs individuels — plus de bulle
+      })
+      cluster.addTo(rawMap)
+      return cluster
+    } catch (e) {
+      console.warn('[MapMarkers] clustering indisponible à la création, repli layerGroup', e)
+      clusterFailed = true
+    }
+  }
+  const lg = L.layerGroup()
+  lg.addTo(rawMap)
+  return lg
+}
+
+// Point d'entrée du rendu : enveloppe renderMarkersInner d'un filet. Si le rendu échoue (ex. le
+// MarkerClusterGroup throw à l'ajout d'un marqueur à cause du mélange d'instances Leaflet), on détruit
+// la couche, on force layerGroup et on re-render → les POI réapparaissent au lieu d'une carte muette
+// (l'ancien bug : throw non attrapé dans un watcher = 0 POI, silencieux).
 const renderMarkers = () => {
+  try {
+    renderMarkersInner()
+  } catch (e) {
+    console.warn('[MapMarkers] rendu échoué, bascule sur layerGroup', e)
+    clusterFailed = true
+    const rawMap = toRaw(props.map)
+    if (markersLayer && rawMap) { try { rawMap.removeLayer(markersLayer) } catch (_) { /* ignore */ } }
+    markersLayer = null
+    markerById.clear()
+    try { renderMarkersInner() } catch (e2) { console.error('[MapMarkers] rendu impossible', e2) }
+  }
+}
+
+const renderMarkersInner = () => {
   const rawMap = toRaw(props.map)
   if (!rawMap) return
-  if (!markersLayer) {
-    markersLayer = L.markerClusterGroup({
-      chunkedLoading: true,        // rendu par lots : pas de gel quand une comcom dense arrive d'un coup
-      maxClusterRadius: 60,        // rayon d'agrégation (px) — un peu resserré vs le défaut 80
-      showCoverageOnHover: false,  // pas de polygone d'emprise au survol (inutile/gênant sur mobile)
-      spiderfyOnMaxZoom: true,     // au zoom max, éclate les marqueurs superposés
-      disableClusteringAtZoom: 16, // au plus près (rue), marqueurs individuels — plus de bulle
-    }).addTo(rawMap)
-  }
+  if (!markersLayer) markersLayer = buildMarkersLayer(rawMap)
 
   // Zoom trop faible : on retire tout (une seule fois)
   if (props.zoom < 11) {

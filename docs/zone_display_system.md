@@ -47,8 +47,12 @@ Les zones affichées dépendent du niveau de zoom. Le store sélectionne la coll
 - **Contours** : Rendus via `L.geoJSON` avec un Canvas renderer Leaflet (évite les bugs SVG liés aux proxies Vue 3). Style blanc, contour gras, sans fond.
 - **Labels** : Markers `L.divIcon` positionnés au centroïde de chaque zone. Affichés pour les comcoms et départements. Pour les régions, affichés uniquement si la région n'est pas complétée.
 
-### Marqueurs POI / Musées (clustering)
-Distinct du rendu des zones ci-dessus, les **POI et musées** sont rendus dans `components/map/MapMarkers.vue` via un **groupe de clustering** `leaflet.markercluster` (`L.markerClusterGroup`) : au même seuil **zoom ≥ 11** (niveau ComCom), les marqueurs proches sont regroupés en une bulle comptée qui se scinde en zoomant, et redeviennent individuels au plus près (`disableClusteringAtZoom: 16`). Sous zoom 11, aucun marqueur POI n'est affiché ni chargé (le chargement par tuiles est coupé, cf. `map.vue` `loadVisibleEntities`) : la France entière reste lisible. Le clustering évite l'affichage de centaines de marqueurs éparpillés quand on dézoome sur une ComCom dense.
+### Marqueurs POI / Musées (rendu + clustering)
+Distinct du rendu des zones ci-dessus, les **POI et musées** sont rendus dans `components/map/MapMarkers.vue`. Au seuil **zoom ≥ 11** (niveau ComCom) ; sous zoom 11 aucun marqueur n'est affiché ni chargé (chargement par tuiles coupé, cf. `map.vue` `loadVisibleEntities`) — la France entière reste lisible.
+
+Le composant **tente** un regroupement via `leaflet.markercluster` (`L.markerClusterGroup`, bulle comptée qui se scinde au zoom, individuels dès `disableClusteringAtZoom: 16`), avec **repli automatique et robuste sur `L.layerGroup`** : `renderMarkers` est entièrement enveloppé d'un try/catch et bascule définitivement sur layerGroup au moindre throw. 
+
+⚠️ **Limite connue** : avec `use-global-leaflet="false"` (sur `<LMap>`), vue-leaflet bâtit la carte sur l'instance `leaflet/dist/leaflet-src.esm` tandis que `MapMarkers` + le plugin utilisent l'instance `leaflet` (main). Ces **deux instances Leaflet distinctes** font échouer le `MarkerClusterGroup` au runtime → le repli layerGroup s'active (POI visibles **sans** regroupement). Pour activer réellement le clustering, il faut **unifier les instances** (piste : `dedupe`/alias Vite dans `nuxt.config.ts`, ou `useGlobalLeaflet: true`) — à faire et **tester en navigateur** avant de compter sur le regroupement.
 
 ---
 
