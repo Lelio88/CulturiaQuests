@@ -59,6 +59,15 @@ function fmtDur(ms) {
 }
 
 /**
+ * ETA lisible. `null` (indéterminé, ex. juste après un redémarrage tant que < 3 scans réels) →
+ * « calcul en cours… » plutôt qu'un chiffre trompeur. Ajoute les jours au-delà de 48 h.
+ */
+function formatEta(h) {
+  if (h == null) return 'calcul en cours… (quelques scans requis)';
+  return h >= 48 ? `~${h} h (~${Math.round(h / 24)} j)` : `~${h} h`;
+}
+
+/**
  * Total d'une collection Strapi via `meta.pagination.total` (best-effort).
  * Crochets pré-encodés : undici tolère `[`/`]` mais on reste explicite. Retourne null si indispo.
  */
@@ -140,7 +149,7 @@ async function statusMessage() {
     `En cours : ${p.currentEpci || '—'}`,
     '',
     rateLine,
-    `🗓️ ETA fin de passe : ~${p.etaHours ?? '?'} h`,
+    `🗓️ ETA fin de passe : ${formatEta(p.etaHours)}`,
     'ℹ️ « passe » = balayage courant, remis à 0 à chaque redémarrage du runner ; le **total en base** est la vérité qui persiste.',
   ].join('\n');
 }

@@ -77,12 +77,29 @@ interface Progress {
   finished: boolean;
 }
 
+// Scans réels (hors EPCI sautées, quasi instantanées) requis avant d'estimer un ETA : sinon la
+// rafale de reprise (des centaines de sauts en quelques secondes) fausse la moyenne et sous-estime
+// grossièrement le temps restant juste après un redémarrage.
+const ETA_MIN_SCANNED = 3;
+
+/** ETA lisible pour Discord : « calcul en cours… » tant qu'indéterminée, sinon heures (+ jours si ≥ 48 h). */
+function formatEta(h: number | null): string {
+  if (h == null) return 'calcul en cours… (quelques scans requis)';
+  return h >= 48 ? `~${h} h (~${Math.round(h / 24)} j)` : `~${h} h`;
+}
+
 function writeProgress(p: Progress) {
   p.lastUpdate = nowIso();
   const startMs = Date.parse(p.startedAt);
   const elapsedH = (Date.now() - startMs) / 3_600_000;
-  const frac = p.totalEpcis ? p.processedEpcis / p.totalEpcis : 0;
-  p.etaHours = frac > 0.001 ? Math.max(0, Math.round((elapsedH / frac - elapsedH) * 10) / 10) : null;
+  // ETA = (EPCI restantes) × (temps moyen par EPCI RÉELLEMENT scannée). On exclut les sauts (déjà
+  // peuplées) du rythme : instantanés, ils feraient croire à une passe ultra-rapide et
+  // sous-estimeraient massivement le restant. Indéterminé (null) tant que < ETA_MIN_SCANNED scans.
+  const scanned = Math.max(0, p.processedEpcis - p.skippedEpcis);
+  const remaining = Math.max(0, p.totalEpcis - p.processedEpcis);
+  p.etaHours = (scanned >= ETA_MIN_SCANNED && elapsedH > 0)
+    ? Math.max(0, Math.round((remaining * (elapsedH / scanned)) * 10) / 10)
+    : null;
   try { fs.writeFileSync(PROGRESS_FILE, JSON.stringify(p, null, 2)); } catch { /* disque plein ? on continue */ }
 }
 
@@ -313,7 +330,7 @@ async function main() {
       }
 
       if (doneTotal % HEARTBEAT_EVERY === 0) {
-        await postDiscord(`⏳ En cours — ${doneTotal}/${selected.length} EPCI traitées · ${selected.length - doneTotal} restantes en France · ${progress.poisImported} POI · ETA ~${progress.etaHours ?? '?'} h`);
+        await postDiscord(`⏳ En cours — ${doneTotal}/${selected.length} EPCI traitées · ${selected.length - doneTotal} restantes en France · ${progress.poisImported} POI · ETA ${formatEta(progress.etaHours)}`);
       }
     } catch (e: any) {
       progress.errors++;
