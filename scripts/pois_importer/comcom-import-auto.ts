@@ -69,6 +69,8 @@ interface Progress {
   currentEpci: string;
   poisImported: number;
   poisRejected: number;
+  poisRejectedNotPublic: number; // sous-total : rejetés car jugés non accessibles au public (IA)
+  poisRejectedAiError: number;   // sous-total : rejetés car l'IA a échoué (timeout / parse invalide)
   poisSkippedExisting: number;
   errors: number;
   etaHours: number | null;
@@ -162,7 +164,8 @@ async function main() {
     startedAt: nowIso(), lastUpdate: nowIso(), ollamaModel: OLLAMA_MODEL,
     scope: ONLY_DEPTS.length ? `dépts ${ONLY_DEPTS.join(',')}` : 'France entière',
     totalEpcis: selected.length, processedEpcis: 0, skippedEpcis: 0, currentEpci: '',
-    poisImported: 0, poisRejected: 0, poisSkippedExisting: 0, errors: 0, etaHours: null, finished: false,
+    poisImported: 0, poisRejected: 0, poisRejectedNotPublic: 0, poisRejectedAiError: 0,
+    poisSkippedExisting: 0, errors: 0, etaHours: null, finished: false,
   };
   writeProgress(progress);
 
@@ -215,11 +218,13 @@ async function main() {
           // rejet global (progress.poisRejected) mais sont rapportés séparément par EPCI.
           if (ai._error) {
             progress.poisRejected++;
+            progress.poisRejectedAiError++;
             epciAiError++;
             continue;
           }
           if (!ai.isPubliclyAccessible) {
             progress.poisRejected++;
+            progress.poisRejectedNotPublic++;
             epciNotPublic++;
             continue;
           }
