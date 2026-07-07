@@ -274,6 +274,25 @@ export class StrapiClient {
   }
 
   /**
+   * Nombre de POI déjà en base pour une EPCI (0 si aucune / comcom inconnue). Même lookup que
+   * `epciHasPois` mais renvoie le total (déjà présent dans la pagination) au lieu d'un booléen —
+   * pour afficher « X POI dedans » dans le digest des EPCI sautées sans requête supplémentaire.
+   */
+  async epciPoiCount(epciCode: string): Promise<number> {
+    try {
+      const code = epciCode.startsWith('EPCI-') ? epciCode : `EPCI-${epciCode}`;
+      const comcom = await this.findOne('comcoms', { 'filters[code][$eq]': code });
+      if (!comcom) return 0;
+      const res = await this.client.get('/api/pois', {
+        params: { 'filters[comcom][id][$eq]': comcom.id, 'pagination[pageSize]': 1, 'pagination[withCount]': true },
+      });
+      return res.data?.meta?.pagination?.total || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
    * Un POI/musée existe-t-il déjà à ~100 m de ces coordonnées ? Même contrôle que la dédup interne
    * d'`importPOI`, exposé pour sauter la catégorisation Ollama (coûteuse) d'un lieu déjà en base —
    * crucial pour la reprise efficace après un crash en cours d'EPCI.

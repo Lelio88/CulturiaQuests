@@ -133,16 +133,36 @@ async function main() {
     return `⏳ Restant : **${remDept}** EPCI dans le dépt · **${remRegion}** dans la région · **${remFrance}** en France`;
   };
 
-  // Anti-flood : les EPCI déjà peuplées (sautées SANS scan) ne postent pas de message individuel —
-  // sur une reprise France entière il y en aurait des milliers (429 Discord garanti). On les compte
-  // et on annonce le total en préfixe du prochain message réel, ce qui explique visiblement les
-  // « sauts » du compteur restant sans noyer le salon.
-  let pendingSkipped = 0;
-  const flushSkipPrefix = (): string => {
-    if (pendingSkipped <= 0) return '';
-    const n = pendingSkipped;
-    pendingSkipped = 0;
-    return `⏭️ ${n} EPCI déjà peuplée${n > 1 ? 's' : ''} passée${n > 1 ? 's' : ''} (sans scan)\n`;
+  // EPCI déjà peuplées (sautées SANS scan) : on ne poste PAS un message par EPCI — une reprise
+  // re-parcourt des centaines d'EPCI déjà faites en quelques secondes (429 Discord garanti). On
+  // accumule (nom + nb de POI déjà en base) et on FLUSH un digest par lots AVANT le prochain
+  // message réel : transparence (quelle EPCI, combien de POI) sans flood. Plafonné à MAX_DIGEST_LOTS
+  // lots détaillés + 1 ligne de résumé pour le reste → borne le nombre de messages sur une grosse reprise.
+  const pendingSkipped: { nom: string; count: number }[] = [];
+  const SKIP_DIGEST_CHUNK = 20;   // EPCI listées par message (marge sous la limite 2000 car. Discord)
+  const MAX_DIGEST_LOTS = 10;     // lots détaillés max → au plus 11 messages, même pour 1000 sauts
+  const flushSkippedDigest = async (): Promise<void> => {
+    if (pendingSkipped.length === 0) return;
+    const items = pendingSkipped.splice(0); // vide la file d'un coup
+    const detailed = items.slice(0, MAX_DIGEST_LOTS * SKIP_DIGEST_CHUNK);
+    const rest = items.slice(MAX_DIGEST_LOTS * SKIP_DIGEST_CHUNK);
+    const nbLots = Math.ceil(detailed.length / SKIP_DIGEST_CHUNK);
+    for (let i = 0; i < nbLots; i++) {
+      const chunk = detailed.slice(i * SKIP_DIGEST_CHUNK, (i + 1) * SKIP_DIGEST_CHUNK);
+      const sumPoi = chunk.reduce((s, e) => s + e.count, 0);
+      const lignes = chunk.map((e) => `• ${e.nom} — ${e.count} POI`).join('\n');
+      const isLast = i === nbLots - 1 && rest.length === 0;
+      const footer = isLast ? `\n⏳ Restant : **${selected.length - doneTotal}** EPCI en France` : '';
+      await postDiscord(`⏭️ **Déjà en base, sautées** (lot ${i + 1}/${nbLots}) — ${sumPoi} POI :\n${lignes}${footer}`);
+      await sleep(400); // respire entre les lots
+    }
+    if (rest.length > 0) {
+      const restPoi = rest.reduce((s, e) => s + e.count, 0);
+      await postDiscord(
+        `⏭️ **+ ${rest.length} autres EPCI** déjà en base (${restPoi} POI, non listées)\n` +
+        `⏳ Restant : **${selected.length - doneTotal}** EPCI en France`,
+      );
+    }
   };
 
   console.log(`🌍 Import auto — ${selected.length} EPCI${ONLY_DEPTS.length ? ` (dépts ${ONLY_DEPTS.join(',')})` : ' (France entière)'} — modèle ${OLLAMA_MODEL}`);
@@ -176,12 +196,13 @@ async function main() {
     try {
       // Saut si la comcom (matchée par code EPCI-xxxxx) a déjà des POI — SAUF l'EPCI interrompue au
       // dernier crash (forceEpciCode), qu'on re-traite pour compléter sa fin.
-      if (epci.code !== forceEpciCode && (await strapi.epciHasPois(epci.code))) {
+      const existingCount = epci.code === forceEpciCode ? 0 : await strapi.epciPoiCount(epci.code);
+      if (existingCount > 0) {
         progress.skippedEpcis++;
         progress.processedEpcis++;
         markDone(dept);
-        pendingSkipped++; // pas de message individuel (anti-flood) — annoncé en préfixe du prochain
-        console.log(`⏭️  ${epci.nom} — déjà peuplée, saut`);
+        pendingSkipped.push({ nom: epci.nom, count: existingCount }); // digest groupé (anti-flood)
+        console.log(`⏭️  ${epci.nom} — déjà peuplée (${existingCount} POI), saut`);
         writeProgress(progress);
         continue;
       }
@@ -267,8 +288,8 @@ async function main() {
       // « imported > 0 » supprime les sauts inexpliqués du compteur, et le cas « 0 POI » explique
       // désormais POURQUOI rien n'a été retenu (dédup, IA non-public, erreur IA, erreur d'import).
       if (imported > 0) {
+        await flushSkippedDigest();
         await postDiscord(
-          flushSkipPrefix() +
           `✅ **${epci.nom}** — ${imported} POI ajoutés\n` +
           `📍 ${dept.nom} · ${dept.region}\n` +
           remainingLine(dept),
@@ -282,8 +303,8 @@ async function main() {
         const detail = scanned === 0
           ? '🔎 Aucun lieu trouvé par Overpass sur ce périmètre'
           : `🔎 ${scanned} lieu${scanned > 1 ? 'x' : ''} analysé${scanned > 1 ? 's' : ''} : ${reasons.join(' · ') || 'aucun retenu'}`;
+        await flushSkippedDigest();
         await postDiscord(
-          flushSkipPrefix() +
           `⏭️ **${epci.nom}** — 0 POI ajouté\n` +
           `📍 ${dept.nom} · ${dept.region}\n` +
           `${detail}\n` +
@@ -301,8 +322,8 @@ async function main() {
       console.error(`⚠️  ${epci.nom} — erreur EPCI: ${e?.message?.substring(0, 80)}`);
       // On notifie aussi les échecs de scan : sans ça, une EPCI qui plante décrémentait le compteur
       // en silence (autre source de « saut »).
+      await flushSkippedDigest();
       await postDiscord(
-        flushSkipPrefix() +
         `⚠️ **${epci.nom}** — échec du scan (0 POI)\n` +
         `📍 ${dept.nom} · ${dept.region}\n` +
         `🔎 Erreur : ${String(e?.message ?? e).slice(0, 120)}\n` +
@@ -312,6 +333,7 @@ async function main() {
     writeProgress(progress);
   }
 
+  await flushSkippedDigest(); // vide un éventuel reliquat de sauts en fin de run
   progress.currentEpci = 'TERMINÉ';
   progress.finished = true;
   writeProgress(progress);
