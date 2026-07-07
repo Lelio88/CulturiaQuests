@@ -6,6 +6,12 @@ name: Deploy to Production
 "on":
   push:
     branches: [release]
+    # Un push doc-only (CLAUDE.md, docs/**, README…) ne doit pas déclencher un rebuild +
+    # redéploiement complet du serveur. Sémantique GitHub : si TOUS les fichiers modifiés par
+    # le push matchent `paths-ignore`, le workflow est ignoré ; un push mixte (code + .md)
+    # déclenche bien le deploy.
+    paths-ignore:
+      - '**.md'
 
 jobs:
   deploy:
