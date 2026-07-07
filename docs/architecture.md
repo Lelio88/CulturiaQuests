@@ -49,7 +49,7 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 
 ## 3. Catalogue des content-types Strapi
 
-29 content-types sous `backend/src/api/<name>/content-types/<name>/schema.json`. Chaque dossier suit la structure Strapi standard : `content-types/`, `controllers/`, `routes/`, `services/`.
+29 modules sous `backend/src/api/<name>/` : **26 content-types persistés** (avec `content-types/<name>/schema.json`) + 3 endpoints service-only sans entité (`admin-dashboard`, `statistic`, `user-settings`). Chaque dossier suit la structure Strapi standard : `content-types/` (si persisté), `controllers/`, `routes/`, `services/`.
 
 ### Entités cœur (boucle de jeu)
 
@@ -195,7 +195,7 @@ Exemple end-to-end représentatif (auth + validation métier + interaction multi
 - **Lecture defensive du shape Strapi** : `guild.value?.gold ?? guild.value?.attributes?.gold ?? 0` — Strapi v5 a aplati la structure mais certaines réponses peuvent encore retourner `attributes`. Toujours fournir un fallback `0` / `''`.
 - **SSR vs CSR** : `runtimeConfig.strapi.url = 'http://backend:1337'` (interne Docker, utilisé par le SSR), `runtimeConfig.public.strapi.url = 'http://localhost:1337'` (utilisé par le browser). Ne **jamais** inverser.
 
-### BFF httpOnly (#17 — migration en cours)
+### BFF httpOnly — le JWT soustrait au JavaScript
 
 Objectif : soustraire le JWT au JavaScript. Le token vit dans un cookie **HTTP-ONLY** (`cq_session`) détenu côté serveur Nuxt, et tous les appels passent par un **BFF** (Backend-For-Frontend) same-origin.
 
@@ -205,7 +205,7 @@ Objectif : soustraire le JWT au JavaScript. Le token vit dans un cookie **HTTP-O
   - `ANY /api/strapi/<chemin>` : proxy authentifié — relaie vers Strapi `/api/<chemin>` en injectant `Authorization: Bearer` côté serveur. Garde `!jwt` (401), **défense CSRF** (origine same-origin exigée sur POST/PUT/PATCH/DELETE), mapping d'erreur robuste. **Exception** : une allowlist `PUBLIC_GET_PATHS` (GET uniquement, ex. `character-icons`) est relayée **sans session** — routes accordées au rôle Public côté Strapi, consommées avant authentification (écran d'inscription → choix de l'icône). Sans cookie, aucun en-tête `Authorization` n'est envoyé (Strapi applique ses permissions Public).
 - **Endpoint backend `GET /api/users/me-with-role`** (extension users-permissions) : variante de `/users/me` qui **peuple le `role`** (le `me` natif le retire au `sanitizeQuery`), requis par les checks admin du front. Permission `plugin::users-permissions.user.meWithRole` accordée au bootstrap (`authenticated`, héritée par `admin`).
 - **Front (`useApi` / `useAuth` / `plugins/auth.ts`)** : `useApi()` (compatible `useStrapiClient`) route vers le proxy ; `useAuth()` remplace `useStrapiUser/Auth` ; le plugin hydrate l'user en SSR (gate sur présence du cookie). Le fetcher SSR utilise `useRequestFetch()` pour propager le cookie httpOnly.
-- **État** : migration #17 **terminée** (phases A/B/C mergées). Le cutover a retiré `@nuxtjs/strapi` des modules de `nuxt.config.ts` et supprimé l'ancien cookie `culturia_jwt` ; seul le cookie HTTP-only `cq_session` (BFF) est désormais utilisé. Le paquet npm `@nuxtjs/strapi` reste en dépendance mais n'est plus chargé. Détail : `frontend/server/README.md`.
+- **Périmètre** : le JWT vit uniquement dans le cookie HTTP-only `cq_session` (BFF). `@nuxtjs/strapi` est **entièrement retiré** — modules de `nuxt.config.ts` **et** dépendance `package.json`. `runtimeConfig.strapi.url` (proxy SSR) et `public.strapi.url` (URLs média) sont conservés. Le logout efface défensivement un éventuel cookie `culturia_jwt` legacy. Détail : `frontend/server/README.md`.
 
 ### Conventions cross-cutting
 
@@ -233,7 +233,7 @@ Objectif : soustraire le JWT au JavaScript. Le token vit dans un cookie **HTTP-O
 
 | Niveau | Outillage | Couverture |
 |---|---|---|
-| Unit | Aucun en place. À ajouter pour les services purs (`run.service.calculateRewards`, `quiz-attempt.service.calculateScore`, `utils/geometry.ts`, `utils/guildLevel.ts`). | Cible **80%** sur la logique métier (cf. `~/.claude/rules/common/testing.md`). |
+| Unit | **Vitest** câblé (`backend/package.json` → `npm test` / `test:watch`), suites à écrire pour les services purs (`run.service.calculateRewards`, `quiz-attempt.service.calculateScore`, `utils/geometry.ts`, `utils/guildLevel.ts`). | Cible **80%** sur la logique métier (cf. `~/.claude/rules/common/testing.md`). |
 | Integration backend | Aucun en place. Strapi expose un harness `strapi/factories` utilisable mais non câblé. | À introduire pour les controllers à filtre `user.id` (vérifier l'isolation). |
 | E2E frontend | Playwright (`frontend/playwright.config.ts`, scripts `npm test` / `npm run test:ui`). | Flows critiques à couvrir : login → guild setup → expedition → chest, quiz daily, friendship request. |
 
