@@ -78,6 +78,15 @@ npx tsx scripts/generate-quiz-questions.ts --save
 
 # Production
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+
+# App mobile Android (Capacitor — module frontend/)
+cd frontend && npm run generate && npx cap sync android  # web → android/
+cd frontend/android && ./gradlew bundleRelease           # AAB signé (keystore.properties, non versionné)
+
+# Publication Play Store (prérequis : 1ʳᵉ version envoyée à la main dans la console)
+python scripts/publish_play.py --show-config                    # config détectée, sans réseau
+python scripts/publish_play.py --track alpha --dry-run          # valide sans rien publier
+python scripts/publish_play.py --track alpha --notes-file <f>   # publie en test fermé
 ```
 
 ## VII. Maintenance documentaire
@@ -93,6 +102,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 | Ajout de dépendance critique | Section III + `package.json` correspondant |
 | Nouvel anti-pattern découvert | Section « Anti-patterns » de `docs/architecture.md` |
 | Migration de données (one-shot) | Script dans `scripts/populate_db/` + mention dans `docs/architecture.md` |
+| Procédure de publication Play | `scripts/publish_play.py` + `../play-store-publication-guide.md` §13. Service account JSON dans `../.culturiaquests-secrets/play-sa.json` — **hors dépôt** |
 
 ## VIII. Contexte de Session
 

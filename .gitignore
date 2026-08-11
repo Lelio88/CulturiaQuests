@@ -223,3 +223,7 @@ pois-output-*.json
 # OpenQuizzDB (fichiers téléchargés, ne pas versionner)
 backend/src/data/openquizzdb/openquizzdb_*.json
 backend/src/data/openquizzdb/used-questions.json
+
+# Compte de service Google Play — vit dans ../.culturiaquests-secrets/, jamais ici.
+play-sa.json
+*service-account*.json
