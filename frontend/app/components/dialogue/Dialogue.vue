@@ -79,10 +79,10 @@ const npcImage = computed(() => {
  *
  * `[DungeonThreshold]` n'est substituable que si un palier est fourni, et il ne l'est pas partout :
  * `QuestBox` affiche des `quest_description` sans expédition en cours, donc sans palier — la donnée
- * vit sur le `run`, pas sur la quête. Résultat, le joueur lisait « à l'étage [DungeonThreshold] ».
+ * vit sur le `run`, pas sur la quête. Résultat, le joueur lisait « au palier [DungeonThreshold] ».
  *
  * Ce nettoyage est un pansement, pas la solution : une phrase amputée de sa balise reste bancale
- * (« à l'étage du sanctuaire »). Les textes concernés doivent être réécrits en base (#176). Il
+ * (« au palier du bastion »). Les textes concernés ont été réécrits en base (#176). Il
  * garantit seulement qu'aucune balise brute ne puisse jamais atteindre l'écran, y compris pour un
  * dialogue ajouté plus tard.
  */

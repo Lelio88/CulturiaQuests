@@ -136,7 +136,8 @@ d'écrire un texte d'interface.
 
 À respecter dans tout texte destiné au joueur (dialogues, tutoriel, interface) :
 
-- On **monte** un bastion. Jamais « descendre », jamais « donjon ».
+- On **monte** un bastion. Jamais « descendre », jamais « donjon », jamais « sanctuaire ».
+- Un niveau de bastion est un **palier**, jamais un « étage ».
 - Le joueur **est** maître de guilde. Ne jamais l'écrire comme une recrue ou un aventurier.
 - Les musées envahis sont des **bastions** ; les brèches ne se **referment** jamais.
 - L'ennemi **efface**, il ne brûle pas et ne pille pas.

@@ -57,7 +57,7 @@ Voici les différents types de dialogues supportés :
     "type": "expedition_appear",
     "entries": [
       "Ah, [PlayerName]… quelle galère...",
-      "J’ai poursuivi une bête rare et elle m’a semé à l'étage [DungeonThreshold]...",
+      "J’ai poursuivi une bête rare et elle m’a semé au palier [DungeonThreshold]...",
       "Tu pourrais m’aider ?"
     ]
   },
