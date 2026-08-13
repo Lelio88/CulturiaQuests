@@ -254,10 +254,12 @@ const { userLat, userLng, geolocLoading } = geolocation
 // Handlers
 function handleGeolocationAllow(): void {
   geolocation.startTracking()
+  tutorialStore.start()
 }
 
 function handleGeolocationDeny(): void {
   // Silencieux — les coords par défaut sont utilisées
+  tutorialStore.start()
 }
 
 // Mise à jour des limites visibles (BBOX) — debounced pour éviter les cascades réactives
@@ -405,10 +407,11 @@ onMounted(async () => {
     }
   }
 
-  // Tutoriel d'accueil (#175) : déclenché depuis la carte et non depuis le layout, car ses
-  // premières étapes la détourent — il faut qu'elle soit montée. `start()` est un no-op si le
-  // joueur l'a déjà terminé ou passé.
-  tutorialStore.start()
+  // Le tutoriel n'est PAS déclenché ici : au premier lancement, `GeolocationRequest` affiche sa
+  // demande d'autorisation, et l'overlay du tutoriel (z-10001) la recouvrait — le joueur devait
+  // dérouler neuf étapes avant de pouvoir activer son GPS. Il démarre donc une fois ce choix fait,
+  // depuis `handleGeolocationAllow` / `handleGeolocationDeny`, qui sont appelés dans tous les cas
+  // (y compris quand la permission est déjà mémorisée).
 })
 
 // onBeforeUnmount : nettoyer AVANT que LMap.beforeUnmount détruise la carte Leaflet

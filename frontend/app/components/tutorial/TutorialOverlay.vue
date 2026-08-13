@@ -101,13 +101,29 @@ const npcImage = computed(() => {
   return `/assets/npc/${TUTORIAL_NPC}/${mood}.webp`
 })
 
-// Bulle sous la cible quand celle-ci occupe le haut de l'écran, au-dessus sinon.
+/** Hauteur réservée à la bulle du PNJ, marge comprise. Sert à la garder dans l'écran. */
+const BUBBLE_HEIGHT_PX = 190
+
+/**
+ * Part maximale du viewport qu'une cible peut couvrir avant que le détourage ne perde son sens.
+ * Au-delà, l'étape bascule en narration centrée (cf. `measureTarget`).
+ */
+const MAX_TARGET_COVERAGE = 0.7
+
+// Bulle sous la cible quand celle-ci occupe le haut de l'écran, au-dessus sinon — et dans tous les
+// cas maintenue à l'intérieur du viewport. Sans ce clamp, une cible haute repoussait la bulle
+// au-delà du bord supérieur : elle disparaissait purement et simplement de l'écran.
 const bubblePosition = computed(() => {
   if (!hole.value) return { top: '50%', transform: 'translateY(-50%)' }
+
   const viewportHeight = window.innerHeight
-  return hole.value.bottom < viewportHeight / 2
-    ? { top: `${hole.value.bottom + 16}px` }
-    : { bottom: `${viewportHeight - hole.value.top + 16}px` }
+  const maxTop = Math.max(viewportHeight - BUBBLE_HEIGHT_PX, 0)
+
+  if (hole.value.bottom < viewportHeight / 2) {
+    return { top: `${Math.min(hole.value.bottom + 16, maxTop)}px` }
+  }
+  const fromBottom = viewportHeight - hole.value.top + 16
+  return { bottom: `${Math.min(fromBottom, maxTop)}px` }
 })
 
 function px(value: number): string {
@@ -128,6 +144,15 @@ function measureTarget(): void {
   const r = el.getBoundingClientRect()
   if (r.width === 0 || r.height === 0) {
     hole.value = null // élément masqué (display:none, opacité nulle)
+    return
+  }
+
+  // Cible occupant presque tout l'écran (la carte fait 100vh) : la détourer ne met rien en
+  // évidence — le liseré encadre le viewport entier — et repousse la bulle hors champ. On bascule
+  // en narration centrée, ce qui est le rendu utile pour ces étapes.
+  const coverage = (r.width * r.height) / (window.innerWidth * window.innerHeight)
+  if (coverage > MAX_TARGET_COVERAGE) {
+    hole.value = null
     return
   }
   const pad = 6

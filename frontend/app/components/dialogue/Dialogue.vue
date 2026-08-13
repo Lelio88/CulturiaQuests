@@ -74,13 +74,34 @@ const npcImage = computed(() => {
   return `/assets/npc/${name}/${file}`
 })
 
+/**
+ * Filet de sécurité : retire les balises restées non résolues au lieu de les afficher telles quelles.
+ *
+ * `[DungeonThreshold]` n'est substituable que si un palier est fourni, et il ne l'est pas partout :
+ * `QuestBox` affiche des `quest_description` sans expédition en cours, donc sans palier — la donnée
+ * vit sur le `run`, pas sur la quête. Résultat, le joueur lisait « à l'étage [DungeonThreshold] ».
+ *
+ * Ce nettoyage est un pansement, pas la solution : une phrase amputée de sa balise reste bancale
+ * (« à l'étage du sanctuaire »). Les textes concernés doivent être réécrits en base (#176). Il
+ * garantit seulement qu'aucune balise brute ne puisse jamais atteindre l'écran, y compris pour un
+ * dialogue ajouté plus tard.
+ */
+function stripUnresolvedTags(text: string): string {
+  if (!text.includes('[')) return text
+  return text
+    .replace(/\[[A-Za-z]+\]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.…!?;:])/g, '$1')
+    .trim()
+}
+
 const resolvedLines = computed(() => {
   return props.lines.map(line => {
     let resolved = line.replace(/\[PlayerName\]/g, playerName.value)
     if (props.targetThreshold != null) {
       resolved = resolved.replace(/\[DungeonThreshold\]/g, String(props.targetThreshold))
     }
-    return resolved
+    return stripUnresolvedTags(resolved)
   })
 })
 

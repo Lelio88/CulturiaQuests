@@ -227,3 +227,6 @@ backend/src/data/openquizzdb/used-questions.json
 # Compte de service Google Play — vit dans ../.culturiaquests-secrets/, jamais ici.
 play-sa.json
 *service-account*.json
+
+# Artefacts de test navigateur (Playwright MCP)
+.playwright-mcp/
