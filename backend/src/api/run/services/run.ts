@@ -27,6 +27,23 @@ const RARITY_MULTIPLIERS: Record<string, number> = {
   legendary: 5
 };
 
+/**
+ * Durée d'expédition visée pour honorer la quête d'un PNJ : le palier demandé est celui que
+ * l'équipement du joueur atteint en 21 minutes.
+ *
+ * Le DPS apparaissant des deux côtés de la comparaison, il s'annule : l'effort demandé est le même
+ * pour tous, seul le NUMÉRO affiché s'adapte à la puissance. Se déséquiper pour abaisser
+ * l'objectif ne procure donc aucun avantage.
+ *
+ * Pourquoi 21 et non 20 : un palier vaut exactement ×1,5 de dégâts cumulés, donc de temps. La
+ * fenêtre la plus étroite qu'on puisse garantir a un rapport de 1,5 entre sa borne basse et sa
+ * borne haute — la cible de 15 à 20 minutes, elle, n'a qu'un rapport de 1,33 et n'est pas
+ * atteignable exactement. 21 minutes est le réglage qui centre le mieux : mesuré de 3 à 5000 DPS,
+ * l'objectif tombe entre 14,3 et 20,5 minutes. Le réduire à 20 descendrait le plancher à 13,7 ;
+ * le monter à 22 tiendrait le plancher à 15,6 mais ferait grimper le plafond à 21,9.
+ */
+const QUEST_TARGET_SECONDS = 21 * 60;
+
 /** Erreur métier d'expédition → mappée vers le bon code HTTP par le controller (#40). */
 export class RunServiceError extends Error {
   status: number;
@@ -224,8 +241,19 @@ export default factories.createCoreService('api::run.run', ({ strapi }) => ({
             const randomIndex = Math.floor(Math.random() * allNpcs.length);
             assignedNpc = allNpcs[randomIndex];
 
-            // Set target threshold (Quest logic linked to NPC appearance)
-            targetThreshold = Math.floor(Math.random() * 11) + 5; // 5 to 15
+            // Palier demandé par le PNJ, calibré sur l'ÉQUIPEMENT du joueur (#176).
+            //
+            // Auparavant tiré au hasard entre 5 et 15, sans aucun rapport avec sa puissance : un
+            // joueur débutant recevait un objectif hors d'atteinte, un joueur avancé un objectif
+            // déjà franchi. C'est désormais le palier que son DPS atteint en QUEST_TARGET_SECONDS.
+            // Sans équipement, le DPS est nul : aucun palier n'est atteignable, quelle que soit la
+            // durée. Le PNJ apparaît alors sans rien demander (`target_threshold` nul = pas de
+            // quête côté client) plutôt que de confier une mission impossible.
+            if (dps > 0) {
+              targetThreshold = strapi
+                .service('api::run.run')
+                .calculateTierFromDamage(dps * QUEST_TARGET_SECONDS);
+            }
 
             // Get Dialog
             const dialogObj = assignedNpc.dialogs?.find((d: any) => d.text_type === 'expedition_appear');
