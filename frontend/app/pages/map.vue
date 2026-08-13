@@ -1,6 +1,7 @@
 <template>
   <div class="min-h-screen bg-gray-100 font-sans">
-    <main class="h-[100vh] w-full relative">
+    <!-- data-tutorial : ancre du tutoriel d'accueil (#175), cf. ~/data/tutorial-steps.ts -->
+    <main data-tutorial="map" class="h-[100vh] w-full relative">
       <!-- Geolocation request -->
       <GeolocationRequest
         @allow="handleGeolocationAllow"
@@ -81,6 +82,7 @@ import { useRunStore } from '~/stores/run'
 import { useFogStore } from '~/stores/fog'
 import { useZoneStore } from '~/stores/zone'
 import { useProgressionStore } from '~/stores/progression'
+import { useTutorialStore } from '~/stores/tutorial'
 import { useGeolocation } from '~/composables/useGeolocation'
 import { useMapInteraction } from '~/composables/useMapInteraction'
 import { useZoneRenderer } from '~/composables/useZoneRenderer'
@@ -105,6 +107,7 @@ const runStore = useRunStore()
 const fogStore = useFogStore()
 const zoneStore = useZoneStore()
 const progressionStore = useProgressionStore()
+const tutorialStore = useTutorialStore()
 
 // Dernière position connue (localStorage) → au rechargement, la carte s'ouvre LÀ où le joueur était,
 // pas sur Saint-Lô : évite le flash « Saint-Lô » au démarrage le temps du 1er fix GPS. Repli Saint-Lô
@@ -401,6 +404,11 @@ onMounted(async () => {
       fogStore.removePointsInZones(completedRegions)
     }
   }
+
+  // Tutoriel d'accueil (#175) : déclenché depuis la carte et non depuis le layout, car ses
+  // premières étapes la détourent — il faut qu'elle soit montée. `start()` est un no-op si le
+  // joueur l'a déjà terminé ou passé.
+  tutorialStore.start()
 })
 
 // onBeforeUnmount : nettoyer AVANT que LMap.beforeUnmount détruise la carte Leaflet

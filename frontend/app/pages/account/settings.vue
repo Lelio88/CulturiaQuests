@@ -73,6 +73,21 @@
         </div>
       </div>
 
+      <!-- Aide -->
+      <div class="bg-white rounded-[28px] p-6">
+        <h2 class="text-xl font-power text-indigo-950 mb-5">Aide</h2>
+        <button
+          class="flex items-center justify-between w-full text-indigo-600 hover:text-indigo-800 transition-colors"
+          @click="replayTutorial"
+        >
+          <div class="flex items-center gap-3">
+            <Icon name="mdi:map-marker-radius" class="w-5 h-5 shrink-0" />
+            <span class="font-onest text-base">Revoir le tutoriel</span>
+          </div>
+          <Icon name="mdi:chevron-right" class="w-5 h-5 shrink-0 opacity-50" />
+        </button>
+      </div>
+
       <!-- Legal Section -->
       <div class="bg-white rounded-[28px] p-6">
         <h2 class="text-xl font-power text-indigo-950 mb-5">Mentions légales</h2>
@@ -226,7 +241,17 @@
 </template>
 
 <script setup lang="ts">
+import { useTutorialStore } from '~/stores/tutorial'
+
 const user = useAuth().user
+
+// Le tutoriel se joue par-dessus la carte (ses étapes la détourent) : on le réarme puis on y
+// renvoie le joueur, sinon il resterait invisible sur cette page de réglages.
+const tutorialStore = useTutorialStore()
+const replayTutorial = async () => {
+  tutorialStore.restart()
+  await navigateTo('/map')
+}
 const { isAdmin, verifyAdmin } = useAdmin()
 const {
   settings,

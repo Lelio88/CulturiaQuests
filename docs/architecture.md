@@ -117,7 +117,8 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 | Dossier | Rôle |
 |---|---|
 | `pages/` | Routing fichier-based. Routes publiques : `/`, `/account/login`, `/account/register`, `/CGU`, `/mentions-legales`, `/politique-confidentialite`. Toutes les autres exigent auth. Dashboard admin sous `/dashboard/`. |
-| `stores/` | 18 stores Pinia (guild, character, inventory, run, quest, visit, friendship, fog, progression, zone, museum, npc, poi, quiz, statistics, admin, badge, playerFriendship). Tous persistent en `localStorage` via `persist: { pick: [...] }`. |
+| `stores/` | 19 stores Pinia (guild, character, inventory, run, quest, visit, friendship, fog, progression, zone, museum, npc, poi, quiz, statistics, admin, badge, playerFriendship, tutorial). Tous persistent en `localStorage` via `persist: { pick: [...] }`. |
+| `data/` | Contenu éditorial séparé du code : `tutorial-steps.ts` (script du tutoriel d'accueil). |
 | `composables/` | 14 composables : `useGeolocation`, `useMapInteraction`, `useDrawerLogic`, `useDamageCalculator`, `useChestState`, `useChestAnimation`, `useFooterVisibility`, `useUserAvatar`, `useAdmin`, `useLogout`, `useZoneCompletion`, `useDeleteAccount`, `useGdprRequest`, `useNotifications`. `useGeolocation` fait exception au modèle « un état par appel » : son état est partagé au scope module (position unique pour toute l'app). |
 | `plugins/` | `auth.ts`, `deeplinks.client.ts`, `geolocation.client.ts` (cycle de vie du tracking GPS piloté par la route, cf. §Géolocalisation). |
 | `middleware/00-device-check.global.ts` | **Global**. Redirige desktop → page d'accueil sauf si `NUXT_PUBLIC_ALLOW_DESKTOP=true` ou route `/dashboard/*`. Vérifie aussi auth pour les routes non publiques (redirige vers `/account/login`). |
@@ -125,6 +126,21 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 | `layouts/` | `default` (header/footer game), `blank` (login/register), `dashboard` (admin), `test` (pages dev). |
 | `types/` | 18 types TypeScript miroirs des content-types Strapi (`character.ts`, `guild.ts`, `item.ts`, …). |
 | `utils/` | `geometry.ts` (point-in-polygon, distances), `geolocation.ts` (Haversine, en km arrondis et en mètres bruts), `last-position.ts` (dernière position connue), `storage.ts`, `strapiHelpers.ts`, `guildLevel.ts` (formule niveau = `√(exp / 75) + 1`). |
+
+### Tutoriel d'accueil
+
+Didacticiel joué une seule fois, au premier passage sur la carte. Trois pièces séparées, pour que
+le texte se réécrive sans toucher au code : `data/tutorial-steps.ts` (le script et le lore),
+`stores/tutorial.ts` (l'avancement, persisté) et `components/tutorial/TutorialOverlay.vue` (le
+rendu). Il est rejouable depuis les réglages du compte.
+
+Une étape sans `target` s'affiche au centre (narration, lore) ; une étape avec `target` détoure
+l'élément portant l'attribut `data-tutorial` correspondant — le masque est composé de quatre bandes
+autour de la cible, ce qui la laisse visible **et** cliquable. Si la cible est absente du DOM,
+l'étape retombe en mode narratif au lieu de pointer le vide : le tutoriel n'est jamais bloquant.
+
+Ajouter une ancre `data-tutorial` quelque part impose de garder sa clé alignée avec le `target` de
+l'étape correspondante — la renommer d'un seul côté fait silencieusement perdre le détourage.
 
 ### Géolocalisation
 
