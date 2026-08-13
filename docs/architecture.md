@@ -170,6 +170,7 @@ masqué en conséquence.
 |---|---|
 | `generate-quiz-questions.ts` | Génération manuelle d'une session quiz (alternative au cron). Flags `--save`, `--force`. |
 | `pois_importer/` | Import POI depuis Overpass API (OSM) + catégorisation Ollama. Génère JSON dans `exports/`. |
+| `populate_db/*.sql` | Migrations de données one-shot, idempotentes et datées. `2026-08-13-dungeon-appear-dialogs.sql` : donne un `expedition_appear` aux PNJ dont le dialogue décrit une mission de donjon (aucun n'existait, tous affichaient le texte de repli). S'exécute par `ssh <serveur> "docker exec -i postgres_db_prod psql -U strapi -d strapi" < <fichier>`. |
 | `zones_importer/` | Import régions / départements / comcom depuis GeoJSON Etalab. Hiérarchie respectée. |
 | `populate_db/` | Seed initial (NPCs, items, POIs, dialogs). |
 | `download-openquizzdb.ts` + `list-openquizzdb-themes.ts` | Outils pour gérer la banque OpenQuizzDB offline. |

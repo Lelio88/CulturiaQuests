@@ -37,6 +37,10 @@ backups/*
 *.dump
 backend/public/uploads.backup_*
 
+# Exception : les migrations de données one-shot SONT du code et doivent être versionnées.
+# La règle *.sql ci-dessus vise les dumps de base (volumineux, et porteurs de données joueurs).
+!scripts/populate_db/*.sql
+
 # ============================================
 # NODE.JS ET NPM
 # ============================================
