@@ -83,9 +83,9 @@ import { useZoneStore } from '~/stores/zone'
 import { useProgressionStore } from '~/stores/progression'
 import { useGeolocation } from '~/composables/useGeolocation'
 import { useMapInteraction } from '~/composables/useMapInteraction'
-import { useZoneCompletion } from '~/composables/useZoneCompletion'
 import { useZoneRenderer } from '~/composables/useZoneRenderer'
 import { calculateDistance } from '~/utils/geolocation'
+import { readLastPosition } from '~/utils/last-position'
 import MapMarkers from '~/components/map/MapMarkers.vue'
 import FogLayer from '~/components/map/FogLayer.vue'
 import type { Museum } from '~/types/museum'
@@ -108,25 +108,8 @@ const progressionStore = useProgressionStore()
 
 // Dernière position connue (localStorage) → au rechargement, la carte s'ouvre LÀ où le joueur était,
 // pas sur Saint-Lô : évite le flash « Saint-Lô » au démarrage le temps du 1er fix GPS. Repli Saint-Lô
-// au tout premier lancement (aucune position mémorisée). Guard client : pas de localStorage en SSR.
-const LAST_POSITION_KEY = 'cq_last_position'
-function readLastPosition(): { lat: number; lng: number } {
-  if (import.meta.client) {
-    try {
-      const raw = localStorage.getItem(LAST_POSITION_KEY)
-      if (raw) {
-        const p = JSON.parse(raw)
-        if (Number.isFinite(p?.lat) && Number.isFinite(p?.lng)) return { lat: p.lat, lng: p.lng }
-      }
-    } catch { /* JSON invalide / storage indisponible → repli défaut */ }
-  }
-  return { lat: 49.1167, lng: -1.0833 } // Saint-Lô
-}
-function saveLastPosition(lat: number, lng: number): void {
-  if (import.meta.client) {
-    try { localStorage.setItem(LAST_POSITION_KEY, JSON.stringify({ lat, lng })) } catch { /* quota / private */ }
-  }
-}
+// au tout premier lancement (aucune position mémorisée). L'écriture est faite par le plugin de
+// géolocalisation, qui suit le joueur sur toutes les pages (cf. plugins/geolocation.client.ts).
 const initialPos = readLastPosition()
 
 // Composables
@@ -137,7 +120,6 @@ const geolocation = useGeolocation({
 })
 
 const mapInteraction = useMapInteraction()
-const zoneCompletion = useZoneCompletion()
 
 // Refs
 // mapRef = instance du composant LMap (vue-leaflet) ; son `.leafletObject` est la Leaflet.Map.
@@ -370,24 +352,29 @@ function loadVisibleEntities(): void {
   museumStore.loadBounds(bounds)
 }
 
-// Register geolocation callbacks
-geolocation.registerCallbacks({
-  onFirstPosition: (lat, lng) => {
-    // Recentrage UNIQUE sur le joueur au 1er fix. On met à jour mapCenter (fiable même si la carte
-    // n'est pas encore prête, contrairement à un flyTo impératif qui serait alors sauté) + le zoom.
-    // Aucun recentrage sur les positions suivantes → le joueur peut explorer la carte librement.
-    mapCenter.value = [lat, lng]
-    currentZoom.value = 13
-    saveLastPosition(lat, lng) // mémorise pour rouvrir la carte ici au prochain lancement
-    fogStore.addPosition(lat, lng)
-    zoneCompletion.checkFogCoverage(lat, lng)
-  },
-  onPositionUpdate: (lat, lng) => {
-    saveLastPosition(lat, lng)
-    fogStore.addPosition(lat, lng)
-    zoneCompletion.checkFogCoverage(lat, lng)
-  },
-})
+// Recentrage sur le joueur — seul effet de position PROPRE À LA CARTE. Les effets de jeu
+// (mémorisation de la position, brouillard, couverture de zone) sont abonnés globalement dans
+// `plugins/geolocation.client.ts` : ils suivent le joueur sur toutes les pages, y compris pendant
+// un quiz ou une expédition.
+//
+// Le tracking étant global, arriver sur la carte avec un fix DÉJÀ acquis est le cas nominal — et
+// `onFirstPosition` ne se redéclenchera donc pas. On recentre alors immédiatement ; sinon on attend
+// le premier fix. Recentrage UNIQUE dans les deux cas : ensuite le joueur explore librement (un
+// recentrage à chaque tick ramènerait la carte sur lui et ferait « disparaître » les POI regardés).
+let hasCenteredOnPlayer = false
+function centerOnPlayer(lat: number, lng: number): void {
+  if (hasCenteredOnPlayer) return
+  hasCenteredOnPlayer = true
+  // mapCenter (et non un flyTo impératif, qui serait sauté si la carte n'est pas encore prête).
+  mapCenter.value = [lat, lng]
+  currentZoom.value = 13
+}
+
+if (geolocation.hasFix.value) {
+  centerOnPlayer(userLat.value, userLng.value)
+} else {
+  geolocation.registerCallbacks({ onFirstPosition: centerOnPlayer })
+}
 
 // Lifecycle
 onMounted(async () => {

@@ -118,12 +118,35 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 |---|---|
 | `pages/` | Routing fichier-based. Routes publiques : `/`, `/account/login`, `/account/register`, `/CGU`, `/mentions-legales`, `/politique-confidentialite`. Toutes les autres exigent auth. Dashboard admin sous `/dashboard/`. |
 | `stores/` | 18 stores Pinia (guild, character, inventory, run, quest, visit, friendship, fog, progression, zone, museum, npc, poi, quiz, statistics, admin, badge, playerFriendship). Tous persistent en `localStorage` via `persist: { pick: [...] }`. |
-| `composables/` | 14 composables : `useGeolocation`, `useMapInteraction`, `useDrawerLogic`, `useDamageCalculator`, `useChestState`, `useChestAnimation`, `useFooterVisibility`, `useUserAvatar`, `useAdmin`, `useLogout`, `useZoneCompletion`, `useDeleteAccount`, `useGdprRequest`, `useNotifications`. |
+| `composables/` | 14 composables : `useGeolocation`, `useMapInteraction`, `useDrawerLogic`, `useDamageCalculator`, `useChestState`, `useChestAnimation`, `useFooterVisibility`, `useUserAvatar`, `useAdmin`, `useLogout`, `useZoneCompletion`, `useDeleteAccount`, `useGdprRequest`, `useNotifications`. `useGeolocation` fait exception au modèle « un état par appel » : son état est partagé au scope module (position unique pour toute l'app). |
+| `plugins/` | `auth.ts`, `deeplinks.client.ts`, `geolocation.client.ts` (cycle de vie du tracking GPS piloté par la route, cf. §Géolocalisation). |
 | `middleware/00-device-check.global.ts` | **Global**. Redirige desktop → page d'accueil sauf si `NUXT_PUBLIC_ALLOW_DESKTOP=true` ou route `/dashboard/*`. Vérifie aussi auth pour les routes non publiques (redirige vers `/account/login`). |
 | `middleware/admin.ts` | Garde-route admin (vérifie le rôle via `useStrapiUser().role`). |
 | `layouts/` | `default` (header/footer game), `blank` (login/register), `dashboard` (admin), `test` (pages dev). |
 | `types/` | 18 types TypeScript miroirs des content-types Strapi (`character.ts`, `guild.ts`, `item.ts`, …). |
-| `utils/` | `geometry.ts` (point-in-polygon, distances), `geolocation.ts`, `storage.ts`, `strapiHelpers.ts`, `guildLevel.ts` (formule niveau = `√(exp / 75) + 1`). |
+| `utils/` | `geometry.ts` (point-in-polygon, distances), `geolocation.ts` (Haversine, en km arrondis et en mètres bruts), `last-position.ts` (dernière position connue), `storage.ts`, `strapiHelpers.ts`, `guildLevel.ts` (formule niveau = `√(exp / 75) + 1`). |
+
+### Géolocalisation
+
+Le tracking GPS est **global à l'application**, pas propre à la carte : `plugins/geolocation.client.ts`
+le démarre et l'arrête selon la route (toutes les pages de jeu, jamais `/dashboard`, les pages
+légales ni l'authentification), et `useGeolocation` porte un état partagé au scope module. Un joueur
+qui marche pendant un quiz continue donc d'alimenter son brouillard et de voir sa position à jour.
+
+Trois invariants :
+
+- **Le plugin ne demande jamais la permission** : il ne démarre que si elle est déjà acquise. La
+  demande reste à `GeolocationRequest.vue`, affiché sur la carte avec son explication.
+- **Les fixes sont filtrés** avant application : ceux dont `accuracy` dépasse 100 m sans améliorer
+  la précision courante, et ceux impliquant plus de 30 m/s entre deux points, sont rejetés — c'est
+  ce qui élimine les « téléportations » dues aux bascules GPS ↔ réseau. Soupape : après 30 s sans
+  fix accepté, le suivant passe quand même (une position grossière vaut mieux qu'une position gelée).
+- **Haute précision en continu** (`enableHighAccuracy: true` y compris sur `watchPosition`) : en
+  basse précision, les fixes réseau à ±500 m rendent injouable le geofence de 50 m des coffres.
+
+Aucun tracking en arrière-plan (API web premier-plan uniquement, pas de foreground service) : le
+suivi est suspendu par l'OS quand l'app passe en arrière-plan, et le bandeau de notification est
+masqué en conséquence.
 
 ### Scripts (`scripts/`)
 

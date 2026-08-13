@@ -51,6 +51,7 @@ import type { ChestLoot } from '~/types/loot'
 import { useVisitStore } from '~/stores/visit'
 import { useGuildStore } from '~/stores/guild'
 import { useChestAnimation } from '~/composables/useChestAnimation'
+import { useGeolocation } from '~/composables/useGeolocation'
 
 definePageMeta({
   layout: 'blank'
@@ -76,8 +77,18 @@ const chestImage = ref<HTMLImageElement>()
 
 // Route params
 const poiId = computed(() => route.query.poiId as string)
-const userLat = computed(() => parseFloat(route.query.lat as string))
-const userLng = computed(() => parseFloat(route.query.lng as string))
+
+// Position envoyée au serveur pour la vérification de geofence (≤ 50 m côté `visit.openChest`).
+//
+// On lit la position LIVE du tracking global, pas celle figée dans l'URL à l'instant du clic sur la
+// carte : entre l'ouverture du drawer et l'appui sur le coffre, le joueur a pu faire les quelques
+// mètres qui le mettent dans la zone (ou en sortir). Les query params restent le repli quand aucun
+// fix n'est encore disponible (permission refusée, GPS pas encore fixé).
+const { userLat: liveLat, userLng: liveLng, hasFix } = useGeolocation()
+const fallbackLat = computed(() => parseFloat(route.query.lat as string))
+const fallbackLng = computed(() => parseFloat(route.query.lng as string))
+const userLat = computed(() => (hasFix.value ? liveLat.value : fallbackLat.value))
+const userLng = computed(() => (hasFix.value ? liveLng.value : fallbackLng.value))
 
 function goBack() {
   router.push('/map')
