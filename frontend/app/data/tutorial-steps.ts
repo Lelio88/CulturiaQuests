@@ -14,9 +14,9 @@
  * Invariants :
  * - Toute clé `target` utilisée ici doit exister comme attribut `data-tutorial` dans un composant,
  *   sinon l'étape perd son ancrage visuel (sans casser le tutoriel).
- * - **Le narrateur ne se nomme jamais.** Le guide est le maître de guilde sortant, dont l'identité
- *   reste à arrêter (#177) ; ne pas lui donner de nom ici permet de changer le personnage et ses
- *   visuels sans réécrire une ligne de dialogue.
+ * - **Le narrateur ne se nomme jamais.** Le guide est le maître de guilde sortant, Théodric
+ *   Vaelmont ; ne pas lui donner de nom ici permet de changer le personnage et ses visuels sans
+ *   réécrire une ligne de dialogue.
  *
  * Repères de lore respectés ici — le joueur est le NOUVEAU maître de guilde, pas une recrue :
  * royaume de Culturia, en guerre depuis des décennies ; Monarque, souveraine que nul n'a vue et
@@ -42,18 +42,19 @@ export interface TutorialStep {
 }
 
 /**
- * PNJ narrateur du tutoriel. Doit exister dans `public/assets/npc/<nom>/`.
+ * PNJ narrateur du tutoriel : **Théodric Vaelmont, dit « le Vieux Maître »**, le maître de guilde
+ * sortant dont le joueur reprend la charge. Fiché dans `docs/lore-personnages.md`.
  *
- * ⚠️ Bram est un PLACEHOLDER technique : ses visuels existaient déjà. Le narrateur retenu est
- * **Théodric Vaelmont, dit « le Vieux Maître »**, le maître de guilde sortant — il ne manque que
- * ses visuels (#177).
+ * Ses visuels vivent dans `public/assets/npc/Theodric/` et n'y sont QUE pour le tutoriel : il n'a
+ * pas d'entrée `npcs` en base, le tutoriel lit les images directement. Le jeu d'expressions se
+ * limite donc à ce que les étapes consomment (`neutre`, `Quest`, `Reflechi`, `Succes`) ; `Echec`
+ * ne deviendra nécessaire que s'il devient un PNJ à part entière, `Dialogue.vue` l'attendant alors.
  *
- * Pour basculer, une fois `public/assets/npc/Theodric/` peuplé : passer cette constante à
- * `'Theodric'`. **C'est le seul changement à faire.** Les étapes ci-dessous ne référencent aucun
- * nom (le portrait par défaut est désigné par `neutre`, résolu dans `TutorialOverlay`), et aucune
- * réplique ne nomme le narrateur.
+ * Changer de narrateur ne demande que de modifier cette constante : les étapes ci-dessous ne
+ * référencent aucun nom (le portrait par défaut est désigné par `neutre`, résolu dans
+ * `TutorialOverlay`), et aucune réplique ne nomme le narrateur.
  */
-export const TUTORIAL_NPC = 'Bram'
+export const TUTORIAL_NPC = 'Theodric'
 
 export const TUTORIAL_STEPS: TutorialStep[] = [
   {

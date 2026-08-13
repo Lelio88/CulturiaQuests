@@ -214,7 +214,9 @@ ligne de dialogue.
 *Biographie à écrire.* Zones ouvertes : d'où il vient, comment il a tenu la guilde pendant la
 guerre, pourquoi il se retire maintenant, et s'il reste présent dans le jeu après le tutoriel.
 
-*Visuels à produire* dans `public/assets/npc/Theodric/` — voir issue #177.
+*Visuels* dans `public/assets/npc/Theodric/` : portrait neutre, `Quest`, `Reflechi`, `Succes` — les
+quatre expressions que consomment les étapes du tutoriel. Il n'a pas d'entrée `npcs` en base ; s'il
+devenait un PNJ à part entière, il lui faudrait un `Echec.webp`, attendu par `Dialogue.vue`.
 
 ---
 
