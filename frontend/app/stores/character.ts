@@ -78,6 +78,52 @@ export const useCharacterStore = defineStore('character', () => {
     }
   }
 
+  /**
+   * Applique localement un changement d'équipement, après un PUT réussi côté API.
+   *
+   * Remplace le `fetchCharacters(true)` qui suivait chaque swap : celui-ci rechargeait tous les
+   * personnages avec leurs items et toutes leurs relations pour un changement d'une seule pièce.
+   * L'item fourni provient de l'inventaire, dont le populate (rarity, tags, icon) couvre celui de
+   * `fetchCharacters(true)` — l'objet inséré est donc affichable tel quel.
+   *
+   * Passer `newItem: null` retire simplement l'ancienne pièce (déséquipement sec).
+   *
+   * @param characterId - Personnage concerné
+   * @param oldItemId - Item à retirer du personnage, ou `null` si le slot était vide
+   * @param newItem - Item à ajouter, ou `null` pour un simple retrait
+   */
+  function applyEquipmentSwap(
+    characterId: number,
+    oldItemId: number | null,
+    newItem: Record<string, unknown> | null
+  ) {
+    const index = characters.value.findIndex(c => c.id === characterId)
+    if (index === -1) return
+
+    const character = characters.value[index] as Record<string, unknown>
+    const holder = (character.attributes || character) as Record<string, unknown>
+
+    // `items` arrive soit comme tableau nu (v5), soit enveloppé dans `{ data: [...] }` (v4).
+    // On conserve la forme d'origine pour ne pas casser les lecteurs en aval.
+    const rawItems = holder.items as unknown
+    const isWrapped = !Array.isArray(rawItems) && !!(rawItems as { data?: unknown })?.data
+    const list = (Array.isArray(rawItems)
+      ? rawItems
+      : ((rawItems as { data?: unknown[] })?.data || [])) as Record<string, unknown>[]
+
+    const next = list.filter(i => i.id !== oldItemId)
+    if (newItem) next.push(newItem)
+
+    const nextItems = isWrapped ? { ...(rawItems as object), data: next } : next
+    const nextHolder = { ...holder, items: nextItems }
+
+    // Cast via `unknown` : payload polymorphe (v4/v5) que le type `Character` ne décrit que
+    // partiellement, l'imbrication `attributes` n'y étant pas modélisée.
+    characters.value[index] = (character.attributes
+      ? { ...character, attributes: nextHolder }
+      : nextHolder) as unknown as Character
+  }
+
   async function fetchCharacters(withItems: boolean = false) {
     const client = useApi()
     loading.value = true
@@ -235,6 +281,7 @@ export const useCharacterStore = defineStore('character', () => {
     addCharacter,
     removeCharacter,
     updateCharacter,
+    applyEquipmentSwap,
     fetchCharacters,
     fetchCharacterIcons,
     createCharacter,

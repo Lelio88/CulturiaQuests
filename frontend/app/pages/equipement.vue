@@ -120,7 +120,13 @@ const lockedSlots = computed(() => {
 
 // --- LIFECYCLE ---
 onMounted(async () => {
-  await characterStore.fetchCharacters(true);
+  // Inventaire chargé UNE fois ici, et non à chaque ouverture d'overlay (#172) : les changements
+  // d'équipement sont ensuite reportés localement dans les stores. Remonter sur la page (retour
+  // d'un coffre, d'une expédition) rejoue ce montage et resynchronise donc l'inventaire.
+  await Promise.all([
+    characterStore.fetchCharacters(true),
+    inventoryStore.fetchItems(),
+  ]);
   if (!guildStore.hasGuild) guildStore.fetchGuild();
 });
 
@@ -132,17 +138,21 @@ const handleCharacterCreated = async () => {
 // --- GESTION OVERLAY ---
 const openOverlay = async (character, item) => {
   selectedCharacter.value = character;
-  selectedSlot.value = item.category || 'weapon'; 
+  selectedSlot.value = item.category || 'weapon';
   showOverlay.value = true;
-  
-  // On lance un fetch frais pour être sûr d'avoir le bon inventaire
-  isOverlayLoading.value = true;
-  try {
-    await inventoryStore.fetchItems();
-  } catch (e) {
-    console.error("Erreur inventaire :", e);
-  } finally {
-    isOverlayLoading.value = false;
+
+  // Aucun fetch ici : l'inventaire est chargé au montage de la page et tenu à jour localement à
+  // chaque swap (#172). Repli défensif si le store est vide — arrivée directe sur la page par une
+  // URL, ou premier chargement encore en vol.
+  if (inventoryStore.items.length === 0) {
+    isOverlayLoading.value = true;
+    try {
+      await inventoryStore.fetchItems();
+    } catch (e) {
+      console.error("Erreur inventaire :", e);
+    } finally {
+      isOverlayLoading.value = false;
+    }
   }
 };
 
@@ -176,13 +186,21 @@ const handleEquipItem = async (newItemMapped) => {
       // 2. Appel API (Sauvegarde en BDD)
       await saveEquipmentChange(characterApiId, newItemApiId, oldItemApiId);
 
-      // 3. REFETCH (C'est ici que ton problème se règle)
-      // On recharge l'inventaire pour que Strapi nous dise : "Cet ancien item est maintenant libre"
-      // On recharge aussi les persos pour voir le nouvel item équipé
-      await Promise.all([
-          inventoryStore.fetchItems(),       // Met à jour isEquipped pour l'overlay
-          characterStore.fetchCharacters(true) // Met à jour le perso en dessous
-      ]);
+      // 3. Report LOCAL du changement (#172)
+      // On ne recharge plus l'inventaire ni les personnages : les deux PUT ci-dessus ont réussi,
+      // et on sait exactement ce qui a changé — la relation `character` de deux items, et le
+      // contenu d'un slot d'un personnage. Refetcher les deux collections entières pour ça
+      // imposait un aller-retour réseau et un temps de chargement à chaque pièce équipée.
+      const newItemRaw = inventoryStore.items.find(i => i.id === newItemMapped.id);
+
+      inventoryStore.setItemCharacter(newItemMapped.id, characterRaw.id);
+      if (oldItemRaw) inventoryStore.setItemCharacter(oldItemRaw.id, null);
+
+      characterStore.applyEquipmentSwap(
+        characterRaw.id,
+        oldItemRaw ? oldItemRaw.id : null,
+        newItemRaw || null
+      );
 
       // 4. Rafraîchir la sélection locale (pour que l'affichage se mette à jour)
       const updatedCharUI = formattedCharacters.value.find(c => c.id === selectedCharacter.value.id);

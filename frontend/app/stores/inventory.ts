@@ -93,6 +93,37 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
+  /**
+   * Rattache (ou détache) localement un item à un personnage, après un PUT réussi côté API.
+   *
+   * Évite un `fetchItems()` complet après chaque changement d'équipement : seule la relation
+   * `character` change, et c'est la seule chose que l'overlay lit pour décider si un item est
+   * déjà équipé. Recharger tout l'inventaire pour cette unique relation coûtait un aller-retour
+   * réseau et un temps de chargement visible à chaque swap.
+   *
+   * La forme `{ id }` est celle attendue par les lecteurs, qui tolèrent `character.data.id`,
+   * `character.id` ou un identifiant nu.
+   *
+   * @param itemId - Identifiant numérique de l'item
+   * @param characterId - Personnage qui équipe l'item, ou `null` pour le déséquiper
+   */
+  function setItemCharacter(itemId: number, characterId: number | null) {
+    const index = items.value.findIndex(i => i.id === itemId)
+    if (index === -1) return
+
+    const current = items.value[index] as Record<string, unknown>
+    const value = characterId === null ? null : { id: characterId }
+
+    // Les items existent sous deux formes selon la route qui les a chargés : champs à plat
+    // (Strapi v5) ou imbriqués sous `attributes` (payloads v4 encore servis par certaines vues).
+    // On écrit là où la relation se trouve déjà, sans jamais muter l'objet d'origine.
+    // Cast via `unknown` : on reconstruit un payload polymorphe (v4/v5) que le type `Item`
+    // ne décrit que partiellement — la relation `character` n'y figure pas.
+    items.value[index] = (current.attributes
+      ? { ...current, attributes: { ...(current.attributes as object), character: value } }
+      : { ...current, character: value }) as unknown as Item
+  }
+
   async function fetchItems() {
     const client = useApi()
     loading.value = true
@@ -202,6 +233,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     addItem,
     removeItem,
     updateItem,
+    setItemCharacter,
     fetchItems,
     fetchItemIcons,
     recycleItems,
