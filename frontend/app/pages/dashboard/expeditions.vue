@@ -142,7 +142,7 @@
             </tbody>
           </table>
           <div v-else class="py-12 text-center">
-            <Icon name="bxs-user-voice" class="w-12 h-12 text-gray-700 mx-auto mb-3" />
+            <Icon name="bx:bxs-user-voice" class="w-12 h-12 text-gray-700 mx-auto mb-3" />
             <p class="text-gray-500 font-onest">Aucune donnee de quete PNJ disponible</p>
           </div>
         </div>
@@ -175,7 +175,7 @@
             </tbody>
           </table>
           <div v-else class="py-12 text-center">
-            <Icon name="bxs-user-voice" class="w-12 h-12 text-gray-700 mx-auto mb-3" />
+            <Icon name="bx:bxs-user-voice" class="w-12 h-12 text-gray-700 mx-auto mb-3" />
             <p class="text-gray-500 font-onest">Aucune donnee d'expedition PNJ disponible</p>
           </div>
         </div>

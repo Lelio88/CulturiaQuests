@@ -23,6 +23,32 @@ export default defineNuxtConfig({
     '@nuxtjs/device',
   ],
 
+  // Icônes servies EN LOCAL, sans appel à l'API Iconify au runtime (#173).
+  //
+  // Les collections @iconify-json/{bx,mdi,game-icons} sont installées en devDependencies, mais
+  // laisser @nuxt/icon les embarquer entièrement fait passer le build de 3,6 à 13,9 Mo : mdi seul
+  // pèse plus de 7000 icônes pour la soixantaine réellement utilisée. On désactive donc le bundle
+  // serveur et on ne retient que les icônes détectées dans le code source.
+  //
+  // `scan` ne voit que les usages littéraux (`<Icon name="mdi:cog" />`) ; les icônes rangées dans
+  // des objets JS (barre de navigation, cartes du dashboard) lui échappent et doivent être listées
+  // dans `icons`. Toute nouvelle icône passée dynamiquement doit y être ajoutée, sinon elle ne
+  // s'affiche pas — il n'y a plus de repli réseau.
+  icon: {
+    serverBundle: false,
+    clientBundle: {
+      scan: true,
+      icons: [
+        // AppFooter (barre de navigation du jeu)
+        'bx:bxs-book-bookmark', 'bx:bxs-map-alt', 'bx:bxs-user-account', 'bx:bxs-home',
+        'bx:bx-shield-quarter',
+        // Layout + pages du dashboard admin
+        'bx:bxs-dashboard', 'bx:bxs-group', 'bx:bxs-brain', 'bx:bxs-user', 'bx:bxs-user-voice',
+        'bx:bxs-user-x', 'bx:bxs-bank', 'bx:coin-stack', 'bx:package', 'mdi:castle',
+      ],
+    },
+  },
+
   // Configuration pinia-plugin-persistedstate (clé du module v4 réellement lue).
   // Force localStorage UNIQUEMENT pour éviter l'erreur 431 (Request Header Fields Too Large
   // causée par des cookies trop volumineux). Ne jamais réactiver la persistance cookie.

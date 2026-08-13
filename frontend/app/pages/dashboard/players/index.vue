@@ -149,7 +149,7 @@
 
       <!-- Empty state -->
       <div v-if="adminStore.players.length === 0 && !adminStore.loading" class="py-12 text-center">
-        <Icon name="bxs-user-x" class="w-12 h-12 text-gray-700 mx-auto mb-3" />
+        <Icon name="bx:bxs-user-x" class="w-12 h-12 text-gray-700 mx-auto mb-3" />
         <p class="text-gray-500 font-onest">Aucun joueur trouve</p>
       </div>
 

@@ -49,7 +49,7 @@
       <div class="p-4 border-t border-gray-800">
         <div class="flex items-center gap-3 mb-3">
           <div class="w-8 h-8 rounded-full bg-amber-400/20 flex items-center justify-center">
-            <Icon name="bxs-user" class="w-4 h-4 text-amber-400" />
+            <Icon name="bx:bxs-user" class="w-4 h-4 text-amber-400" />
           </div>
           <div class="min-w-0">
             <p class="text-sm font-medium truncate">{{ username }}</p>
@@ -106,13 +106,14 @@ const isSidebarOpen = ref(true)
 const username = computed(() => (user.value as any)?.username || 'Admin')
 
 const navItems = [
-  { path: '/dashboard', icon: 'bxs-dashboard', label: 'Vue d\'ensemble' },
-  { path: '/dashboard/players', icon: 'bxs-group', label: 'Joueurs' },
-  { path: '/dashboard/map', icon: 'bxs-map-alt', label: 'Carte' },
+  { path: '/dashboard', icon: 'bx:bxs-dashboard', label: 'Vue d\'ensemble' },
+  { path: '/dashboard/players', icon: 'bx:bxs-group', label: 'Joueurs' },
+  { path: '/dashboard/map', icon: 'bx:bxs-map-alt', label: 'Carte' },
   { path: '/dashboard/economy', icon: 'bx-coin-stack', label: 'Economie' },
-  { path: '/dashboard/expeditions', icon: 'bxs-castle', label: 'Expeditions' },
-  { path: '/dashboard/quiz', icon: 'bxs-brain', label: 'Quiz' },
-  { path: '/dashboard/social', icon: 'bxs-user-account', label: 'Social' },
+  // BoxIcons n'a pas de château : bascule sur MDI, seule collection installée à en fournir un.
+  { path: '/dashboard/expeditions', icon: 'mdi:castle', label: 'Expeditions' },
+  { path: '/dashboard/quiz', icon: 'bx:bxs-brain', label: 'Quiz' },
+  { path: '/dashboard/social', icon: 'bx:bxs-user-account', label: 'Social' },
 ]
 
 onMounted(() => {

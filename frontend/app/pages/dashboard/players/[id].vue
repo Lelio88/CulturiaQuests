@@ -29,7 +29,7 @@
         <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div class="flex items-center gap-4">
             <div class="w-14 h-14 rounded-full bg-amber-400/10 flex items-center justify-center">
-              <Icon name="bxs-user" class="w-7 h-7 text-amber-400" />
+              <Icon name="bx:bxs-user" class="w-7 h-7 text-amber-400" />
             </div>
             <div>
               <h1 class="text-2xl font-power text-white">{{ player.username }}</h1>
@@ -115,7 +115,7 @@
               class="w-10 h-10 rounded-lg pixelated object-cover bg-gray-700"
             />
             <div v-else class="w-10 h-10 rounded-lg bg-gray-700 flex items-center justify-center">
-              <Icon name="bxs-user" class="w-5 h-5 text-gray-500" />
+              <Icon name="bx:bxs-user" class="w-5 h-5 text-gray-500" />
             </div>
             <div>
               <p class="text-white text-sm font-medium">{{ char.firstname }} {{ char.lastname }}</p>

@@ -36,7 +36,7 @@
       <!-- Top KPIs -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <DashboardKpiCard
-          icon="bxs-brain"
+          icon="bx:bxs-brain"
           label="Tentatives totales"
           :value="adminStore.quizData.totalAttempts ?? 0"
           color="blue"

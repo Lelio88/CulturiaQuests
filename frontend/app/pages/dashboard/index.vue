@@ -347,14 +347,14 @@ const mainKpis = computed(() => {
   if (!t || !r) return []
   return [
     {
-      icon: 'bxs-user',
+      icon: 'bx:bxs-user',
       label: 'Utilisateurs',
       value: t.users,
       sub: `+${r.newUsers7d} cette semaine`,
       color: 'blue',
     },
     {
-      icon: 'bxs-castle',
+      icon: 'mdi:castle', // BoxIcons n'a pas de château (cf. layouts/dashboard.vue)
       label: 'Guildes',
       value: t.guilds,
       sub: `+${r.newGuilds7d} cette semaine`,
@@ -392,7 +392,7 @@ const activityRows = computed(() => {
       ...a.chestOpened,
     },
     {
-      icon: 'bxs-brain',
+      icon: 'bx:bxs-brain',
       label: 'Quiz joues',
       ...a.quizAttempts,
     },
@@ -406,7 +406,7 @@ const secondaryKpis = computed(() => {
     { icon: 'game-icons:medieval-barracks', label: 'Expeditions totales', value: t.runs },
     { icon: 'game-icons:open-chest', label: 'Visites totales', value: t.visits },
     { icon: 'game-icons:scroll-quill', label: 'Quetes totales', value: t.quests },
-    { icon: 'bxs-brain', label: 'Quiz joues', value: t.quizAttempts },
+    { icon: 'bx:bxs-brain', label: 'Quiz joues', value: t.quizAttempts },
   ]
 })
 

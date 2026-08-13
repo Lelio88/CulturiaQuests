@@ -38,7 +38,7 @@
         <h2 class="text-lg font-power text-white mb-4">Amities entre joueurs</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <DashboardKpiCard
-            icon="bxs-group"
+            icon="bx:bxs-group"
             label="Total demandes"
             :value="friendshipStats.total ?? 0"
             color="blue"
@@ -104,7 +104,7 @@
             </tbody>
           </table>
           <div v-else class="py-12 text-center">
-            <Icon name="bxs-group" class="w-12 h-12 text-gray-700 mx-auto mb-3" />
+            <Icon name="bx:bxs-group" class="w-12 h-12 text-gray-700 mx-auto mb-3" />
             <p class="text-gray-500 font-onest">Aucune donnee d'amitie disponible</p>
           </div>
         </div>
@@ -165,7 +165,7 @@
             </tbody>
           </table>
           <div v-else class="py-12 text-center">
-            <Icon name="bxs-user-voice" class="w-12 h-12 text-gray-700 mx-auto mb-3" />
+            <Icon name="bx:bxs-user-voice" class="w-12 h-12 text-gray-700 mx-auto mb-3" />
             <p class="text-gray-500 font-onest">Aucune donnee de progression PNJ disponible</p>
           </div>
         </div>

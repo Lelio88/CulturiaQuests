@@ -8,6 +8,7 @@
       v-for="item in navItems"
       :key="item.name"
       :to="item.path"
+      :data-tutorial="item.tutorialKey"
       class="flex flex-col items-center gap-1 opacity-60 hover:opacity-100 transition-opacity w-20"
       active-class="opacity-100 text-yellow-400">
       <Icon :name="item.icon" class="w-6 h-6 bg-white"/>
@@ -21,12 +22,16 @@
 import { ref } from 'vue'
 import { useFooterVisibility } from '~/composables/useFooterVisibility'
 
+// `tutorialKey` : ancre du tutoriel d'accueil (#175). Doit rester alignée sur les `target` de
+// `~/data/tutorial-steps.ts` — la renommer ici fait perdre son détourage à l'étape correspondante.
 const navItems = ref([
-  { name: 'Journaux', icon: 'bxs-book-bookmark', path: '/stories' },
-  { name: 'Équipement', icon: 'bx-bx-shield-quarter', path: '/equipement' },
-  { name: 'Carte', icon: 'bxs-map-alt', path: '/map' },
-  { name: 'Social', icon: 'bxs-user-account', path: '/social' },
-  { name: 'Guilde', icon: 'bxs-home-alt-2', path: '/guild' },
+  { name: 'Journaux', icon: 'bx:bxs-book-bookmark', path: '/stories', tutorialKey: 'stories' },
+  { name: 'Équipement', icon: 'bx-bx-shield-quarter', path: '/equipement', tutorialKey: 'equipement' },
+  { name: 'Carte', icon: 'bx:bxs-map-alt', path: '/map', tutorialKey: 'carte' },
+  { name: 'Social', icon: 'bx:bxs-user-account', path: '/social', tutorialKey: 'social' },
+  // bxs-home-alt-2 n'existe pas dans BoxIcons (seule la variante outline bx-home-alt-2 existe) :
+  // repli sur la maison pleine, cohérente avec les autres icônes solides de la barre.
+  { name: 'Guilde', icon: 'bx:bxs-home', path: '/guild', tutorialKey: 'guild' },
 ])
 
 const { isFooterVisible } = useFooterVisibility()
