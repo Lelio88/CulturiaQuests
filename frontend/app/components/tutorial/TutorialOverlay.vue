@@ -96,9 +96,13 @@ const isFinalLine = computed(
   () => tutorial.isLastStep && lineIndex.value >= (step.value?.lines.length ?? 1) - 1
 )
 
+// `neutre` est résolu ici et non dans les données : le portrait par défaut d'un PNJ porte son
+// propre nom (`Bram.webp`, `Theodric.webp`…), donc coder ce nom dans les étapes obligerait à les
+// modifier à chaque changement de narrateur. Seule TUTORIAL_NPC doit avoir à changer.
 const npcImage = computed(() => {
-  const mood = step.value?.mood ?? TUTORIAL_NPC
-  return `/assets/npc/${TUTORIAL_NPC}/${mood}.webp`
+  const mood = step.value?.mood
+  const fichier = !mood || mood === 'neutre' ? TUTORIAL_NPC : mood
+  return `/assets/npc/${TUTORIAL_NPC}/${fichier}.webp`
 })
 
 /** Hauteur réservée à la bulle du PNJ, marge comprise. Sert à la garder dans l'écran. */

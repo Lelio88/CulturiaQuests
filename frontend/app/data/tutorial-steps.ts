@@ -31,8 +31,12 @@ export interface TutorialStep {
   id: string
   /** Clé `data-tutorial` de l'élément à détourer, ou `null` pour une étape narrative. */
   target: string | null
-  /** Expression du PNJ : nom de fichier dans `/assets/npc/<TUTORIAL_NPC>/`. */
-  mood: 'Bram' | 'Quest' | 'Reflechi' | 'Succes'
+  /**
+   * Expression du PNJ. `neutre` désigne le portrait par défaut, dont le fichier porte le NOM du
+   * personnage (`Bram.webp`, `Theodric.webp`…) : la valeur reste générique pour qu'un changement
+   * de narrateur ne touche pas ces données. Les autres correspondent au nom de fichier tel quel.
+   */
+  mood: 'neutre' | 'Quest' | 'Reflechi' | 'Succes'
   /** Lignes affichées successivement dans la bulle. */
   lines: string[]
 }
@@ -45,8 +49,9 @@ export interface TutorialStep {
  * ses visuels (#177).
  *
  * Pour basculer, une fois `public/assets/npc/Theodric/` peuplé : passer cette constante à
- * `'Theodric'` et vérifier que les `mood` utilisés plus bas correspondent bien à ses fichiers.
- * Aucune réplique n'est à toucher — le narrateur ne se nomme jamais, précisément pour ça.
+ * `'Theodric'`. **C'est le seul changement à faire.** Les étapes ci-dessous ne référencent aucun
+ * nom (le portrait par défaut est désigné par `neutre`, résolu dans `TutorialOverlay`), et aucune
+ * réplique ne nomme le narrateur.
  */
 export const TUTORIAL_NPC = 'Bram'
 
@@ -54,7 +59,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'welcome',
     target: null,
-    mood: 'Bram',
+    mood: 'neutre',
     lines: [
       "Te voilà. J'ai attendu longtemps quelqu'un pour reprendre cette guilde.",
       "Mes mains ne tiennent plus une carte bien longtemps, alors elles vont te la tendre.",
@@ -107,7 +112,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'guild',
     target: 'guild',
-    mood: 'Bram',
+    mood: 'neutre',
     lines: [
       "Ta guilde t'attend ici. Tes compagnons, ton or, ton renom.",
       "Chaque expédition la fait grandir, et une guilde qui grandit attire du monde.",
