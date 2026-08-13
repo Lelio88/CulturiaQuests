@@ -59,7 +59,9 @@ export function useZoneRenderer(deps: ZoneRendererDeps) {
   let rafId: number | null = null
 
   const getZoneCenter = (zone: GeoZone): [number, number] | null => {
-    if (zone.centerLat && zone.centerLng) return [zone.centerLat, zone.centerLng]
+    // `!= null` et non un test de véracité : une coordonnée à 0 (équateur / méridien de
+    // Greenwich) est valide, et un test falsy renverrait au recalcul de centroïde (#174).
+    if (zone.centerLat != null && zone.centerLng != null) return [zone.centerLat, zone.centerLng]
     try {
       const geo = toRaw(zone.geometry) as any
       if (!geo) return null

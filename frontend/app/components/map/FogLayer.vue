@@ -193,7 +193,9 @@ const drawFog = () => {
 
   for (const zone of allZones) {
     // Skip les zones hors viewport (évite des milliers de latLngToContainerPoint inutiles)
-    if (zone.centerLat && zone.centerLng &&
+    // `!= null` et non un test de véracité : une coordonnée à 0 est valide, et un test falsy
+    // empêcherait le skip → la zone serait redessinée même hors viewport (#174).
+    if (zone.centerLat != null && zone.centerLng != null &&
         (zone.centerLat < vS || zone.centerLat > vN || zone.centerLng < vW || zone.centerLng > vE)) continue
     if (isCompleted(zone)) {
       drawGeometry(ctx, zone.geometry, map)

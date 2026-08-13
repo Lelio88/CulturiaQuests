@@ -154,8 +154,11 @@ const visibleZones = computed(() => {
     // On ajoute une marge (pad) virtuelle de 10% pour que les zones ne "popent" pas
     const bounds = mapBounds.value
     return zones.filter(z => {
-      // Si pas de centre, on affiche dans le doute
-      if (!z.centerLat || !z.centerLng) return true
+      // Si pas de centre, on affiche dans le doute.
+      // `== null` et non un test falsy : une zone centrée sur l'équateur ou le méridien de
+      // Greenwich a une coordonnée à 0, et `!0` vaut true — elle contournerait le filtre de
+      // viewport et resterait affichée en permanence (#174).
+      if (z.centerLat == null || z.centerLng == null) return true
       
       // Leaflet bounds.contains([lat, lng])
       return bounds.contains([z.centerLat, z.centerLng])
