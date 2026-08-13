@@ -199,6 +199,25 @@ Noms arrêtés, biographies **à écrire** :
 
 ---
 
+## Hors des trois cercles
+
+### Théodric Vaelmont, dit « le Vieux Maître »
+
+Le **maître de guilde sortant** : celui dont le joueur hérite de la charge. Il n'appartient à aucun
+des trois cercles de seize — ni civil du bourg, ni héros des premières brèches, ni fidèle du miroir.
+
+Il narre le **tutoriel d'accueil** (`frontend/app/data/tutorial-steps.ts`). Choix d'écriture à
+préserver : **il ne se nomme jamais** dans ses répliques, et rien n'y décrit son métier ni son
+apparence. C'est ce qui permet de faire évoluer le personnage et ses visuels sans réécrire une
+ligne de dialogue.
+
+*Biographie à écrire.* Zones ouvertes : d'où il vient, comment il a tenu la guilde pendant la
+guerre, pourquoi il se retire maintenant, et s'il reste présent dans le jeu après le tutoriel.
+
+*Visuels à produire* dans `public/assets/npc/Theodric/` — voir issue #177.
+
+---
+
 ## Les seize antagonistes
 
 Fidèles du **miroir de Monarque**, cette souveraine symétrique et opposée. **Adversaires de récit** :

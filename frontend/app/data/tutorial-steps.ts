@@ -40,9 +40,13 @@ export interface TutorialStep {
 /**
  * PNJ narrateur du tutoriel. Doit exister dans `public/assets/npc/<nom>/`.
  *
- * ⚠️ Bram est un PLACEHOLDER technique : ses visuels existaient déjà. Le guide doit devenir un
- * vieux maître de guilde, à créer (#177). Comme aucune réplique ne le nomme, le remplacement se
- * fera en changeant cette constante et les `mood` si le jeu d'expressions diffère.
+ * ⚠️ Bram est un PLACEHOLDER technique : ses visuels existaient déjà. Le narrateur retenu est
+ * **Théodric Vaelmont, dit « le Vieux Maître »**, le maître de guilde sortant — il ne manque que
+ * ses visuels (#177).
+ *
+ * Pour basculer, une fois `public/assets/npc/Theodric/` peuplé : passer cette constante à
+ * `'Theodric'` et vérifier que les `mood` utilisés plus bas correspondent bien à ses fichiers.
+ * Aucune réplique n'est à toucher — le narrateur ne se nomme jamais, précisément pour ça.
  */
 export const TUTORIAL_NPC = 'Bram'
 

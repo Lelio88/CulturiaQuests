@@ -85,9 +85,9 @@ Les guildes sont **mandatées par le trône** : une charte royale les autorise �
 contre les brèches. Ce mandat est né de la faiblesse de l'armée, pas de sa générosité.
 
 **Le joueur est un maître de guilde.** Son passé n'est pas écrit — page blanche assumée, pour que
-chacun s'y projette. Il hérite de la guilde d'un **maître sortant**, un personnage à part qui
-n'appartient ni aux seize héros ni aux seize civils, et qui lui transmet la charge avant de se
-retirer.
+chacun s'y projette. Il hérite de la guilde de **Théodric Vaelmont, dit « le Vieux Maître »**, un
+personnage à part qui n'appartient ni aux seize héros ni aux seize civils, et qui lui transmet la
+charge avant de se retirer. C'est lui qui narre le tutoriel d'accueil.
 
 **Les autres joueurs sont d'autres maîtres de guilde**, dans le même monde. Alliés de fait contre
 les brèches, même sans se coordonner — ce qui fonde le système d'amis et le quiz partagé.
@@ -151,7 +151,8 @@ d'écrire un texte d'interface.
 
 Points volontairement non tranchés. À compléter ici même dès qu'ils le seront.
 
-- **Le nom du maître de guilde sortant** — personnage à part, à créer, narrateur du tutoriel (issue #177).
+- **Théodric Vaelmont** — nom arrêté, mais son histoire reste à écrire : d'où il vient, comment il
+  a tenu la guilde pendant la guerre, pourquoi il se retire maintenant. Ses visuels manquent (#177).
 - **Le nom du miroir de Monarque**, et la nature exacte de sa symétrie avec elle.
 - **Le nom du bourg** qui sert de siège à la guilde.
 - **Les seize héros** : noms arrêtés, biographies à écrire.
