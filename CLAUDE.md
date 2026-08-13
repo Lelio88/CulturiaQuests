@@ -70,7 +70,8 @@ cd frontend && npm install && npm run dev
 cd frontend && npm test                      # Playwright
 
 # Base de données
-bash scripts/backup-db.sh                    # backup PG + media
+bash scripts/backup-db.sh                    # backup PG + media (dev)
+PG_CONTAINER=postgres_db_prod bash scripts/backup-db.sh   # idem en prod (conteneur nommé autrement)
 bash scripts/restore-db.sh backups/initial_data.tar.gz
 
 # Génération quiz manuelle (admin)

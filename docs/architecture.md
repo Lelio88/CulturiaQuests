@@ -175,7 +175,7 @@ masqué en conséquence.
 | `populate_db/` | Seed initial (NPCs, items, POIs, dialogs). |
 | `download-openquizzdb.ts` + `list-openquizzdb-themes.ts` | Outils pour gérer la banque OpenQuizzDB offline. |
 | `seed-gallery.js` | Bulk-génération d'items avec icônes média lib. |
-| `backup-db.sh` / `restore-db.sh` | `.tar.gz` PG dump + média. |
+| `backup-db.sh` / `restore-db.sh` | `.tar.gz` PG dump + média. Le conteneur visé est `postgres_db` par défaut (dev) ; en production il faut passer `PG_CONTAINER=postgres_db_prod`. |
 | `ai_reviewer.py` | GitHub Action — review IA sur push `main`/`develop`, post Discord. |
 | `export-content.sh` / `import-content.sh` | Strapi content transfer. |
 

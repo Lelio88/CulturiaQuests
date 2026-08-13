@@ -17,10 +17,18 @@ NC='\033[0m' # No Color
 # Créer le dossier de backup s'il n'existe pas
 mkdir -p "$BACKUP_DIR"
 
-# Vérifier que le conteneur PostgreSQL est en cours d'exécution
+# Vérifier que le conteneur PostgreSQL est en cours d'exécution.
+# Le défaut `postgres_db` est le nom de DÉVELOPPEMENT : en production le conteneur s'appelle
+# `postgres_db_prod`, d'où le rappel de PG_CONTAINER ci-dessous — sans quoi le script échoue là
+# où on en a le plus besoin.
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     echo -e "${RED}Erreur: Le conteneur ${CONTAINER_NAME} n'est pas en cours d'exécution.${NC}"
-    echo "Lance d'abord: docker-compose up -d database"
+    echo ""
+    echo "  En développement  : docker-compose up -d database"
+    echo "  En production     : PG_CONTAINER=postgres_db_prod bash scripts/backup-db.sh"
+    echo ""
+    echo "Conteneurs PostgreSQL actuellement démarrés :"
+    docker ps --format '{{.Names}}' | grep -i postgres || echo "  (aucun)"
     exit 1
 fi
 
