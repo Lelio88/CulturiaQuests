@@ -11,11 +11,25 @@
  *   complétion) est recyclée à la demande via un claim atomique, au lieu de bloquer le quiz
  *   toute la journée.
  *
+ * Anti-répétition — deux régimes distincts, et c'est volontaire :
+ * - **QCM OpenQuizzDB** : dédupliqués sur l'historique COMPLET (~1800 questions en stock, soit
+ *   plus de 250 jours). Quand le corpus s'épuise, le repli n'autorise que les questions absentes
+ *   des QCM_RECYCLE_GUARD_DAYS derniers jours : le cycle redevient possible sans jamais reposer
+ *   une question à quelques jours d'intervalle.
+ * - **Timeline Ollama** : dédupliquées sur une FENÊTRE GLISSANTE (TIMELINE_DEDUP_WINDOW_DAYS), pas
+ *   sur l'historique complet. Un 7B a un répertoire d'événements limité : le dédupliquer « à vie »
+ *   ferait tomber la production de timeline à zéro au bout de quelques mois, et le quiz
+ *   deviendrait 100 % QCM. La clé est `tl_<tag>_<réponse>` et non un hash du texte, afin que deux
+ *   formulations du même événement (même année, même thème) soient reconnues comme un doublon.
+ *
  * Invariants :
  * - 1 seule session par jour (contrainte UNIQUE sur quiz_sessions.date) ; getTodaySession ne
  *   renvoie qu'une session 'completed'.
- * - source_id n'est renseigné QUE sur les QCM OpenQuizzDB (clé de déduplication). Les timeline
- *   Ollama ont source_id = null.
+ * - source_id est renseigné sur TOUTES les questions : `<quizId>_<difficulté>_<id>` pour les QCM,
+ *   `tl_<tag>_<réponse>` pour les timeline. Les deux espaces de noms ne peuvent pas se collisionner
+ *   (préfixe `tl_`), ce qui permet un historique unique en base.
+ * - Une timeline rejetée n'ampute jamais le quiz : les QCM complètent toujours jusqu'à
+ *   TOTAL_QUESTIONS (un quiz peut donc être 10 QCM + 0 timeline, jamais 9 questions).
  */
 
 import fs from 'fs';
@@ -89,28 +103,81 @@ const TOTAL_QUESTIONS = 10;
 // largement sans risquer de doubler une génération réellement en cours. #74
 const STALE_GENERATING_MS = 5 * 60 * 1000;
 
-const TIMELINE_PROMPT = `Génère exactement 3 questions de type "timeline" culturelles en français.
+/** Fenêtre de déduplication des questions timeline (cf. §Anti-répétition de l'en-tête). */
+const TIMELINE_DEDUP_WINDOW_DAYS = 60;
+
+/** Ancienneté minimale avant qu'un QCM redevienne piochable une fois le corpus épuisé. */
+const QCM_RECYCLE_GUARD_DAYS = 30;
+
+/** Nombre d'années récemment utilisées listées au modèle comme interdites. */
+const RECENT_YEARS_IN_PROMPT = 25;
+
+const VALID_TAGS = ['Art', 'History', 'Make', 'Nature', 'Science', 'Society'] as const;
+
+/**
+ * Tranches de périodes tirées au sort à chaque génération.
+ *
+ * Sans contrainte de période, un 7B converge invariablement vers la même poignée de dates
+ * canoniques (1789, 1492, 1969). Imposer une fenêtre force l'exploration d'autres époques et
+ * constitue le principal levier de variété — davantage que la température.
+ */
+const PERIOD_WINDOWS: ReadonlyArray<{ min: number; max: number; label: string }> = [
+  { min: 1000, max: 1400, label: 'Moyen Âge' },
+  { min: 1400, max: 1600, label: 'Renaissance' },
+  { min: 1600, max: 1800, label: 'époque moderne' },
+  { min: 1800, max: 1900, label: 'XIXe siècle' },
+  { min: 1900, max: 1960, label: 'première moitié du XXe siècle' },
+  { min: 1960, max: 2025, label: 'époque contemporaine' },
+];
+
+/**
+ * Construit la commande du jour pour Ollama.
+ *
+ * Trois sources de variation, parce qu'un prompt figé produit des questions figées :
+ * thèmes imposés (rotation déterministe sur la date), période imposée (tirage aléatoire), et
+ * liste d'années explicitement interdites (celles déjà tombées récemment).
+ *
+ * Note : l'exemple de structure JSON utilise volontairement des valeurs FICTIVES (`AAAA`). Une
+ * année réelle dans l'exemple est massivement recopiée par les petits modèles — la version
+ * précédente montrait « 1789 » et récoltait la Révolution française à répétition.
+ *
+ * @param themes - Thèmes imposés pour les 3 questions
+ * @param period - Fenêtre temporelle imposée
+ * @param forbiddenYears - Années déjà utilisées récemment
+ */
+function buildTimelinePrompt(
+  themes: string[],
+  period: { min: number; max: number; label: string },
+  forbiddenYears: string[]
+): string {
+  const forbiddenLine = forbiddenYears.length > 0
+    ? `\n- INTERDIT : ne propose aucune question dont la réponse est l'une de ces années déjà posées : ${forbiddenYears.join(', ')}`
+    : '';
+
+  return `Génère exactement 3 questions de type "timeline" culturelles en français.
 Pour chaque question, l'utilisateur doit deviner une année.
 
 Exigences :
-- Questions variées : histoire, art, sciences, nature, société ou savoir-faire
-- Chaque question doit avoir un tag parmi : Art, History, Make, Nature, Science, Society
-- L'année correcte doit être entre 1000 et 2025
+- Les 3 questions portent respectivement sur ces thèmes, dans cet ordre : ${themes.join(', ')}
+- Le tag de chaque question doit être exactement le thème imposé ci-dessus
+- L'année correcte doit se situer entre ${period.min} et ${period.max} (${period.label})
+- Choisis des événements PRÉCIS et peu évidents, pas les grands classiques scolaires${forbiddenLine}
 - La plage (min/max) doit encadrer la réponse avec une marge raisonnable
 - Inclure une brève explication
 
-Retourne UNIQUEMENT un objet JSON valide avec cette structure exacte :
+Retourne UNIQUEMENT un objet JSON valide avec cette structure exacte (AAAA = année à remplacer) :
 {
   "questions": [
     {
       "question": "En quelle année ... ?",
-      "tag": "History",
-      "correctAnswer": "1789",
-      "timelineRange": {"min": 1700, "max": 1850},
+      "tag": "${themes[0]}",
+      "correctAnswer": "AAAA",
+      "timelineRange": {"min": AAAA, "max": AAAA},
       "explanation": "Explication courte"
     }
   ]
 }`;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -137,6 +204,95 @@ async function loadUsedSourceIds(): Promise<Set<string>> {
       .map((r: { source_id: string | null }) => r.source_id)
       .filter((id): id is string => Boolean(id))
   );
+}
+
+/**
+ * IDs de questions source utilisés depuis `days` jours (fenêtre glissante).
+ *
+ * `createdAt` est la bonne colonne : une question est créée le jour de la génération de sa
+ * session. Passer par la relation session→date imposerait une jointure pour un résultat identique.
+ */
+async function loadRecentSourceIds(days: number): Promise<Set<string>> {
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const rows = await strapi.db.query('api::quiz-question.quiz-question').findMany({
+    where: { source_id: { $notNull: true }, createdAt: { $gte: cutoff } },
+    select: ['source_id'],
+  });
+  return new Set(
+    rows
+      .map((r: { source_id: string | null }) => r.source_id)
+      .filter((id): id is string => Boolean(id))
+  );
+}
+
+/**
+ * Années des questions timeline récemment posées, pour les interdire au modèle.
+ */
+async function loadRecentTimelineYears(limit: number): Promise<string[]> {
+  const rows = await strapi.db.query('api::quiz-question.quiz-question').findMany({
+    where: { question_type: 'timeline' },
+    select: ['correct_answer'],
+    orderBy: { createdAt: 'desc' },
+    limit,
+  });
+  return [...new Set(
+    rows
+      .map((r: { correct_answer: string | null }) => r.correct_answer)
+      .filter((a): a is string => Boolean(a))
+  )];
+}
+
+/**
+ * Clé de déduplication d'une question timeline.
+ *
+ * Volontairement construite sur (tag, réponse) et NON sur le texte : « En quelle année a débuté la
+ * Révolution française ? » et « En quelle année la Révolution française a-t-elle commencé ? » sont
+ * la même question pour le joueur, et un hash de texte les distinguerait. Le revers assumé est le
+ * faux positif — deux événements distincts du même thème la même année sont vus comme un doublon,
+ * et le second est simplement remplacé par un QCM.
+ */
+function makeTimelineId(tag: string, answer: string): string {
+  return `tl_${tag}_${normalizeAnswer(answer)}`;
+}
+
+/**
+ * Sélectionne `count` thèmes distincts pour le jour donné.
+ *
+ * Permutation DÉTERMINISTE dérivée de la date, et non tirage aléatoire : un rattrapage ou une
+ * régénération du même jour doit reproduire la même commande, sinon deux exécutions du même quiz
+ * partiraient sur des consignes différentes.
+ *
+ * Une simple rotation modulaire (`(dayIndex * count + i) % 6`) a été écartée : avec 6 thèmes pris
+ * 3 par 3, elle ne produit que deux triplets qui alternent indéfiniment. Le mélange complet ouvre
+ * les 20 combinaisons. Il n'y a volontairement AUCUNE garantie que deux jours consécutifs soient
+ * disjoints : la variété thématique est un levier de diversité, pas le garde-fou anti-répétition —
+ * celui-ci est la déduplication par `source_id`.
+ */
+function pickThemesForDay(dateKey: string, count: number): string[] {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dayIndex = Math.floor(Date.UTC(y, m - 1, d) / (24 * 60 * 60 * 1000));
+
+  // Fisher-Yates seedé par le jour. Le générateur est un splitmix32 et non un LCG classique :
+  // les bits de poids faible d'un LCG ont une période très courte, et comme `% (i + 1)` ne lit
+  // QUE ces bits-là, deux jours consécutifs retombaient sur la même permutation (observé sur
+  // 2026-08-25 / 2026-08-26). Aucun usage cryptographique ici, seulement du mélange cosmétique.
+  const pool: string[] = [...VALID_TAGS];
+  let seed = dayIndex >>> 0;
+  const nextRandom = (): number => {
+    seed = (seed + 0x9e3779b9) | 0;
+    let t = seed ^ (seed >>> 16);
+    t = Math.imul(t, 0x21f0aaad);
+    t = t ^ (t >>> 15);
+    t = Math.imul(t, 0x735a2d97);
+    t = t ^ (t >>> 15);
+    return t >>> 0;
+  };
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = nextRandom() % (i + 1);
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+
+  return pool.slice(0, count);
 }
 
 /**
@@ -230,7 +386,11 @@ async function callOllama(prompt: string, retries = 3): Promise<unknown> {
 
 // ─── Fonctions principales ───────────────────────────────────────────
 
-function pickOpenQuizzDBQuestions(count: number, usedIds: Set<string>): GeneratedQuestion[] {
+function pickOpenQuizzDBQuestions(
+  count: number,
+  usedIds: Set<string>,
+  recentIds: Set<string>
+): GeneratedQuestion[] {
   const config = loadSelectedQuizzes();
 
   // Collecter toutes les questions disponibles depuis les quiz sélectionnés
@@ -291,11 +451,23 @@ function pickOpenQuizzDBQuestions(count: number, usedIds: Set<string>): Generate
   // des picks sont écrits sur les quiz_questions créées par generateDailyQuiz → pas d'écriture ici.
   let available = allQuestions.filter((q) => !usedIds.has(q.id));
 
-  // Corpus presque épuisé : on repioche dans l'ensemble complet (cycle). La répétition devient
-  // alors inévitable mais le tirage reste aléatoire chaque jour.
+  // Corpus épuisé : le cycle devient inévitable, mais il ne doit pas ramener la question d'hier.
+  // On rouvre donc d'abord aux seules questions absentes des QCM_RECYCLE_GUARD_DAYS derniers jours
+  // — une question ne peut ainsi jamais revenir à moins d'un mois d'intervalle.
   if (available.length < count) {
-    strapi.log.info(`[quiz-generator] Corpus presque épuisé (${usedIds.size} questions déjà vues / ${allQuestions.length} disponibles), repioche dans l'ensemble complet`);
-    available = allQuestions;
+    const beyondGuard = allQuestions.filter((q) => !recentIds.has(q.id));
+    strapi.log.info(
+      `[quiz-generator] Corpus épuisé (${usedIds.size} vues / ${allQuestions.length} disponibles), ` +
+      `repioche hors des ${QCM_RECYCLE_GUARD_DAYS} derniers jours (${beyondGuard.length} éligibles)`
+    );
+    // Garde-fou : si même cette réserve est insuffisante (corpus réduit ou fenêtre trop large),
+    // on rouvre tout plutôt que de livrer un quiz incomplet.
+    available = beyondGuard.length >= count ? beyondGuard : allQuestions;
+    if (beyondGuard.length < count) {
+      strapi.log.warn(
+        `[quiz-generator] Réserve hors-garde insuffisante (${beyondGuard.length} < ${count}), repioche dans l'ensemble complet`
+      );
+    }
   }
 
   // Piocher aléatoirement
@@ -331,10 +503,35 @@ function pickOpenQuizzDBQuestions(count: number, usedIds: Set<string>): Generate
   });
 }
 
-async function generateTimelineQuestions(count: number): Promise<GeneratedQuestion[]> {
+/**
+ * Génère les questions timeline du jour via Ollama, puis écarte les doublons.
+ *
+ * Best-effort à double titre : Ollama peut être indisponible (0 question), et les questions déjà
+ * posées récemment sont rejetées. Le manque est toujours comblé par des QCM côté appelant — on
+ * préfère un quiz 100 % QCM à un quiz qui repose la question d'hier.
+ *
+ * @param count - Nombre de questions souhaitées
+ * @param dateKey - Jour de la session (pilote la rotation des thèmes)
+ * @param recentIds - source_id timeline utilisés dans la fenêtre de déduplication
+ */
+async function generateTimelineQuestions(
+  count: number,
+  dateKey: string,
+  recentIds: Set<string>
+): Promise<GeneratedQuestion[]> {
   strapi.log.info(`[quiz-generator] Génération de ${count} questions timeline via Ollama (${OLLAMA_MODEL})...`);
 
-  const result = await callOllama(TIMELINE_PROMPT) as { questions?: Array<{
+  const themes = pickThemesForDay(dateKey, count);
+  const period = PERIOD_WINDOWS[Math.floor(Math.random() * PERIOD_WINDOWS.length)];
+  const forbiddenYears = await loadRecentTimelineYears(RECENT_YEARS_IN_PROMPT);
+
+  strapi.log.info(
+    `[quiz-generator] Commande timeline — thèmes : ${themes.join(', ')} | période : ${period.label} | ${forbiddenYears.length} années interdites`
+  );
+
+  const prompt = buildTimelinePrompt(themes, period, forbiddenYears);
+
+  const result = await callOllama(prompt) as { questions?: Array<{
     question: string;
     tag: string;
     correctAnswer: string;
@@ -347,18 +544,43 @@ async function generateTimelineQuestions(count: number): Promise<GeneratedQuesti
     return [];
   }
 
-  const validTags = ['Art', 'History', 'Make', 'Nature', 'Science', 'Society'];
+  const accepted: GeneratedQuestion[] = [];
+  // Déduplication intra-batch : rien n'empêche le modèle de livrer deux fois le même événement
+  // dans une seule réponse.
+  const batchIds = new Set<string>();
+  let rejected = 0;
 
-  return result.questions.slice(0, count).map((q) => ({
-    question_text: q.question,
-    question_type: 'timeline' as const,
-    correct_answer: String(q.correctAnswer),
-    options: null,
-    timeline_range: q.timelineRange || { min: 1800, max: 2025 },
-    explanation: q.explanation || '',
-    tagName: validTags.includes(q.tag) ? q.tag : 'History',
-    source_id: null,
-  }));
+  for (const q of result.questions) {
+    if (accepted.length >= count) break;
+    if (!q?.question || q.correctAnswer === undefined || q.correctAnswer === null) continue;
+
+    const tagName = VALID_TAGS.includes(q.tag as typeof VALID_TAGS[number]) ? q.tag : 'History';
+    const correctAnswer = String(q.correctAnswer);
+    const sourceId = makeTimelineId(tagName, correctAnswer);
+
+    if (recentIds.has(sourceId) || batchIds.has(sourceId)) {
+      rejected++;
+      continue;
+    }
+    batchIds.add(sourceId);
+
+    accepted.push({
+      question_text: q.question,
+      question_type: 'timeline' as const,
+      correct_answer: correctAnswer,
+      options: null,
+      timeline_range: q.timelineRange || { min: period.min, max: period.max },
+      explanation: q.explanation || '',
+      tagName,
+      source_id: sourceId,
+    });
+  }
+
+  if (rejected > 0) {
+    strapi.log.info(`[quiz-generator] ${rejected} timeline écartée(s) (déjà posée(s) récemment) — complétées par des QCM`);
+  }
+
+  return accepted;
 }
 
 // ─── Service Strapi ──────────────────────────────────────────────────
@@ -438,17 +660,25 @@ export default {
     }
 
     try {
-      // Historique anti-répétition persistant (#73) : dérivé de la base (source_id), jamais d'un fichier.
+      // Historique anti-répétition persistant (#73) : dérivé de la base (source_id), jamais d'un
+      // fichier. Deux portées : complète pour les QCM, glissante pour les timeline et pour le
+      // repli de fin de corpus (cf. §Anti-répétition en tête de fichier).
       const usedIds = await loadUsedSourceIds();
+      const recentTimelineIds = await loadRecentSourceIds(TIMELINE_DEDUP_WINDOW_DAYS);
+      const recentQcmIds = await loadRecentSourceIds(QCM_RECYCLE_GUARD_DAYS);
 
-      // 1. Questions timeline via Ollama (best-effort : 0 à 3 selon disponibilité)
-      const timelineQuestions = await generateTimelineQuestions(3);
-      strapi.log.info(`[quiz-generator] ${timelineQuestions.length} timeline générées via Ollama`);
+      // 1. Questions timeline via Ollama (best-effort : 0 à 3 selon disponibilité ET unicité)
+      const timelineQuestions = await generateTimelineQuestions(3, today, recentTimelineIds);
+      strapi.log.info(`[quiz-generator] ${timelineQuestions.length} timeline retenues`);
 
       // 2. QCM OpenQuizzDB : compléter pour TOUJOURS atteindre TOTAL_QUESTIONS. Si Ollama
       // est indisponible (0 timeline), on pioche d'autant plus de QCM plutôt que de livrer
       // un quiz dégradé à 7 questions au score maximal incohérent.
-      const qcmQuestions = pickOpenQuizzDBQuestions(TOTAL_QUESTIONS - timelineQuestions.length, usedIds);
+      const qcmQuestions = pickOpenQuizzDBQuestions(
+        TOTAL_QUESTIONS - timelineQuestions.length,
+        usedIds,
+        recentQcmIds
+      );
       strapi.log.info(`[quiz-generator] ${qcmQuestions.length} QCM piochés depuis OpenQuizzDB`);
 
       // Combiner et mélanger

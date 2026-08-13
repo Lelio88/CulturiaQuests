@@ -80,7 +80,7 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 | Content-type | Rôle |
 |---|---|
 | `quiz-session` | 1 session par jour. Statut : `pending` / `generating` / `completed` / `failed`. Générée par cron à minuit Europe/Paris. |
-| `quiz-question` | 10 questions par session, mélangées. Timeline Ollama **best-effort** (0 à 3 selon disponibilité), QCM OpenQuizzDB complètent pour toujours atteindre 10. `source_id` (privé) = clé d'anti-répétition persistée en base. |
+| `quiz-question` | 10 questions par session, mélangées. Timeline Ollama **best-effort** (0 à 3 selon disponibilité **et** unicité), QCM OpenQuizzDB complètent pour toujours atteindre 10. `source_id` (privé) = clé d'anti-répétition persistée en base, renseignée sur **toutes** les questions : `<quizId>_<difficulté>_<id>` pour les QCM, `tl_<tag>_<réponse>` pour les timeline. |
 | `quiz-attempt` | Tentative joueur. Score 0-2150 (MAX_QUIZ_SCORE = 200 × QCM + 250 × timeline). Tier : bronze < 1000 < silver < 1400 < gold < 1800 ≤ platinum. |
 
 ### Social, admin, GDPR
@@ -251,6 +251,8 @@ Objectif : soustraire le JWT au JavaScript. Le token vit dans un cookie **HTTP-O
 - ❌ **Supposer qu'une session `completed` peut être régénérée par le cron/rattrapage** — `generateDailyQuiz` skip une session `completed`, mais **recycle** automatiquement une session `failed`/`pending` ou `generating` zombie (> 5 min) via un claim atomique (rattrapage si le serveur était down à minuit, #74). Le re-run manuel via `generate-quiz-questions.ts --force` reste pour forcer une régénération d'une session `completed`.
 - ❌ **`check-then-create` non sérialisé sur une clé métier concurrente** (ex: première visite d'un POI, génération de quêtes quotidiennes) — deux requêtes simultanées créent des doublons (double loot, double jeu de quêtes). Les contraintes UNIQUE composites sont impossibles sur les tables `_lnk` de Strapi. Utiliser `withAdvisoryLock(strapi, clé, fn)` (`backend/src/utils/db-lock.ts`, verrou consultatif PostgreSQL) autour du get-or-create. Cf. `visit.controller.openChest` (#66), `quest.controller.generateDaily` (#67).
 - ❌ **Migration de schéma sans `npm run build`** — l'admin panel cesse de fonctionner avec l'erreur cryptique « reading 'tours' undefined ». Solution : `rm -rf backend/{.strapi,dist,node_modules}` puis `npm install && npm run build`.
+- ❌ **Créer une question de quiz avec `source_id: null`** — le champ est la SEULE clé d'anti-répétition, et `loadUsedSourceIds` filtre sur `$notNull` : une question sans `source_id` est invisible de l'historique et peut retomber dès le lendemain. C'était le cas des timeline Ollama jusqu'à leur passage à `tl_<tag>_<réponse>`.
+- ❌ **Mettre une valeur réaliste dans l'exemple JSON d'un prompt Ollama** — un modèle 7B recopie massivement l'exemple qu'on lui montre. Le prompt timeline illustrait le format avec « 1789 » et récoltait la Révolution française en boucle. Utiliser des placeholders (`AAAA`).
 
 ## 9. Stratégie de test
 
@@ -278,8 +280,8 @@ Hors deploy : `.github/workflows/ai_review.yml` poste une review IA sur Discord 
 | Dépendance | Usage | Risque & mitigation |
 |---|---|---|
 | **OpenStreetMap (Overpass API)** | Import POI via `scripts/pois_importer/`. | Rate limit côté Overpass — l'import est offline, déclenché à la main. Ne **jamais** appeler Overpass depuis Strapi en runtime. |
-| **OpenQuizzDB** | Banque de QCM (fichiers JSON locaux dans `backend/src/data/openquizzdb/`). | Fichiers commités dans le repo. Anti-répétition persistée en base (`quiz_questions.source_id`, survit aux redeploys). Repioche dans l'ensemble complet quand le corpus est presque épuisé. |
-| **Ollama (LLM local)** | Génération des questions timeline du quiz quotidien (best-effort) + catégorisation POI à l'import. | Si Ollama indisponible : le service `quiz-generator` skip les timeline (3 retries avec backoff exponentiel) et **complète à 10 QCM** OpenQuizzDB — le quiz reste complet, jamais dégradé. Aucune dépendance bloquante en runtime API. |
+| **OpenQuizzDB** | Banque de QCM (fichiers JSON locaux dans `backend/src/data/openquizzdb/`). | Fichiers commités dans le repo (~1800 questions, > 250 jours de stock). Anti-répétition persistée en base (`quiz_questions.source_id`, survit aux redeploys) sur l'historique **complet**. Corpus épuisé → repioche restreinte aux questions absentes des **30 derniers jours**, l'ensemble complet n'étant rouvert qu'en dernier recours. |
+| **Ollama (LLM local)** | Génération des questions timeline du quiz quotidien (best-effort) + catégorisation POI à l'import. | Si Ollama indisponible : le service `quiz-generator` skip les timeline (3 retries avec backoff exponentiel) et **complète à 10 QCM** OpenQuizzDB — le quiz reste complet, jamais dégradé. Aucune dépendance bloquante en runtime API. Les timeline produites sont dédupliquées sur une **fenêtre glissante de 60 jours** (et non « à vie » : le répertoire d'événements d'un 7B est fini, une dédup permanente tarirait la production). |
 | **Etalab (GeoJSON France)** | Source des géométries région / département / comcom. | Import offline via `scripts/zones_importer`. Données stables. |
 | **Capacitor (Android)** | Packaging mobile. | App ID `com.culturiaquests.app`. Scheme HTTPS. Build via Gradle standard. |
 | **Discord webhook** | Notifications CI/CD. | `DISCORD_WEBHOOK_URL` en secret GitHub. Pas critique — si down, pas d'impact prod. |
