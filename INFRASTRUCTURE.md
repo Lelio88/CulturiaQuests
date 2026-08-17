@@ -48,6 +48,29 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICxzIUxAwN0j83achZ3iNzYTLwj1PcezytzrfpeUpdwk
 
 - **HTTPS** : géré automatiquement par **Caddy** (Let's Encrypt) — un certificat par sous-domaine, sans wildcard.
 
+### Caddy — journalisation et cache
+
+Le `Caddyfile` (`/etc/caddy/Caddyfile`, **hors dépôt**) ne se limite pas au reverse proxy :
+
+| Réglage | Portée | Pourquoi |
+|---|---|---|
+| Access log JSON | les deux vhosts | Sans lui, un incident utilisateur est indiagnosticable a posteriori : les logs Docker ne remontent qu'au dernier déploiement et ne voient pas les requêtes qui n'atteignent jamais l'app. Fichiers `/var/log/caddy/{culturia,api-culturia}-access.log`, 20 Mio × 5, purge à 30 jours. |
+| Masquage d'IP (`ip_mask` /24, /32) | les deux vhosts | Les IP sont des données personnelles et le diagnostic n'a pas besoin d'identifier un joueur. Caddy expurge déjà `Authorization` / `Cookie` / `Set-Cookie`. |
+| `Cache-Control: public, max-age=31536000, immutable` | `api.culturia…/uploads/*` | Les médias Strapi ont un nom **hashé** à l'upload : une URL donnée ne change jamais de contenu. Sans ce réglage, Strapi renvoyait `max-age=0`, sans ETag, en ignorant `If-Modified-Since` → retéléchargement intégral à chaque affichage. |
+| `Cache-Control: public, max-age=604800` | `culturia…/assets/*` | Visuels du jeu servis par Nuxt (~19 Mo : badges, PNJ, cartes). **Volontairement ni `immutable` ni un an** : ces noms de fichiers ne sont **pas** hashés (`Theodric.webp` le reste après remplacement), un cache long figerait l'ancien visuel chez les joueurs sans moyen de purge. Les bundles `/_nuxt/*`, eux, sont déjà versionnés par Nuxt et servis en `immutable`. |
+
+Toute modification passe par `caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile` **avant** `systemctl reload caddy` — un Caddyfile invalide fait tomber les deux sites.
+
+⚠️ **`validate` ne teste pas l'ouverture des fichiers de log.** Une config peut être déclarée
+« Valid configuration » puis faire échouer le reload sur `permission denied`. Pire : `caddy validate`
+lancé **en root** instancie les modules de log et crée les fichiers manquants en `root:root 0600`,
+alors que le daemon tourne en `caddy` (`User=caddy`) — il ne peut alors plus les ouvrir. Les fichiers
+de `/var/log/caddy/` doivent préexister en `caddy:caddy 640`.
+
+Un reload refusé est **sans coupure** (l'ancienne config reste active en mémoire), mais il laisse le
+Caddyfile sur disque désynchronisé : au prochain `restart`/reboot, Caddy refuserait de démarrer et
+les deux sites tomberaient. Toujours restaurer la sauvegarde après un reload échoué.
+
 ---
 
 ## Architecture déployée (option A)
@@ -82,13 +105,14 @@ Stockés dans **GitHub → Settings → Secrets** et/ou `.env.production` sur le
 
 ---
 
-## État de mise en place
+## Observabilité
 
-- ✅ Serveur Hetzner provisionné (Docker + swap + firewall)
-- ⏳ Nom de domaine (à acheter — un domaine neutre partagé entre projets)
-- ⏳ DNS : `culturia.<domaine>` + `api.culturia.<domaine>` → `167.233.156.2`
-- ⏳ Secrets GitHub + `.env.production`
-- ⏳ Premier déploiement (`install-prod.sh` + migration des données)
-- ⏳ Caddy (2 blocs reverse proxy)
-- ⏳ Keystore Android + build de l'AAB
-- ⏳ Politique de confidentialité hébergée (GitHub Pages) + saisie Google Play Console
+Ce qui est disponible pour diagnostiquer un incident, et jusqu'où ça remonte :
+
+| Source | Commande | Profondeur |
+|---|---|---|
+| Access logs HTTP | `tail -f /var/log/caddy/culturia-access.log` (ou `api-culturia-…`) | 30 jours |
+| Logs applicatifs | `docker logs -f nuxt_frontend_prod` / `strapi_backend_prod` | **depuis le dernier déploiement seulement** — un push sur `release` recrée les conteneurs et efface l'historique |
+| Base | `docker exec postgres_db_prod psql -U strapi -d strapi` | — |
+
+Le domaine est `heianenterprise.com` : substituer partout à `<domaine>` ci-dessus.
