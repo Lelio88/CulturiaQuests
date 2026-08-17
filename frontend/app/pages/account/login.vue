@@ -22,10 +22,14 @@
           :disabled="loading"
         />
 
-        <div class="text-right -mt-2">
+        <!-- Affordance tactile : `underline` est PERMANENT et non plus au survol — il n'y a pas de
+             survol sur mobile, or l'app est mobile-first. Sans lui, ce libellé ne se lisait pas
+             comme un lien. `min-h-[44px]` + `inline-flex` portent la cible à la taille tactile
+             recommandée (elle faisait 13 px de haut). -->
+        <div class="flex justify-end -mt-1">
           <NuxtLink
             to="/account/forgot-password"
-            class="text-xs font-pixel text-indigo-600 hover:underline"
+            class="inline-flex items-center min-h-[44px] px-1 text-sm font-pixel text-indigo-600 underline underline-offset-4 active:text-indigo-800"
           >
             Mot de passe oublié ?
           </NuxtLink>
