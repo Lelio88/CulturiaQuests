@@ -32,9 +32,11 @@
             v-model="selectedIconId"
             :items="filteredIcons"
             :loading="characterStore.iconsLoading"
+            :error="characterStore.iconsError"
             :disabled="creating"
             label="Choisissez l'icône de votre personnage"
             :get-image-url="getIconUrl"
+            @retry="characterStore.fetchCharacterIcons()"
           />
 
           <p class="text-sm font-pixel text-gray-500 text-center">

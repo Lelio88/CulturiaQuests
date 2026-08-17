@@ -113,9 +113,11 @@
             v-model="form.iconId"
             :items="icons"
             :loading="iconsLoading"
+            :error="iconsError"
             :disabled="loading"
             label="Choisissez l'icône de votre personnage"
             :get-image-url="getIconUrl"
+            @retry="loadIcons"
           />
         </div>
 
@@ -189,7 +191,6 @@ import IconPicker from '~/components/form/IconPicker.vue'
 import Alert from '~/components/form/Alert.vue'
 import OverlayPanel from '~/components/ui/OverlayPanel.vue'
 import CguContent from '~/components/legal/CguContent.vue'
-import type { StrapiMedia } from '~/types/strapi'
 
 const { register, user } = useAuth()
 const router = useRouter()
@@ -297,14 +298,18 @@ function previousStep() {
   }
 }
 
-// Charger les icônes de personnage
-const icons = ref<StrapiMedia[]>([])
+// Catalogue d'icônes : vues DÉRIVÉES du store, jamais une copie figée. Une copie prise une fois
+// dans onMounted ne se mettrait pas à jour après un réessai, et le bouton « Réessayer » n'aurait
+// aucun effet visible alors même que le rechargement aurait réussi.
+const icons = computed(() => characterStore.availableIcons)
 const iconsLoading = computed(() => characterStore.iconsLoading)
+const iconsError = computed(() => characterStore.iconsError)
 
-onMounted(async () => {
-  await characterStore.fetchCharacterIcons()
-  icons.value = characterStore.availableIcons
-})
+function loadIcons() {
+  return characterStore.fetchCharacterIcons()
+}
+
+onMounted(loadIcons)
 
 const handleSubmit = async () => {
   // Si on n'est pas sur la dernière étape, avancer au lieu de soumettre

@@ -17,6 +17,9 @@ import type { StrapiMedia, StrapiListResponse, StrapiSingleResponse } from '~/ty
  *   visuels entre personnages.
  * - `createCharacter` / `saveCharacter` refont un `fetchCharacters()` après écriture pour resynchroniser
  *   l'état (les icônes peuplées ne sont pas renvoyées par le POST/PUT).
+ * - Le catalogue d'icônes a son propre couple `iconsLoading` / `iconsError`, séparé de `loading` /
+ *   `error` : il se charge sur l'écran d'inscription, hors session, et son échec bloque tout le
+ *   parcours (cf. `fetchCharacterIcons`).
  *
  * Invariant : store NON persisté — rechargé via `useGuildStore().fetchAll()` (cf. note en bas de
  * fichier) pour éviter les données obsolètes en cas d'édition multi-appareils.
@@ -30,6 +33,7 @@ export const useCharacterStore = defineStore('character', () => {
   // State for icons
   const availableIcons = ref<StrapiMedia[]>([])
   const iconsLoading = ref(false)
+  const iconsError = ref<string | null>(null)
 
   // Getters
   const hasCharacters = computed(() => characters.value.length > 0)
@@ -162,9 +166,23 @@ export const useCharacterStore = defineStore('character', () => {
     }
   }
 
+  /**
+   * Charge le catalogue d'icônes de personnage (route publique, consommée AVANT authentification
+   * par l'écran d'inscription).
+   *
+   * `iconsError` est distinct de `error` (réservé au CRUD personnage) car l'échec n'a pas la même
+   * conséquence : sans icônes, l'inscription est INFRANCHISSABLE (`canProceed` exige un `iconId`).
+   * L'erreur doit donc rester visible et l'appel rejouable — la traiter comme « liste vide »
+   * afficherait « Aucun élément disponible », indiscernable d'un catalogue réellement vide, et
+   * laisserait le joueur bloqué sur un bouton grisé sans explication ni recours.
+   *
+   * Invariant : ne jamais retomber silencieusement sur `[]`. Un appel qui échoue laisse
+   * `availableIcons` intact (un catalogue déjà chargé survit à un réessai raté).
+   */
   async function fetchCharacterIcons() {
     const client = useApi()
     iconsLoading.value = true
+    iconsError.value = null
 
     try {
       const response = await client<StrapiListResponse<StrapiMedia>>('/character-icons', {
@@ -175,7 +193,10 @@ export const useCharacterStore = defineStore('character', () => {
       availableIcons.value = Array.isArray(data) ? data : []
     } catch (e: any) {
       console.error('Failed to fetch character icons:', e)
-      availableIcons.value = []
+      // Message FIXE, volontairement non dérivé de l'erreur : les causes réelles (« fetch failed »,
+      // « Non authentifié », timeout du proxy) ne disent rien à un joueur et l'action utile est la
+      // même dans tous les cas — vérifier sa connexion et réessayer.
+      iconsError.value = 'Impossible de charger les icônes. Vérifie ta connexion, puis réessaie.'
     } finally {
       iconsLoading.value = false
     }
@@ -269,6 +290,7 @@ export const useCharacterStore = defineStore('character', () => {
     error,
     availableIcons,
     iconsLoading,
+    iconsError,
     // Getters
     hasCharacters,
     characterCount,

@@ -9,6 +9,24 @@
         Chargement...
       </div>
 
+      <!-- Échec de chargement : distinct du catalogue vide. Sans ce cas, une coupure réseau
+           s'affichait « Aucun élément disponible » et laissait le joueur bloqué sur un bouton
+           grisé, sans explication ni moyen de rejouer l'appel.
+           Subordonné à `items.length === 0` : une erreur résiduelle (réessai raté après un
+           chargement réussi) ne doit pas masquer une grille déjà sélectionnable. -->
+      <div v-else-if="error && items.length === 0" class="text-center py-6 px-4 space-y-3">
+        <p class="text-sm font-pixel text-red-600">
+          {{ error }}
+        </p>
+        <button
+          type="button"
+          class="font-pixel text-sm text-indigo-600 underline underline-offset-4 min-h-[44px] px-4"
+          @click="$emit('retry')"
+        >
+          Réessayer
+        </button>
+      </div>
+
       <div v-else-if="items.length === 0" class="text-center py-8 text-gray-500">
         Aucun élément disponible
       </div>
@@ -53,6 +71,19 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * IconPicker — grille de sélection d'un visuel (icône de personnage, badge…) parmi un catalogue.
+ *
+ * Trois états mutuellement exclusifs, dans cet ordre : `loading` → `error` → grille (ou « aucun
+ * élément » si le catalogue est légitimement vide). Séparer `error` du cas vide est délibéré :
+ * confondre les deux rend un incident réseau indiscernable d'un catalogue vide et n'offre aucun
+ * recours, alors que la sélection conditionne la suite du formulaire.
+ *
+ * Le parent reste maître du rechargement : le composant se contente d'émettre `retry`.
+ *
+ * @example
+ * <IconPicker v-model="iconId" :items="icons" :loading="loading" :error="error" @retry="load" />
+ */
 interface IconPickerItem {
   id: number
   url: string
@@ -71,6 +102,14 @@ const props = defineProps({
   loading: {
     type: Boolean,
     default: false
+  },
+  /**
+   * Message d'échec du chargement du catalogue. Non vide ⇒ l'état d'erreur remplace la grille
+   * et le composant émet `retry` au clic. À laisser à `null` pour un catalogue légitimement vide.
+   */
+  error: {
+    type: String as PropType<string | null>,
+    default: null
   },
   disabled: {
     type: Boolean,
@@ -94,7 +133,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'retry'])
 
 function handleSelect(item: IconPickerItem) {
   if (!props.disabled) {
