@@ -83,6 +83,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 # App mobile Android (Capacitor — module frontend/)
 cd frontend && npm run generate && npx cap sync android  # web → android/
 cd frontend/android && ./gradlew bundleRelease           # AAB signé (keystore.properties, non versionné)
+# Clé, coffre et câblage Gradle : ../android-signing-guide.md (convention du conteneur)
 
 # Publication Play Store (prérequis : 1ʳᵉ version envoyée à la main dans la console)
 python scripts/publish_play.py --show-config                    # config détectée, sans réseau
