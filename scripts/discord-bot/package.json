@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "private": true,
-  "description": "Bot Discord de suivi de l'import POI CulturiaQuests (/import-status)",
+  "description": "Bot Discord d'exploitation CulturiaQuests (/import-status, /health)",
   "dependencies": {
     "discord.js": "^14.16.3"
   }

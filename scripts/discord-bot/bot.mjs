@@ -1,5 +1,10 @@
 /**
- * bot.mjs — Bot Discord de suivi de l'import POI CulturiaQuests.
+ * bot.mjs — Bot Discord d'exploitation CulturiaQuests : suivi de l'import POI et santé de la prod.
+ *
+ * Slash-command `/health` : sonde en parallèle backend Strapi (`/_health`), frontend Nuxt, Ollama
+ * (`/api/tags`, liste les modèles chargés) et le site public via Cloudflare. Les trois premiers sont
+ * joints par le réseau compose (noms de service) ; le dernier valide toute la chaîne DNS → Caddy → Nuxt.
+ * Un service qui répond en plus de SLOW_MS est signalé lent, pas en panne.
  *
  * Slash-command `/import-status` : combine DEUX sources pour un état non-ambigu :
  *   1. Les **totaux réels en base** (Strapi `/api/pois` + `/api/museums`) — la vérité qui
@@ -24,8 +29,10 @@
  * - DISCORD_GUILD_ID  : (optionnel) id du serveur → enregistrement instantané ; sinon global (~1 h).
  * - STRAPI_BASE_URL   : ex. http://backend:1337 (réseau compose) → totaux réels en base.
  * - STRAPI_API_TOKEN  : token Strapi (lecture suffit) ; sans lui, la ligne « en base » est masquée.
+ * - FRONTEND_URL / OLLAMA_URL / PUBLIC_URL : (optionnels) cibles de `/health` ; défauts = noms de
+ *   service compose et domaine de prod. Le backend sondé est STRAPI_BASE_URL (défaut http://backend:1337).
  *
- * CLI : `node bot.mjs --print-status` imprime le message et sort (aucune connexion Discord requise) —
+ * CLI : `node bot.mjs --print-status` / `--print-health` imprime le message et sort (aucune connexion Discord requise) —
  *       pratique pour tester/vérifier le rendu côté ops.
  *
  * Exécution (conteneur, même réseau que le backend pour résoudre `backend:1337`) :
@@ -154,11 +161,57 @@ async function statusMessage() {
   ].join('\n');
 }
 
+// --- /health ---
+const SLOW_MS = 2000;
+const PROBE_TIMEOUT_MS = 5000;
+const HEALTH_TARGETS = [
+  { label: 'Backend Strapi', url: `${STRAPI_BASE_URL || 'http://backend:1337'}/_health` },
+  { label: 'Frontend Nuxt', url: process.env.FRONTEND_URL || 'http://frontend:3000/' },
+  { label: 'Ollama', url: `${(process.env.OLLAMA_URL || 'http://ollama:11434').replace(/\/$/, '')}/api/tags`, isOllama: true },
+  { label: 'Site public', url: process.env.PUBLIC_URL || 'https://culturia.heianenterprise.com/' },
+];
+
+/** Sonde une cible et renvoie sa ligne de rapport + un booléen « OK ». Ne lève jamais. */
+async function probe({ label, url, isOllama }) {
+  const start = Date.now();
+  try {
+    // redirect manuel : une redirection (login, locale) prouve que le service répond.
+    const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
+    const ms = Date.now() - start;
+    if (res.status >= 400) return { ok: false, line: `🔴 **${label}** — HTTP ${res.status} (${ms} ms)` };
+    let extra = '';
+    if (isOllama) {
+      const models = (await res.json())?.models?.map((m) => m.name) ?? [];
+      extra = models.length ? ` · modèles : ${models.join(', ')}` : ' · ⚠️ aucun modèle chargé';
+    }
+    const icon = ms > SLOW_MS ? '🟠' : '🟢';
+    return { ok: true, line: `${icon} **${label}** — ${ms} ms${ms > SLOW_MS ? ' (lent)' : ''}${extra}` };
+  } catch (e) {
+    // undici enveloppe les refus de connexion (IPv4 + IPv6) dans une AggregateError : code dans errors[0].
+    const code = e?.cause?.code || e?.cause?.errors?.[0]?.code;
+    const reason = e?.name === 'TimeoutError' ? `pas de réponse en ${PROBE_TIMEOUT_MS / 1000} s` : (code || e?.message || 'injoignable');
+    return { ok: false, line: `🔴 **${label}** — ${reason}` };
+  }
+}
+
+async function healthMessage() {
+  const results = await Promise.all(HEALTH_TARGETS.map(probe));
+  const down = results.filter((r) => !r.ok).length;
+  const header = down ? `**🩺 Santé prod** — ${down} service${down > 1 ? 's' : ''} en échec` : '**🩺 Santé prod** — tout répond';
+  return [header, ...results.map((r) => r.line)].join('\n');
+}
+
+const COMMAND_HANDLERS = {
+  'import-status': statusMessage,
+  health: healthMessage,
+};
+
 // --- Mode CLI : impression unique, sans Discord (test/ops) ---
-if (process.argv.includes('--print-status')) {
-  statusMessage()
+const cliMode = ['--print-status', '--print-health'].find((f) => process.argv.includes(f));
+if (cliMode) {
+  (cliMode === '--print-health' ? healthMessage() : statusMessage())
     .then((m) => { console.log(m); process.exit(0); })
-    .catch((e) => { console.error('print-status:', e?.message ?? e); process.exit(1); });
+    .catch((e) => { console.error(`${cliMode}:`, e?.message ?? e); process.exit(1); });
 } else {
   if (!TOKEN) {
     console.error('❌ DISCORD_BOT_TOKEN manquant.');
@@ -169,6 +222,7 @@ if (process.argv.includes('--print-status')) {
 
   const commands = [
     new SlashCommandBuilder().setName('import-status').setDescription("Voir l'état d'avancement de l'import POI").toJSON(),
+    new SlashCommandBuilder().setName('health').setDescription('Vérifier que backend, frontend, Ollama et le site public répondent').toJSON(),
   ];
 
   client.once(Events.ClientReady, async (c) => {
@@ -183,7 +237,7 @@ if (process.argv.includes('--print-status')) {
         for (const gid of guildIds) {
           await rest.put(Routes.applicationGuildCommands(c.user.id, gid), { body: commands });
         }
-        console.log(`Slash-command /import-status enregistrée sur ${guildIds.size} serveur(s) (instantané).`);
+        console.log(`Slash-commands enregistrées sur ${guildIds.size} serveur(s) (instantané).`);
       } else {
         await rest.put(Routes.applicationCommands(c.user.id), { body: commands });
         console.log('Aucun serveur détecté → commande globale (~1 h de propagation).');
@@ -194,13 +248,14 @@ if (process.argv.includes('--print-status')) {
   });
 
   client.on(Events.InteractionCreate, async (i) => {
-    if (!i.isChatInputCommand() || i.commandName !== 'import-status') return;
+    const handler = i.isChatInputCommand() ? COMMAND_HANDLERS[i.commandName] : undefined;
+    if (!handler) return;
     try {
-      await i.deferReply(); // les appels Strapi peuvent dépasser les 3 s → on diffère
-      const msg = await statusMessage();
+      await i.deferReply(); // appels Strapi / sondes pouvant dépasser les 3 s → on diffère
+      const msg = await handler();
       await i.editReply(msg.slice(0, 1990));
     } catch (e) {
-      console.error('import-status:', e?.message ?? e);
+      console.error(`${i.commandName}:`, e?.message ?? e);
       try { await i.editReply('❌ Erreur lors de la récupération du statut.'); } catch { /* ignore */ }
     }
   });

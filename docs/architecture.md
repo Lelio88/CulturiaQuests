@@ -177,6 +177,7 @@ masqué en conséquence.
 | `seed-gallery.js` | Bulk-génération d'items avec icônes média lib. |
 | `backup-db.sh` / `restore-db.sh` | `.tar.gz` PG dump + média. Le conteneur visé est `postgres_db` par défaut (dev) ; en production il faut passer `PG_CONTAINER=postgres_db_prod`. |
 | `ai_reviewer.py` | GitHub Action — review IA sur push `main`/`develop`, post Discord. |
+| `discord-bot/` | Bot d'exploitation (conteneur `cq-discord-bot`, hors compose, sur `app-network`). `/import-status` : avancement de l'import POI ; `/health` : sonde backend, frontend, Ollama et site public. Lit le code monté depuis `/opt/culturiaquests` : un déploiement ne le recharge pas, il faut `docker restart cq-discord-bot`. |
 | `export-content.sh` / `import-content.sh` | Strapi content transfer. |
 
 ## 5. Règles de couplage
@@ -302,6 +303,7 @@ Hors deploy : `.github/workflows/ai_review.yml` poste une review IA sur Discord 
 | **Etalab (GeoJSON France)** | Source des géométries région / département / comcom. | Import offline via `scripts/zones_importer`. Données stables. |
 | **Capacitor (Android)** | Packaging mobile. | App ID `com.culturiaquests.app`. Scheme HTTPS. Build via Gradle standard. |
 | **Discord webhook** | Notifications CI/CD. | `DISCORD_WEBHOOK_URL` en secret GitHub. Pas critique — si down, pas d'impact prod. |
+| **Discord (application « CulturiaQuests »)** | Bot d'exploitation `scripts/discord-bot/` (slash-commands, équipe uniquement). | Token dans l'environnement du conteneur `cq-discord-bot`. Bot privé (« Public Bot » désactivé). Aucune fonction joueur : si down, pas d'impact prod. |
 
 ## 12. Variables d'environnement (résumé)
 
