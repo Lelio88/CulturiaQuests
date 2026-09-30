@@ -110,4 +110,4 @@ python scripts/publish_play.py --track alpha --notes-file <f>   # publie en test
 ## VIII. Contexte de Session
 
 - **Dernier focus** : mise en conformité (sessions révocables, confirmation d'adresse, connexion Google Android, CSP, textes légaux).
-- **Focus immédiat** : essais sur téléphone de la version Play 1.1.0 (connexion Google) ; mot de passe devant `/admin` (Caddyfile, hors dépôt).
+- **Focus immédiat** : essais sur téléphone de la version Play 1.1.0 (connexion Google, lien de confirmation qui ouvre l'app, réacceptation des CGU).
