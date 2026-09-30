@@ -9,6 +9,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "test": "playwright test",
+    "test:unit": "vitest run",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug"
@@ -48,6 +49,7 @@
     "@types/qs": "^6.9.18",
     "leaflet.markercluster": "^1.5.3",
     "nuxt-charts": "^2.1.4",
-    "pinia-plugin-persistedstate": "^4.7.1"
+    "pinia-plugin-persistedstate": "^4.7.1",
+    "vitest": "^4.1.11"
   }
 }

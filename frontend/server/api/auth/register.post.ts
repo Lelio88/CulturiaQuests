@@ -1,33 +1,50 @@
 /**
- * BFF — Inscription (socle httpOnly, phase 1).
+ * BFF — Inscription : compte, guilde et personnage en une requête.
  *
- * Relaie le corps vers Strapi /api/auth/local/register (l'extension users-permissions y
- * valide date_of_birth + persiste les champs). En cas de succès, pose le JWT en cookie
- * HTTP-ONLY `cq_session` et ne renvoie que l'utilisateur.
+ * Strapi crée le tout puis envoie un lien de confirmation (`lib/registration.ts`). La réponse est
+ * **toujours** `{ pending: true }`, que l'adresse soit neuve ou déjà inscrite (son titulaire est
+ * alors prévenu par e-mail) : l'inscription ne révèle pas qui a un compte. Seules les erreurs de
+ * saisie et « pseudo déjà pris » (public dans le jeu) sont dites.
+ *
+ * Aucun cookie n'est posé : le joueur se connecte après avoir confirmé son adresse.
  */
+const FIELDS = [
+  'username',
+  'email',
+  'password',
+  'date_of_birth',
+  'terms_accepted',
+  'guildName',
+  'firstname',
+  'lastname',
+  'iconId',
+] as const
+
 export default defineEventHandler(async (event) => {
-  const body = await readBody(event)
-  const strapiUrl = useRuntimeConfig(event).strapi?.url || 'http://localhost:1337'
+  assertSameOrigin(event)
+  const body = await readJsonObject(event)
+  const payload = Object.fromEntries(FIELDS.map((field) => [field, body[field]]))
 
-  let res: { jwt: string; user: Record<string, unknown> }
-  try {
-    // Paramètre de type explicite : coupe l'inférence via le registre de routes Nitro (TS2321).
-    res = await $fetch<{ jwt: string; user: Record<string, unknown> }>(`${strapiUrl}/api/auth/local/register`, {
-      method: 'POST',
-      body,
-    })
-  } catch (err: any) {
-    const message = err?.response?._data?.error?.message || "Inscription refusée"
-    throw createError({ statusCode: err?.response?.status || 400, statusMessage: message })
-  }
+  const ip = playerIp(event)
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  assertNotThrottled(event, [['registerByIp', ip], ['emailByAddress', email]])
+  limiter('registerByIp').hit(ip)
 
-  setCookie(event, 'cq_session', res.jwt, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 14 * 24 * 60 * 60,
+  // Plancher large : la voie « adresse déjà prise » envoie un e-mail, comme la voie normale,
+  // mais sans hachage ni écritures ; le plancher efface cette différence.
+  return withMinimumDuration(1200, async () => {
+    try {
+      await $fetch<unknown>(`${strapiBaseUrl(event)}/api/auth/local/register`, {
+        method: 'POST',
+        body: payload,
+        headers: forwardedHeaders(event),
+      })
+    } catch (err) {
+      throw translateStrapiError(err, 'registration_failed')
+    }
+    // Seule une inscription acceptée envoie un e-mail (lien ou avertissement de doublon) : c'est
+    // elle qui compte pour l'adresse, pas une saisie refusée.
+    if (email) limiter('emailByAddress').hit(email)
+    return { pending: true }
   })
-
-  return { user: res.user }
 })

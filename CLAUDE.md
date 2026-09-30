@@ -25,10 +25,10 @@ Topologie rapide :
 
 *Versions contraintes par `backend/package.json` et `frontend/package.json`. N'introduisez aucune dépendance alternative sans approbation.*
 
-- **Backend** : Strapi 5.34.0, TypeScript 5, Node ≥ 20, PostgreSQL 14, `node-cron` 4, `openai` 6, `strapi-geodata`, `@strapi/provider-email-nodemailer` (SMTP Brevo — reset password)
+- **Backend** : Strapi 5.34.0, TypeScript 5, Node ≥ 20, PostgreSQL 14, `node-cron` 4, `openai` 6, `strapi-geodata`, `@strapi/provider-email-nodemailer` (SMTP Brevo — confirmation d'adresse, mot de passe oublié)
 - **Frontend** : Nuxt 4.2, Vue 3.5, Pinia + `pinia-plugin-persistedstate` (storage `localStorage`), `@nuxtjs/tailwindcss` + `@nuxt/fonts` (styling), `@nuxtjs/leaflet` (⚠️ `use-global-leaflet: true` requis — sinon le clustering casse le rendu, cf. `docs/zone_display_system.md`), `leaflet.markercluster` (regroupement des POI/musées au zoom ≥ 11, fallback layerGroup), `@nuxtjs/device`, `@nuxt/icon`, `nuxt-charts`, `animejs` (import direct route-splitté), `idb-keyval` (cache IndexedDB des géométries de zones, trop volumineuses pour `localStorage`). Auth **exclusivement** via BFF (cf. §IV.5) : aucun module `@nuxtjs/strapi` (entièrement retiré).
-- **Mobile** : Capacitor 8 (`@capacitor/android`, `@capacitor/ios`, `local-notifications`, `@capacitor/app` pour les deep-links / App Links)
-- **Tests** : Playwright (E2E frontend, `frontend/npm test`) + Vitest (harness backend câblé via `backend/npm test`, suites à écrire)
+- **Mobile** : Capacitor 8 (`@capacitor/android`, `@capacitor/ios`, `local-notifications`, `@capacitor/app` pour les deep-links / App Links) + greffon maison `GoogleSignInPlugin` (Credential Manager, `androidx.credentials` + `googleid`) : Google refuse les WebView
+- **Tests** : Playwright (E2E frontend, `frontend/npm test`) + Vitest (`backend/npm test`, `frontend/npm run test:unit`)
 - **IA** : Ollama (`mistral:7b` par défaut en dev **et** en prod ; override possible via `OLLAMA_MODEL`, ex. `mistral-nemo:12b`, si le serveur dispose de la RAM/GPU) pour quiz timeline + catégorisation POI
 - **Infra** : Docker Compose (`database` Postgres alpine + `backend` + `frontend` + `ollama`)
 
@@ -38,7 +38,7 @@ Topologie rapide :
 2. **Strapi v5 Document Service API** — utiliser `strapi.documents('api::x.x')` avec `documentId`, jamais l'ancien Entity Service. `strapi.db.query()` reste autorisé pour les lookups internes par `id`.
 3. **Permissions accordées au bootstrap, jamais via le panel admin** — toute nouvelle route custom doit être ajoutée à `backend/src/index.ts` pour les rôles `public`/`authenticated`/`admin`. Le rôle `admin` hérite de tout `authenticated` + des endpoints `admin-dashboard.*`.
 4. **Persistance Pinia en `localStorage` uniquement** — ne **jamais** réactiver la persistance cookie (erreur 431 Request Header Fields Too Large garantie sur la prod). Configuration figée dans `nuxt.config.ts` (`storage: 'localStorage'`).
-5. **JWT via cookie HTTP-only nommé `cq_session`** — posé/lu par les routes serveur BFF (`frontend/server/api/auth/*`), jamais exposé au JavaScript. Aucun token en `localStorage`. Le cookie est `secure` en prod, `sameSite: 'lax'`, durée 14 jours. Le logout efface aussi défensivement un éventuel `culturia_jwt` résiduel (legacy).
+5. **Sessions révocables, jetons jamais exposés** — Strapi en `jwtManagement: 'refresh'` ; le BFF garde accès (10 min), rafraîchissement tournant et appareil en cookies httpOnly (`cq_session`, `cq_refresh`, `cq_device`) et renouvelle en coulisse (`server/middleware/10-session.ts`). Toute route qui parle à Strapi prend le jeton par `sessionToken(event)` et transmet l'IP par `forwardedHeaders(event)` (sinon la limite de tentatives de Strapi redevient commune à tous les joueurs). Les réponses d'auth ne révèlent pas l'existence d'un compte (codes + `AUTH_MESSAGES`, durées plancher). Détail : `docs/architecture.md` §7.
 6. **Pas de secrets en clair** — `APP_KEYS`, `JWT_SECRET`, `API_TOKEN_SALT`, `ADMIN_JWT_SECRET`, `TRANSFER_TOKEN_SALT` viennent de `.env` (racine) ou `.env.production` (CI/CD). Voir [common/security.md](~/.claude/rules/common/security.md).
 7. **Build admin Strapi obligatoire** — après toute modification de schéma (`*/schema.json`) ou installation de plugin, `cd backend && npm run build` est requis avant `develop`.
 
@@ -104,9 +104,10 @@ python scripts/publish_play.py --track alpha --notes-file <f>   # publie en test
 | Ajout de dépendance critique | Section III + `package.json` correspondant |
 | Nouvel anti-pattern découvert | Section « Anti-patterns » de `docs/architecture.md` |
 | Migration de données (one-shot) | Script dans `scripts/populate_db/` + mention dans `docs/architecture.md` |
+| Donnée personnelle, prestataire ou durée de conservation changés | `docs/donnees-personnelles.md` + politique (`pages/politique-confidentialite.vue`) + déclaration Play ; `TERMS_VERSION` si substantiel |
 | Procédure de publication Play | `scripts/publish_play.py` + `../play-store-publication-guide.md` §13. Service account JSON dans `../.culturiaquests-secrets/play-sa.json` — **hors dépôt** |
 
 ## VIII. Contexte de Session
 
-- **Dernier focus** : —
-- **Focus immédiat** : —
+- **Dernier focus** : mise en conformité (sessions révocables, confirmation d'adresse, connexion Google Android, CSP, textes légaux).
+- **Focus immédiat** : essais sur téléphone de la version Play 1.1.0 (connexion Google) ; mot de passe devant `/admin` (Caddyfile, hors dépôt).

@@ -1,281 +1,315 @@
+<script setup lang="ts">
+/**
+ * Politique de confidentialité — un traitement par ligne (donnée, finalité, base légale, durée),
+ * comme l'exige le guide de conformité du conteneur (§A2).
+ *
+ * Invariant : chaque ligne décrit ce que le code fait réellement. Toute nouvelle donnée
+ * collectée, tout nouveau prestataire ou toute durée changée se reporte ici **et** dans la
+ * déclaration « Sécurité des données » de Google Play. Une modification substantielle change
+ * aussi `TERMS_VERSION` (backend/src/utils/account-rules.ts), ce qui redemande l'acceptation.
+ */
+definePageMeta({
+  layout: 'blank',
+})
+useSeoMeta({ title: 'Politique de confidentialité — CulturiaQuests' })
+
+interface Processing {
+  data: string
+  purpose: string
+  basis: string
+  retention: string
+}
+
+const processings: Processing[] = [
+  {
+    data: 'Compte : adresse e-mail, pseudo, mot de passe (enregistré haché, jamais en clair), date de naissance, date et version des CGU acceptées',
+    purpose: 'Créer et sécuriser votre compte, vérifier l’âge minimum (15 ans), garder la preuve de l’acceptation des CGU',
+    basis: 'Exécution du contrat',
+    retention: 'Tant que le compte existe. Une inscription dont l’adresse n’est jamais confirmée est effacée au bout de 7 jours',
+  },
+  {
+    data: 'Connexion avec Google (application Android) : l’identifiant de votre compte Google et son adresse e-mail',
+    purpose: 'Vous connecter sans mot de passe ; rattacher ce compte Google à votre compte CulturiaQuests de même adresse',
+    basis: 'Exécution du contrat (vous le demandez)',
+    retention: 'Tant que le compte existe',
+  },
+  {
+    data: 'Données de jeu : guilde, personnages, objets, or et expérience, progression par zone, quêtes, expéditions dans les musées (lieu et dates), badges',
+    purpose: 'Faire fonctionner le jeu et votre progression',
+    basis: 'Exécution du contrat',
+    retention: 'Tant que le compte existe',
+  },
+  {
+    data: 'Lieux visités : les points d’intérêt dont vous avez ouvert le coffre, avec la date de la dernière ouverture et leur nombre',
+    purpose: 'Récompenser vos visites et éviter qu’un même coffre soit ouvert en boucle',
+    basis: 'Exécution du contrat',
+    retention: 'Tant que le compte existe',
+  },
+  {
+    data: 'Quiz quotidien : vos réponses, votre score, le temps passé',
+    purpose: 'Calculer vos récompenses et le classement du jour',
+    basis: 'Exécution du contrat',
+    retention: 'Tant que le compte existe',
+  },
+  {
+    data: 'Fonctions sociales : demandes d’amis et amis, publications (le partage d’une expédition) et mentions « J’aime »',
+    purpose: 'Jouer avec d’autres joueurs ; vos publications, votre pseudo et votre guilde sont visibles des autres joueurs',
+    basis: 'Exécution du contrat',
+    retention: 'Jusqu’à ce que vous les supprimiez, ou avec le compte',
+  },
+  {
+    data: 'Photo de profil (facultative)',
+    purpose: 'Personnaliser votre profil, visible des autres joueurs',
+    basis: 'Consentement (vous choisissez d’en mettre une)',
+    retention: 'Jusqu’à ce que vous la retiriez, ou avec le compte',
+  },
+  {
+    data: 'E-mails de service : votre adresse, pour confirmer votre compte, réinitialiser votre mot de passe, ou vous prévenir qu’une inscription a été tentée avec votre adresse',
+    purpose: 'Sécuriser votre compte',
+    basis: 'Exécution du contrat',
+    retention: 'Brevo garde un journal des envois (adresse, date, aperçu du message) sans limite de durée',
+  },
+  {
+    data: 'Journal de connexions : la date et l’heure de chaque connexion',
+    purpose: 'Sécurité du compte et statistiques internes de fréquentation',
+    basis: 'Intérêt légitime (protéger le service et les comptes)',
+    retention: '6 mois, puis effacé automatiquement',
+  },
+  {
+    data: 'Limitation des tentatives : l’identifiant saisi et l’adresse IP, en mémoire du serveur seulement',
+    purpose: 'Freiner qui essaierait de deviner un mot de passe',
+    basis: 'Intérêt légitime (protéger les comptes)',
+    retention: 'Une heure au plus après la dernière tentative ; rien n’est écrit en base',
+  },
+  {
+    data: 'Journaux techniques du serveur : adresse IP tronquée (les derniers chiffres effacés), date, page demandée, réponse',
+    purpose: 'Diagnostiquer une panne ou un abus',
+    basis: 'Intérêt légitime (faire fonctionner le service)',
+    retention: '30 jours',
+  },
+  {
+    data: 'Demandes d’exercice de vos droits (« Demander mes données ») : date et état de la demande',
+    purpose: 'Suivre et prouver la réponse à votre demande',
+    basis: 'Obligation légale',
+    retention: 'Tant que le compte existe',
+  },
+  {
+    data: 'Modération : si un compte est suspendu ou change de rôle, l’action, sa date et le joueur visé',
+    purpose: 'Garder la trace des décisions de modération',
+    basis: 'Intérêt légitime (sécurité du service)',
+    retention: 'Tant que le service existe ; le lien vers le joueur est retiré quand son compte est supprimé',
+  },
+]
+
+interface Recipient {
+  name: string
+  role: string
+  where: string
+}
+
+const recipients: Recipient[] = [
+  {
+    name: 'Hetzner Online GmbH',
+    role: 'Hébergement des serveurs et de la base de données',
+    where: 'Nuremberg (Allemagne, Union européenne)',
+  },
+  {
+    name: 'Brevo (Sendinblue SAS)',
+    role: 'Envoi des e-mails de service',
+    where: 'France (Union européenne)',
+  },
+  {
+    name: 'Google (Google Ireland Limited)',
+    role: 'Connexion avec Google, dans l’application Android seulement. Le site web ne charge rien chez Google',
+    where: 'Peut traiter aux États-Unis : Google LLC est certifiée au Data Privacy Framework UE–États-Unis',
+  },
+  {
+    name: 'Fondation OpenStreetMap',
+    role: 'Fond de carte : les images de la carte sont chargées depuis ses serveurs, qui voient l’adresse IP de votre appareil. Rien d’autre ne leur est transmis',
+    where: 'Royaume-Uni, pays reconnu par la Commission européenne comme offrant une protection adéquate ; ses serveurs passent par le réseau Fastly (États-Unis, certifié au Data Privacy Framework)',
+  },
+]
+</script>
+
 <template>
   <div class="min-h-screen bg-white p-6">
     <div class="w-full max-w-2xl mx-auto">
 
-      <!-- En-tête -->
       <div class="mb-8 text-center pt-[env(safe-area-inset-top)]">
         <h1 class="text-3xl font-bold font-power text-indigo-600 mb-2">
-          Politique de Confidentialité
+          Politique de confidentialité
         </h1>
         <p class="text-sm text-gray-500 font-pixel">
-          Dernière mise à jour : 18 février 2026
+          Dernière mise à jour : 1er octobre 2026
         </p>
       </div>
 
-      <!-- Sections -->
       <div class="space-y-8 font-onest text-gray-700">
 
-        <!-- 1. Responsable de traitement -->
         <section>
           <h2 class="text-lg font-bold font-pixel text-indigo-600 mb-3 border-b border-indigo-100 pb-2">
-            1. Responsable du traitement
+            1. Qui traite vos données
           </h2>
           <p class="leading-relaxed">
-            Le responsable du traitement des données personnelles collectées via l'application CulturiaQuests est :
+            Le responsable du traitement est <strong>Lelio Buton</strong>, qui édite CulturiaQuests à titre
+            personnel et non professionnel. Pour toute question sur vos données :
+            <a href="mailto:heianenterpriseyt@gmail.com" class="text-indigo-600 underline">heianenterpriseyt@gmail.com</a>.
+            Aucun délégué à la protection des données n'est désigné, sa désignation n'étant pas requise
+            pour un éditeur individuel.
           </p>
-          <div class="mt-3 p-4 bg-gray-50 rounded-lg text-sm space-y-1">
-            <p><strong>Lelio Buton</strong> — éditeur individuel (personne physique, à titre non professionnel)</p>
-            <p>Contact données personnelles : heianenterpriseyt@gmail.com</p>
-            <p class="text-gray-500">Aucun délégué à la protection des données (DPO) n'est désigné : le traitement étant réalisé par un éditeur individuel, sa désignation n'est pas requise. Le responsable du traitement reste joignable à l'adresse ci-dessus.</p>
-          </div>
         </section>
 
-        <!-- 2. Données collectées -->
         <section>
           <h2 class="text-lg font-bold font-pixel text-indigo-600 mb-3 border-b border-indigo-100 pb-2">
-            2. Données personnelles collectées
+            2. Ce que nous traitons, pourquoi et combien de temps
           </h2>
-          <p class="leading-relaxed mb-3">
-            Dans le cadre de l'utilisation de CulturiaQuests, les données suivantes sont collectées :
-          </p>
           <div class="space-y-3">
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">Données d'identification</p>
-              <p class="text-gray-600 mt-1">Adresse email, nom d'utilisateur (pseudonyme), mot de passe (stocké sous forme hashée).</p>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">Données de géolocalisation</p>
-              <p class="text-gray-600 mt-1">Position GPS en temps réel, utilisée uniquement lorsque l'application est au premier plan. Aucune position n'est stockée de manière permanente sur nos serveurs.</p>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">Avatar (photo de profil)</p>
-              <p class="text-gray-600 mt-1">Image de profil optionnelle, redimensionnée et stockée sur nos serveurs.</p>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">Données de jeu</p>
-              <p class="text-gray-600 mt-1">Progression par zone, inventaire d'objets, quêtes complétées, expéditions, badges collectés, nom de guilde, personnages créés.</p>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">Données de quiz</p>
-              <p class="text-gray-600 mt-1">Réponses aux quiz quotidiens, scores obtenus, récompenses attribuées.</p>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">Relations sociales</p>
-              <p class="text-gray-600 mt-1">Demandes d'amitié envoyées et reçues, liste d'amis.</p>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">Logs de connexion</p>
-              <p class="text-gray-600 mt-1">Date et heure de chaque connexion à l'application.</p>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">Adresse IP</p>
-              <p class="text-gray-600 mt-1">Collectée uniquement lors de l'envoi d'une demande d'exercice de droits RGPD, à des fins de traçabilité.</p>
+            <div v-for="item in processings" :key="item.data" class="p-3 bg-gray-50 rounded-lg text-sm space-y-1">
+              <p class="font-bold text-gray-800">{{ item.data }}</p>
+              <p><span class="font-semibold">Pourquoi :</span> {{ item.purpose }}</p>
+              <p><span class="font-semibold">Base légale :</span> {{ item.basis }}</p>
+              <p><span class="font-semibold">Durée :</span> {{ item.retention }}</p>
             </div>
           </div>
-        </section>
-
-        <!-- 3. Finalités et bases légales -->
-        <section>
-          <h2 class="text-lg font-bold font-pixel text-indigo-600 mb-3 border-b border-indigo-100 pb-2">
-            3. Finalités et bases légales
-          </h2>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm border-collapse">
-              <thead>
-                <tr class="bg-gray-50">
-                  <th class="text-left p-3 border border-gray-200 font-bold">Finalité</th>
-                  <th class="text-left p-3 border border-gray-200 font-bold">Base légale</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td class="p-3 border border-gray-200">Création et gestion du compte utilisateur</td>
-                  <td class="p-3 border border-gray-200">Exécution du contrat</td>
-                </tr>
-                <tr>
-                  <td class="p-3 border border-gray-200">Fonctionnement du jeu (progression, quêtes, expéditions, quiz)</td>
-                  <td class="p-3 border border-gray-200">Exécution du contrat</td>
-                </tr>
-                <tr>
-                  <td class="p-3 border border-gray-200">Géolocalisation (carte, POI, musées)</td>
-                  <td class="p-3 border border-gray-200">Consentement</td>
-                </tr>
-                <tr>
-                  <td class="p-3 border border-gray-200">Avatar / photo de profil</td>
-                  <td class="p-3 border border-gray-200">Consentement</td>
-                </tr>
-                <tr>
-                  <td class="p-3 border border-gray-200">Fonctionnalités sociales (amitiés, classements)</td>
-                  <td class="p-3 border border-gray-200">Exécution du contrat</td>
-                </tr>
-                <tr>
-                  <td class="p-3 border border-gray-200">Logs de connexion et sécurité</td>
-                  <td class="p-3 border border-gray-200">Intérêt légitime</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- 4. Durées de conservation -->
-        <section>
-          <h2 class="text-lg font-bold font-pixel text-indigo-600 mb-3 border-b border-indigo-100 pb-2">
-            4. Durées de conservation
-          </h2>
-          <div class="space-y-2 text-sm">
-            <div class="flex justify-between p-3 bg-gray-50 rounded-lg">
-              <span class="font-bold text-gray-800">Données de compte et de jeu</span>
-              <span class="text-gray-600">Durée d'activité du compte + 30 jours après suppression</span>
-            </div>
-            <div class="flex justify-between p-3 bg-gray-50 rounded-lg">
-              <span class="font-bold text-gray-800">Logs de connexion</span>
-              <span class="text-gray-600">6 mois maximum</span>
-            </div>
-            <div class="flex justify-between p-3 bg-gray-50 rounded-lg">
-              <span class="font-bold text-gray-800">Demandes RGPD</span>
-              <span class="text-gray-600">Durée du compte, supprimées avec le compte</span>
-            </div>
-          </div>
-        </section>
-
-        <!-- 5. Destinataires et sous-traitants -->
-        <section>
-          <h2 class="text-lg font-bold font-pixel text-indigo-600 mb-3 border-b border-indigo-100 pb-2">
-            5. Destinataires et sous-traitants
-          </h2>
-          <p class="leading-relaxed mb-3">
-            Vos données personnelles ne sont pas vendues ni transmises à des tiers à des fins commerciales.
-            Les prestataires suivants peuvent avoir accès à certaines données dans le cadre du fonctionnement de l'application :
+          <p class="leading-relaxed mt-3 text-sm">
+            Les sauvegardes de la base, faites chaque nuit, peuvent encore contenir des données
+            supprimées : elles sont écrasées au bout de 30 jours au plus.
           </p>
-          <div class="space-y-3">
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">Hébergeur</p>
-              <p class="text-gray-600 mt-1">Hetzner Online GmbH (Allemagne, Union européenne) : hébergement des serveurs et de la base de données. Les données sont hébergées dans l'UE, conformément au RGPD.</p>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">OpenStreetMap / CartoDB</p>
-              <p class="text-gray-600 mt-1">Fournisseurs de tuiles cartographiques. Votre adresse IP peut être exposée lors du chargement des éléments de la carte.</p>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">IA locale (Ollama)</p>
-              <p class="text-gray-600 mt-1">Les questions de quiz sont générées par un modèle d'IA hébergé sur nos propres serveurs (Ollama). Aucune donnée personnelle n'est transmise à un tiers : la génération est entièrement réalisée en interne.</p>
-            </div>
-          </div>
         </section>
 
-        <!-- 6. Transferts hors UE -->
         <section>
           <h2 class="text-lg font-bold font-pixel text-indigo-600 mb-3 border-b border-indigo-100 pb-2">
-            6. Transferts de données hors Union européenne
+            3. Votre position
           </h2>
           <p class="leading-relaxed">
-            Certains de nos prestataires techniques (OpenStreetMap, CartoDB) peuvent opérer des serveurs
-            situés en dehors de l'Union européenne, notamment aux États-Unis. Ces transferts sont encadrés par
-            les clauses contractuelles types approuvées par la Commission européenne ou par le cadre
-            EU-U.S. Data Privacy Framework lorsque applicable.
+            Le jeu utilise la position de votre appareil, avec votre accord (demandé par votre téléphone
+            ou votre navigateur, et retirable à tout moment dans leurs réglages), seulement quand
+            l'application est ouverte :
           </p>
+          <ul class="list-disc pl-5 space-y-1 text-sm leading-relaxed mt-2">
+            <li>pour vous situer sur la carte et révéler les zones explorées : le tracé de vos déplacements
+              reste sur votre appareil et n'est jamais envoyé ;</li>
+            <li>pour vérifier que vous êtes bien sur place quand vous ouvrez un coffre ou lancez une
+              expédition : la position est alors envoyée au serveur, comparée à celle du lieu, puis
+              oubliée.</li>
+          </ul>
           <p class="leading-relaxed mt-2">
-            Aucune donnée personnelle identifiante n'est volontairement transmise à ces services.
-            Seule votre adresse IP peut être exposée lors des requêtes de chargement de tuiles cartographiques.
+            Ce qui est conservé, c'est la liste des lieux où vous avez ouvert un coffre ou mené une
+            expédition, avec leurs dates (voir le tableau ci-dessus). Sans accès à la position, vous
+            pouvez toujours parcourir la carte, mais pas ouvrir de coffre.
           </p>
         </section>
 
-        <!-- 7. Droits des utilisateurs -->
         <section>
           <h2 class="text-lg font-bold font-pixel text-indigo-600 mb-3 border-b border-indigo-100 pb-2">
-            7. Vos droits
+            4. Qui y a accès
           </h2>
           <p class="leading-relaxed mb-3">
-            Conformément au Règlement (UE) 2016/679 (RGPD) et à la loi Informatique et Libertés, vous disposez des droits suivants :
-          </p>
-          <ul class="list-disc list-inside space-y-2 text-sm leading-relaxed pl-2">
-            <li><strong>Droit d'accès</strong> : obtenir une copie de vos données personnelles. Vous pouvez effectuer cette demande directement depuis les paramètres de l'application (bouton "Demander mes données").</li>
-            <li><strong>Droit de rectification</strong> : corriger des données inexactes ou incomplètes.</li>
-            <li><strong>Droit à l'effacement</strong> : demander la suppression de vos données. Vous pouvez supprimer votre compte directement depuis les paramètres de l'application.</li>
-            <li><strong>Droit à la portabilité</strong> : recevoir vos données dans un format structuré et lisible par machine.</li>
-            <li><strong>Droit d'opposition</strong> : vous opposer au traitement de vos données pour des motifs légitimes.</li>
-            <li><strong>Droit à la limitation</strong> : demander la limitation du traitement dans certaines circonstances.</li>
-          </ul>
-          <p class="leading-relaxed mt-4">
-            Pour exercer ces droits, vous pouvez :
-          </p>
-          <ul class="list-disc list-inside space-y-1 text-sm leading-relaxed pl-2 mt-2">
-            <li>Utiliser les fonctionnalités de l'application (Paramètres > Données personnelles)</li>
-            <li>Nous contacter par email à : <span class="text-indigo-600">heianenterpriseyt@gmail.com</span></li>
-          </ul>
-          <p class="leading-relaxed mt-4">
-            Nous nous engageons à répondre à votre demande dans un délai de <strong>30 jours</strong>.
-          </p>
-        </section>
-
-        <!-- 8. Cookies et stockage local -->
-        <section>
-          <h2 class="text-lg font-bold font-pixel text-indigo-600 mb-3 border-b border-indigo-100 pb-2">
-            8. Cookies et stockage local
-          </h2>
-          <p class="leading-relaxed mb-3">
-            L'application utilise les technologies de stockage suivantes :
+            L'éditeur, pour faire fonctionner le jeu, et les prestataires suivants, qui traitent les
+            données pour son compte et selon ses instructions. Aucune donnée n'est vendue ni utilisée
+            à des fins publicitaires.
           </p>
           <div class="space-y-3">
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">Cookie d'authentification (cq_session)</p>
-              <p class="text-gray-600 mt-1">Cookie strictement nécessaire au fonctionnement de l'application. Il contient votre jeton d'authentification (JWT) et a une durée de vie de 14 jours. Il est <span class="font-semibold">HttpOnly</span> (inaccessible au JavaScript, pour votre sécurité). Ce cookie est exempt de consentement conformément aux recommandations de la CNIL (cookie technique indispensable).</p>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">Stockage local (localStorage)</p>
-              <p class="text-gray-600 mt-1">Utilisé pour la persistance des données de jeu côté client (inventaire, progression, préférences). Ces données restent sur votre appareil et ne sont pas transmises à des tiers. Elles sont supprimées lors de la déconnexion.</p>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-lg text-sm">
-              <p class="font-bold text-gray-800">IndexedDB</p>
-              <p class="text-gray-600 mt-1">Utilisé pour le cache des données géographiques (zones, régions, départements) afin de réduire les temps de chargement. Ces données sont purement cartographiques et ne contiennent aucune donnée personnelle.</p>
+            <div v-for="item in recipients" :key="item.name" class="p-3 bg-gray-50 rounded-lg text-sm space-y-1">
+              <p class="font-bold text-gray-800">{{ item.name }}</p>
+              <p>{{ item.role }}</p>
+              <p class="text-gray-600">{{ item.where }}</p>
             </div>
           </div>
+          <p class="leading-relaxed mt-3 text-sm">
+            Les questions du quiz sont rédigées par un modèle d'intelligence artificielle installé sur nos
+            propres serveurs : il ne reçoit aucune donnée vous concernant.
+          </p>
+        </section>
+
+        <section>
+          <h2 class="text-lg font-bold font-pixel text-indigo-600 mb-3 border-b border-indigo-100 pb-2">
+            5. Âge minimum
+          </h2>
+          <p class="leading-relaxed">
+            CulturiaQuests est réservé aux personnes de 15 ans et plus. La date de naissance demandée à
+            l'inscription sert à le vérifier ; une inscription en dessous de cet âge est refusée.
+          </p>
+        </section>
+
+        <section>
+          <h2 class="text-lg font-bold font-pixel text-indigo-600 mb-3 border-b border-indigo-100 pb-2">
+            6. Vos droits
+          </h2>
+          <p class="leading-relaxed mb-2">
+            Vous pouvez à tout moment accéder à vos données, les faire rectifier ou effacer, en demander
+            une copie dans un format réutilisable, vous opposer à un traitement fondé sur l'intérêt
+            légitime, en demander la limitation, et retirer un consentement donné (position, photo de
+            profil).
+          </p>
+          <ul class="list-disc pl-5 space-y-1 text-sm leading-relaxed">
+            <li><strong>Copie de vos données</strong> : onglet Guilde, Paramètres, « Demander mes données » ; vous la recevez
+              par e-mail sous un mois au plus.</li>
+            <li><strong>Suppression du compte</strong> : onglet Guilde, Paramètres, « Supprimer mon compte », ou depuis un
+              navigateur sur <NuxtLink to="/suppression-compte" class="text-indigo-600 underline">la page de suppression</NuxtLink>.
+              Tout est effacé immédiatement : compte, guilde, progression, lieux visités, publications,
+              amitiés, photo.</li>
+            <li>Pour tout autre droit : <a href="mailto:heianenterpriseyt@gmail.com" class="text-indigo-600 underline">heianenterpriseyt@gmail.com</a>,
+              réponse sous un mois.</li>
+          </ul>
           <p class="leading-relaxed mt-3">
-            L'application n'utilise aucun cookie publicitaire ni aucun outil de tracking tiers (pas de Google Analytics, pas de pixel de suivi).
+            Si vous estimez que vos droits ne sont pas respectés, vous pouvez adresser une réclamation à la
+            <strong>CNIL</strong> (3 place de Fontenoy, TSA 80715, 75334 Paris Cedex 07 —
+            <a href="https://www.cnil.fr" target="_blank" rel="noopener" class="text-indigo-600 underline">www.cnil.fr</a>).
           </p>
         </section>
 
-        <!-- 9. Sécurité -->
         <section>
           <h2 class="text-lg font-bold font-pixel text-indigo-600 mb-3 border-b border-indigo-100 pb-2">
-            9. Sécurité des données
+            7. Cookies et stockage sur votre appareil
           </h2>
-          <p class="leading-relaxed">
-            Nous mettons en œuvre les mesures techniques et organisationnelles suivantes pour protéger vos données :
+          <p class="leading-relaxed mb-3">
+            Uniquement ce qui est nécessaire au fonctionnement du jeu : aucun cookie publicitaire, aucune
+            mesure d'audience, aucun traceur. Ces éléments sont exemptés de consentement (recommandations
+            de la CNIL), d'où l'absence de bandeau.
           </p>
-          <ul class="list-disc list-inside space-y-1 text-sm leading-relaxed pl-2 mt-2">
-            <li>Chiffrement des communications via HTTPS (TLS)</li>
-            <li>Mots de passe hashés avec l'algorithme bcrypt</li>
-            <li>Jetons d'authentification JWT avec durée de vie limitée</li>
-            <li>Isolation des données : chaque utilisateur n'accède qu'à ses propres données</li>
-            <li>Protection CORS et CSRF sur les appels API</li>
+          <ul class="list-disc pl-5 space-y-1 text-sm leading-relaxed">
+            <li><strong>Cookies de session</strong> (<code>cq_session</code>, <code>cq_refresh</code>,
+              <code>cq_device</code>) : ils vous gardent connecté 30 jours au plus (14 jours sans
+              utilisation). Illisibles par les scripts de la page ; la déconnexion les efface et coupe la
+              session sur le serveur.</li>
+            <li><strong>Cookie d'inscription Google</strong> (<code>cq_google_onboarding</code>, application
+              Android) : 15 minutes, le temps de finir votre inscription.</li>
+            <li><strong>Stockage local</strong> : l'état du jeu (inventaire, progression affichée, tracé de
+              vos déplacements sur la carte). Il reste sur votre appareil et est vidé à la déconnexion.</li>
+            <li><strong>Cache de la carte</strong> : le contour des régions et des communes, pour afficher la
+              carte plus vite. Il ne contient rien qui vous concerne.</li>
           </ul>
         </section>
 
-        <!-- 10. Contact et CNIL -->
         <section>
           <h2 class="text-lg font-bold font-pixel text-indigo-600 mb-3 border-b border-indigo-100 pb-2">
-            10. Contact et réclamation
+            8. Sécurité
+          </h2>
+          <ul class="list-disc pl-5 space-y-1 text-sm leading-relaxed">
+            <li>Communications chiffrées (HTTPS), serveurs dans l'Union européenne.</li>
+            <li>Mots de passe hachés (bcrypt), 8 caractères au moins avec lettres et chiffres.</li>
+            <li>Sessions courtes et révocables ; tentatives de connexion limitées.</li>
+            <li>Chaque joueur n'accède qu'à ses propres données de compte.</li>
+          </ul>
+          <p class="leading-relaxed mt-2 text-sm">
+            En cas de fuite de données vous concernant, la CNIL est prévenue sous 72 heures, et vous aussi
+            si le risque est élevé.
+          </p>
+        </section>
+
+        <section>
+          <h2 class="text-lg font-bold font-pixel text-indigo-600 mb-3 border-b border-indigo-100 pb-2">
+            9. Modifications
           </h2>
           <p class="leading-relaxed">
-            Pour toute question relative à la protection de vos données personnelles, vous pouvez contacter
-            le responsable du traitement à l'adresse : <span class="text-indigo-600">heianenterpriseyt@gmail.com</span>.
+            Si cette politique change de façon importante, vous en êtes informé à votre prochaine
+            connexion, et invité à accepter la nouvelle version.
           </p>
-          <p class="leading-relaxed mt-2">
-            Si vous estimez que vos droits ne sont pas respectés, vous pouvez introduire une réclamation auprès de la
-            <strong>Commission Nationale de l'Informatique et des Libertés (CNIL)</strong> :
-          </p>
-          <div class="mt-3 p-4 bg-gray-50 rounded-lg text-sm space-y-1">
-            <p><strong>CNIL</strong></p>
-            <p>3, Place de Fontenoy - TSA 80715</p>
-            <p>75334 Paris Cedex 07</p>
-            <p>Site web : <a href="https://www.cnil.fr" target="_blank" rel="noopener" class="text-indigo-600 underline">www.cnil.fr</a></p>
-          </div>
         </section>
 
       </div>
 
-      <!-- Bouton retour -->
       <div class="mt-12 mb-6 flex justify-center">
         <button
           class="text-sm font-pixel text-indigo-600 hover:underline flex items-center gap-2"
@@ -288,9 +322,3 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-definePageMeta({
-  layout: 'blank',
-})
-</script>

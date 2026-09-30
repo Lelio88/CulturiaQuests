@@ -13,6 +13,7 @@
 import sharp from 'sharp';
 import crypto from 'crypto';
 import { getUserGuild } from '../../../utils/guild-helpers';
+import { revokeAllSessions } from '../../../extensions/users-permissions/lib/sessions';
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
@@ -138,11 +139,22 @@ export default ({ strapi }) => ({
   },
 
   /**
-   * Supprime toutes les données liées à un utilisateur (RGPD) : player-friendships, quiz-attempts,
-   * progressions, guilde + ses relations, connection-logs, demandes RGPD ; anonymise (sans
-   * supprimer) les admin-action-logs ; supprime l'avatar puis l'utilisateur.
+   * Supprime toutes les données liées à un utilisateur (RGPD) : publications, player-friendships,
+   * quiz-attempts, progressions, guilde + ses relations, connection-logs, demandes RGPD ; anonymise
+   * (sans supprimer) les admin-action-logs ; supprime l'avatar puis l'utilisateur, et révoque ses
+   * sessions. Sert aussi à retirer une inscription avortée ou jamais confirmée.
    */
   async purgeUserData(userId: number) {
+    // 0. Publications du fil social : elles restaient orphelines (auteur nul) après suppression.
+    // Avant la guilde, dont les expéditions sont référencées par `run_history`.
+    const posts = await strapi.db.query('api::post.post').findMany({
+      where: { author: { id: userId } },
+      select: ['documentId'],
+    });
+    for (const post of posts) {
+      await strapi.documents('api::post.post').delete({ documentId: post.documentId });
+    }
+
     // 1. Trouver la guild de l'utilisateur
     const guild = await getUserGuild(strapi, userId, {
       select: ['id', 'documentId'],
@@ -222,7 +234,8 @@ export default ({ strapi }) => ({
       await strapi.plugin('upload').service('upload').remove(fullUser.avatar).catch(() => {});
     }
 
-    // 10. Supprimer le user
+    // 10. Supprimer le user, puis couper ses sessions (jetons de rafraîchissement)
     await strapi.plugins['users-permissions'].services.user.remove({ id: userId });
+    await revokeAllSessions(userId);
   },
 });

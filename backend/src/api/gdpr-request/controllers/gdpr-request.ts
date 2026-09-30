@@ -17,8 +17,10 @@ export default factories.createCoreController('api::gdpr-request.gdpr-request', 
       return ctx.send({ message: 'Une demande est déjà en cours.' });
     }
 
+    // Pas d'adresse IP : elle n'apporte rien au traitement de la demande (minimisation). Le
+    // champ `ip_address` reste dans le schéma pour les demandes anciennes, sans être rempli.
     await strapi.db.query('api::gdpr-request.gdpr-request').create({
-      data: { user: user.id, status: 'pending', ip_address: ctx.request.ip },
+      data: { user: user.id, status: 'pending' },
     });
 
     return ctx.send({ message: 'Demande enregistrée. Vous serez contacté par email.' });

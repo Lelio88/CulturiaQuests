@@ -22,7 +22,8 @@
         <img 
           v-for="type in types" 
           :key="type"
-          :src="getTypeIcon(type)" 
+          :src="getTypeIcon(type)"
+          :alt="type" 
           class="w-3 h-3 sm:w-4 sm:h-4 object-contain drop-shadow-sm"
         />
       </div>

@@ -2,8 +2,10 @@
  * BFF — Proxy authentifié vers Strapi (socle httpOnly).
  *
  * Toute requête vers `/api/strapi/<chemin>` est relayée vers Strapi `/api/<chemin>` en
- * injectant le JWT (cookie HTTP-ONLY `cq_session`) dans l'en-tête Authorization CÔTÉ SERVEUR.
- * Le client n'a donc jamais besoin du token : il appelle une route same-origin.
+ * injectant le jeton d'accès de la session (cookies httpOnly, renouvelé par
+ * `server/middleware/10-session.ts`) dans l'en-tête Authorization CÔTÉ SERVEUR, avec l'IP du
+ * joueur en X-Forwarded-For. Le client n'a donc jamais besoin du token : il appelle une route
+ * same-origin.
  *
  * Garde-fous :
  * - Garde `!jwt` : un store appelé sans session échoue en 401 explicite (au lieu d'un 403
@@ -33,8 +35,12 @@ const PUBLIC_GET_PATHS = new Set(['character-icons', 'regions', 'comcoms', 'depa
 // le registre de routes Nitro (auto-référence) → `default` implicitement `any` (TS7022/7024).
 export default defineEventHandler(async (event): Promise<unknown> => {
   const method = event.method
-  const jwt = getCookie(event, 'cq_session')
+  const jwt = sessionToken(event)
   const path = getRouterParam(event, 'path') || ''
+  // Le proxy ne sert que l'API de contenu (`/api/...`) : « .. » ferait sortir vers l'admin Strapi.
+  if (path.split('/').some((segment) => segment === '..' || segment === '.')) {
+    throw createError({ statusCode: 400, statusMessage: 'Chemin invalide' })
+  }
 
   const isPublicGet = method === 'GET' && PUBLIC_GET_PATHS.has(path)
 
@@ -42,23 +48,9 @@ export default defineEventHandler(async (event): Promise<unknown> => {
     throw createError({ statusCode: 401, statusMessage: 'Non authentifié' })
   }
 
-  if (MUTATING.has(method)) {
-    const secFetchSite = getHeader(event, 'sec-fetch-site')
-    if (secFetchSite) {
-      if (secFetchSite !== 'same-origin') {
-        throw createError({ statusCode: 403, statusMessage: 'Origine non autorisée' })
-      }
-    } else {
-      // Repli pour les navigateurs sans Sec-Fetch-* : comparer Origin et Host.
-      const origin = getHeader(event, 'origin')
-      const host = getHeader(event, 'host')
-      if (origin && host && new URL(origin).host !== host) {
-        throw createError({ statusCode: 403, statusMessage: 'Origine non autorisée' })
-      }
-    }
-  }
+  if (MUTATING.has(method)) assertSameOrigin(event)
 
-  const strapiUrl = useRuntimeConfig(event).strapi?.url || 'http://localhost:1337'
+  const strapiUrl = strapiBaseUrl(event)
   // Forward du query string VERBATIM (déjà sérialisé en notation Strapi par useApi/qs).
   // Ne PAS parser+re-sérialiser : getQuery+ofetch casserait `populate[...]` imbriqué.
   const search = getRequestURL(event).search
@@ -67,7 +59,10 @@ export default defineEventHandler(async (event): Promise<unknown> => {
   // une session) → Strapi évalue le rôle Public. Sinon, on injecte le JWT de session. Sans le
   // `!isPublicGet`, un utilisateur connecté forçait l'évaluation du rôle `authenticated` sur des
   // ressources voulues publiques (ex. zones de la carte) → 401/403 si ce rôle n'a pas le grant.
-  const headers: Record<string, string> = (jwt && !isPublicGet) ? { Authorization: `Bearer ${jwt}` } : {}
+  const headers: Record<string, string> = {
+    ...forwardedHeaders(event),
+    ...((jwt && !isPublicGet) ? { Authorization: `Bearer ${jwt}` } : {}),
+  }
 
   let body: Record<string, unknown> | undefined
   if (!['GET', 'HEAD'].includes(method)) {

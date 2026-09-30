@@ -3,6 +3,8 @@
  * All endpoints require the "admin" role
  */
 
+import { revokeAllSessions } from '../../../extensions/users-permissions/lib/sessions';
+
 const svc = () => strapi.service('api::admin-dashboard.admin-dashboard');
 
 // Champs autorisés pour le tri de la liste des joueurs (évite l'injection de
@@ -112,6 +114,9 @@ export default {
       if (!user) return ctx.notFound('Player not found');
 
       const result = await svc().toggleBlockUser(Number(id));
+      // Un joueur bloqué perd aussi ses sessions en cours : sans révocation, il gardait la main
+      // jusqu'à l'expiration de son jeton de rafraîchissement.
+      if (!user.blocked) await revokeAllSessions(Number(id));
 
       // Log the action
       const action = user.blocked ? 'UNBLOCK_USER' : 'BLOCK_USER';

@@ -13,7 +13,7 @@
           <h1 class="font-pixel text-4xl my-8">Expédition terminée</h1>
 
           <div class="flex items-center justify-center gap-4 mb-8">
-            <img :src="museumImage" class="w-40 h-full object-contain" />
+            <img :src="museumImage" alt="" class="w-40 h-full object-contain" />
             <div class="text-left">
                 <h2 class="font-power text-xl font-bold leading-tight max-w-[150px]">{{ museumName }}</h2>
             </div>
@@ -22,7 +22,7 @@
           <div class="flex justify-center gap-3 mb-8">
              <div v-for="char in characters" :key="char.id" class="relative">
                 <div class="absolute bottom-0 inset-x-1 h-2 bg-black/40 rounded-full blur-sm"></div>
-                <img :src="char.avatar" class="w-16 h-16 object-contain pixelated relative z-10" />
+                <img :src="char.avatar" alt="" class="w-16 h-16 object-contain pixelated relative z-10" />
              </div>
           </div>
 

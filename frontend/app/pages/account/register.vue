@@ -1,6 +1,30 @@
 <template>
   <div class="min-h-screen bg-white flex items-center justify-center p-4">
     <div class="w-full max-w-lg p-8">
+      <!-- Inscription envoyée : le compte n'est utilisable qu'après confirmation de l'adresse.
+           Même écran si l'adresse était déjà inscrite (anti-énumération). -->
+      <div v-if="pending" class="space-y-5 text-center">
+        <h1 class="text-3xl font-bold font-pixel mb-2 text-indigo-600">Vérifiez vos e-mails</h1>
+        <p class="font-onest text-gray-700 leading-relaxed">
+          Si l'adresse <strong>{{ form.email }}</strong> peut recevoir un compte, un lien de
+          confirmation vient d'y être envoyé. Suivez-le, puis connectez-vous.
+        </p>
+        <p class="font-onest text-sm text-gray-600">
+          Rien reçu après quelques minutes ? Regardez dans les indésirables, ou renvoyez le lien.
+          Sans confirmation, l'inscription est effacée au bout de 7 jours.
+        </p>
+        <p v-if="resendInfo" class="font-onest text-sm text-emerald-700" role="status">{{ resendInfo }}</p>
+        <div class="flex flex-col gap-3 pt-2">
+          <PixelButton type="button" variant="outline" color="indigo" :disabled="resending" @click="resend">
+            {{ resending ? 'Envoi…' : 'Renvoyer le lien' }}
+          </PixelButton>
+          <NuxtLink to="/account/login" class="font-pixel text-indigo-600 underline underline-offset-4">
+            Aller à la connexion
+          </NuxtLink>
+        </div>
+      </div>
+
+      <template v-else>
       <h1 class="text-3xl font-bold font-pixel text-center mb-6 text-indigo-600">
         Inscription
       </h1>
@@ -38,9 +62,13 @@
             type="password"
             label="Mot de passe"
             placeholder="Entrez votre mot de passe"
+            autocomplete="new-password"
             :disabled="loading"
             required
           />
+          <p class="text-xs font-onest text-gray-600 -mt-2">
+            8 caractères minimum, avec au moins une lettre et un chiffre.
+          </p>
 
           <PixelInput
             v-model="form.passwordConfirm"
@@ -65,9 +93,10 @@
           <div class="flex items-start gap-3 pt-1">
             <PixelCheckbox
               v-model="form.cguAccepted"
+              aria-labelledby="cgu-label"
               :disabled="loading"
             />
-            <p class="text-sm font-pixel text-gray-700 leading-snug pt-0.5">
+            <p id="cgu-label" class="text-sm font-pixel text-gray-700 leading-snug pt-0.5">
               J'ai lu et j'accepte les
               <button
                 type="button"
@@ -170,7 +199,16 @@
             </NuxtLink>
           </p>
         </div>
+
+        <!-- Mention d'information (guide conformité §A4) : qui, pourquoi, combien de temps. -->
+        <p class="text-xs font-onest text-gray-600 leading-relaxed pt-2">
+          Ces informations servent à créer votre compte et à faire fonctionner le jeu ; la date de
+          naissance vérifie l'âge minimum (15 ans). Elles sont conservées tant que le compte existe.
+          Détails et droits :
+          <NuxtLink to="/politique-confidentialite" class="text-indigo-600 underline">politique de confidentialité</NuxtLink>.
+        </p>
       </form>
+      </template>
     </div>
 
     <!-- CGU Overlay -->
@@ -181,7 +219,6 @@
 </template>
 
 <script setup lang="ts">
-import { useGuildStore } from '~/stores/guild'
 import { useCharacterStore } from '~/stores/character'
 import PixelInput from '~/components/form/PixelInput.vue'
 import PixelButton from '~/components/form/PixelButton.vue'
@@ -192,9 +229,7 @@ import Alert from '~/components/form/Alert.vue'
 import OverlayPanel from '~/components/ui/OverlayPanel.vue'
 import CguContent from '~/components/legal/CguContent.vue'
 
-const { register, user } = useAuth()
-const router = useRouter()
-const guildStore = useGuildStore()
+const { register, resendConfirmation } = useAuth()
 const characterStore = useCharacterStore()
 const config = useRuntimeConfig()
 
@@ -235,19 +270,14 @@ const form = ref({
 const loading = ref(false)
 const error = ref<string | null>(null)
 const showCgu = ref(false)
+const pending = ref(false)
+const resending = ref(false)
+const resendInfo = ref<string | null>(null)
 
-// Date of birth validation (min 15 years old)
-const dateOfBirthError = computed(() => {
-  if (!form.value.dateOfBirth) return ''
-  const birth = new Date(form.value.dateOfBirth)
-  if (isNaN(birth.getTime())) return 'Date invalide.'
-  const today = new Date()
-  let age = today.getFullYear() - birth.getFullYear()
-  const m = today.getMonth() - birth.getMonth()
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
-  if (age < 15) return 'Vous devez avoir au moins 15 ans pour vous inscrire.'
-  return ''
-})
+const passwordError = computed(() => passwordRuleError(form.value.password))
+
+// Âge minimum (15 ans) : confort de saisie, la règle fait foi côté serveur.
+const dateOfBirthError = computed(() => birthDateError(form.value.dateOfBirth))
 
 // Validation for each step
 const canProceed = computed(() => {
@@ -260,6 +290,7 @@ const canProceed = computed(() => {
         form.value.passwordConfirm &&
         form.value.dateOfBirth &&
         !dateOfBirthError.value &&
+        !passwordError.value &&
         form.value.cguAccepted
       )
     case 2:
@@ -280,6 +311,10 @@ function nextStep() {
 
   // Validate current step
   if (currentStep.value === 1) {
+    if (passwordError.value) {
+      error.value = passwordError.value
+      return
+    }
     if (form.value.password !== form.value.passwordConfirm) {
       error.value = 'Les mots de passe ne correspondent pas'
       return
@@ -339,35 +374,36 @@ const handleSubmit = async () => {
       return
     }
 
-    // Étape 1 : Créer le compte utilisateur
+    // Compte, guilde et personnage en une requête ; le joueur confirme ensuite son adresse.
     await register({
       username: form.value.username,
       email: form.value.email,
       password: form.value.password,
       date_of_birth: form.value.dateOfBirth,
-    })
-
-    // Attendre que l'utilisateur soit bien créé
-    if (!user.value?.id) {
-      throw new Error('Erreur lors de la création du compte')
-    }
-
-    // Étape 2 : Créer la guilde, personnage et items
-    await guildStore.createGuildSetup({
+      terms_accepted: form.value.cguAccepted,
       guildName: form.value.guildName,
       firstname: form.value.firstname,
       lastname: form.value.lastname,
-      iconId: form.value.iconId
+      iconId: form.value.iconId,
     })
-
-    // Étape 3 : Redirection vers l'accueil
-    await router.push('/')
-
+    pending.value = true
   } catch (e: any) {
-    console.error('Registration error:', e)
     error.value = extractApiError(e, 'Une erreur est survenue lors de l\'inscription.')
   } finally {
     loading.value = false
+  }
+}
+
+async function resend() {
+  resending.value = true
+  resendInfo.value = null
+  try {
+    await resendConfirmation(form.value.email)
+    resendInfo.value = 'Si un compte attend confirmation à cette adresse, un nouveau lien est parti.'
+  } catch (e: any) {
+    resendInfo.value = extractApiError(e, 'Envoi impossible pour le moment.')
+  } finally {
+    resending.value = false
   }
 }
 

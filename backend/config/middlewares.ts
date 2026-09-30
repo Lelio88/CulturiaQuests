@@ -8,9 +8,10 @@ export default [
         useDefaults: true,
         directives: {
           'connect-src': ["'self'", 'https:'],
+          // Pas de 'unsafe-inline' : l'admin Strapi 5 n'en a pas besoin (vérifié sur l'accueil, le
+          // gestionnaire de contenu et le greffon geodata). Les CDN restent pour Leaflet (geodata).
           'script-src': [
             "'self'",
-            "'unsafe-inline'",
             'cdn.jsdelivr.net',
             'unpkg.com',
             'https://*.basemaps.cartocdn.com',
@@ -41,20 +42,20 @@ export default [
   {
     name: 'strapi::cors',
     config: {
-      origin: [
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        'capacitor://localhost', // Capacitor iOS
-        'http://localhost', // Capacitor Android (http)
-        'https://localhost', // Capacitor Android (https)
-        'ionic://localhost', // Ionic (si utilisé)
-        // Frontend PRODUCTION (Hetzner) : origine du web ET de la WebView Capacitor (Option A =
-        // server.url distant). Les stores (poi/museum/zone) passent désormais par le proxy BFF
-        // (server→server, sans CORS) ; on conserve cette entrée par sécurité pour tout accès direct
-        // client→Strapi résiduel (chargement d'assets/images via config.public.strapi.url). Ne pas
-        // retirer sans avoir audité qu'aucun appel client direct ne subsiste.
-        'https://culturia.heianenterprise.com',
-      ],
+      // En production, une seule origine : le front (web ET WebView Capacitor, qui charge le site
+      // distant — `server.url`). Les origines locales ne servent qu'au développement : en prod,
+      // elles autorisaient n'importe quelle page servie sur un poste (localhost) à lire les
+      // réponses de l'API. Les stores passent par le proxy BFF (server→server, sans CORS) ; cette
+      // entrée couvre les chargements directs résiduels (médias via config.public.strapi.url).
+      origin: process.env.NODE_ENV === 'production'
+        ? ['https://culturia.heianenterprise.com']
+        : [
+          'http://localhost:3000',
+          'http://127.0.0.1:3000',
+          'capacitor://localhost', // Capacitor iOS
+          'http://localhost', // Capacitor Android (http)
+          'https://localhost', // Capacitor Android (https)
+        ],
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
       headers: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
       keepHeaderOnError: true,

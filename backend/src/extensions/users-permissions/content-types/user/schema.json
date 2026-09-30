@@ -92,6 +92,19 @@
     "friend_requests_enabled": {
       "type": "boolean",
       "default": true
+    },
+    "terms_accepted_at": {
+      "type": "datetime",
+      "private": true
+    },
+    "terms_version": {
+      "type": "string",
+      "private": true
+    },
+    "google_sub": {
+      "type": "string",
+      "private": true,
+      "unique": true
     }
   }
 }

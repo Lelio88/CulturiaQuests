@@ -4,6 +4,7 @@
 
 import { factories } from '@strapi/strapi';
 import { getUserGuild } from '../../../utils/guild-helpers';
+import { parseGuildSetup } from '../../../utils/account-rules';
 
 /**
  * Retire récursivement l'attribut `email` de tout objet peuplé dans la réponse guild.
@@ -102,49 +103,24 @@ export default factories.createCoreController('api::guild.guild', ({ strapi }) =
       return ctx.unauthorized('You must be logged in to create a guild');
     }
 
-    const { guildName, firstname, lastname, iconId } = ctx.request.body;
-
-    if (!guildName || !firstname || !lastname || !iconId) {
-      return ctx.badRequest('Missing required fields: guildName, firstname, lastname, iconId');
+    // L'inscription crée désormais la guilde elle-même ; cette route reste pour un compte qui
+    // n'en aurait pas, avec les mêmes règles que l'inscription.
+    const parsed = parseGuildSetup(ctx.request.body ?? {});
+    if (parsed.ok === false) {
+      return ctx.badRequest('Invalid guild setup', { code: parsed.code });
     }
 
-    // Check if user already has a guild
-    const existingGuild = await strapi.db.query('api::guild.guild').findOne({
-      where: { user: { id: user.id } },
-    });
+    const guildService = strapi.service('api::guild.guild');
+    if (!(await guildService.isCharacterIcon(parsed.value.iconId))) {
+      return ctx.badRequest('Invalid guild setup', { code: 'icon_invalid' });
+    }
 
-    if (existingGuild) {
+    let newGuild;
+    try {
+      newGuild = await guildService.createForUser(user.id, parsed.value);
+    } catch {
       return ctx.badRequest('User already has a guild');
     }
-
-    // Create Guild
-    const newGuild = await strapi.documents('api::guild.guild').create({
-      data: {
-        name: guildName,
-        user: user.id,
-        publishedAt: new Date(),
-        gold: 0,
-        scrap: 0,
-        exp: 0,
-      },
-    });
-
-    // Create Character
-    const newCharacter = await strapi.documents('api::character.character').create({
-      data: {
-        firstname: firstname,
-        lastname: lastname,
-        guild: newGuild.documentId,
-        icon: iconId,
-        publishedAt: new Date(),
-      },
-    });
-
-    // Create starter items using character service
-    await strapi.service('api::character.character').createStarterItems(
-      newCharacter.documentId,
-      newGuild.documentId
-    );
 
     // Return the populated guild
     const finalGuild = await strapi.documents('api::guild.guild').findOne({

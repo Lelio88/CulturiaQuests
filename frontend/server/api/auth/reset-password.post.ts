@@ -1,41 +1,47 @@
 /**
  * BFF — Réinitialisation du mot de passe (soumission du nouveau mot de passe).
  *
- * Reçoit { code, password, passwordConfirmation }, relaie vers Strapi /api/auth/reset-password.
- * En cas de succès, Strapi renvoie { jwt, user } → on pose le cookie HTTP-ONLY `cq_session`
- * (auto-login, cohérent avec login/register) et on ne renvoie que l'utilisateur.
- * Message d'erreur générique (code invalide OU expiré) pour ne pas divulguer l'état du token.
+ * Relaie { code, password, passwordConfirmation } vers Strapi, qui applique la même règle de mot
+ * de passe qu'à l'inscription, révoque toutes les sessions existantes du joueur et en ouvre une
+ * nouvelle : on la pose en cookies (connexion directe). Message générique pour un lien invalide
+ * ou expiré, pour ne rien dire de l'état du jeton.
  */
 export default defineEventHandler(async (event) => {
-  const { code, password, passwordConfirmation } = await readBody(event)
-
-  if (!code || !password || !passwordConfirmation) {
-    throw createError({ statusCode: 400, statusMessage: 'code, password et passwordConfirmation requis' })
+  assertSameOrigin(event)
+  const body = await readJsonObject(event)
+  const { code, password, passwordConfirmation } = body
+  if (typeof code !== 'string' || typeof password !== 'string' || typeof passwordConfirmation !== 'string') {
+    throw authError(400, 'invalid_body')
   }
   if (password !== passwordConfirmation) {
-    throw createError({ statusCode: 400, statusMessage: 'Les mots de passe ne correspondent pas' })
+    throw createError({ statusCode: 400, statusMessage: 'Les mots de passe ne correspondent pas', data: { code: 'password_mismatch' } })
   }
 
-  const strapiUrl = useRuntimeConfig(event).strapi?.url || 'http://localhost:1337'
+  const ip = playerIp(event)
+  assertNotThrottled(event, [['loginByIp', ip]])
+  const deviceId = crypto.randomUUID()
 
-  let res: { jwt: string; user: Record<string, unknown> }
-  try {
-    // Paramètre de type explicite : coupe l'inférence via le registre de routes Nitro (TS2321).
-    res = await $fetch<{ jwt: string; user: Record<string, unknown> }>(`${strapiUrl}/api/auth/reset-password`, {
-      method: 'POST',
-      body: { code, password, passwordConfirmation },
-    })
-  } catch {
-    throw createError({ statusCode: 400, statusMessage: 'Lien de réinitialisation invalide ou expiré' })
-  }
+  // Même plancher que la connexion, par cohérence : le code est un jeton aléatoire, sa durée
+  // de vérification ne dirait de toute façon rien sur l'existence d'un compte.
+  return withMinimumDuration(400, async () => {
+    let res: { jwt: string; refreshToken: string; user: Record<string, unknown> }
+    try {
+      res = await $fetch<typeof res>(`${strapiBaseUrl(event)}/api/auth/reset-password`, {
+        method: 'POST',
+        body: { code, password, passwordConfirmation, deviceId },
+        headers: forwardedHeaders(event),
+      })
+    } catch (err) {
+      const { status, code: ruleCode } = strapiFailure(err)
+      if (ruleCode && ruleCode.startsWith('password_')) throw translateStrapiError(err)
+      if (status && status < 500 && status !== 429) {
+        limiter('loginByIp').fail(ip)
+        throw authError(400, 'reset_link_invalid')
+      }
+      throw translateStrapiError(err)
+    }
 
-  setCookie(event, 'cq_session', res.jwt, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 14 * 24 * 60 * 60,
+    setSessionCookies(event, res, deviceId)
+    return { user: res.user }
   })
-
-  return { user: res.user }
 })

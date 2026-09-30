@@ -7,6 +7,31 @@ export default defineNuxtConfig({
     compatibilityVersion: 4,
   },
   devtools: { enabled: true },
+
+  // Langue du document (lecteurs d'écran, césure) et titre par défaut.
+  app: {
+    head: {
+      htmlAttrs: { lang: 'fr' },
+      title: 'CulturiaQuests',
+    },
+  },
+
+  // En-têtes de sécurité sur toutes les réponses (guide conformité §C6). La CSP, qui dépend d'un
+  // nonce par page, est posée par server/plugins/content-security-policy.ts.
+  // Referrer-Policy : `strict-origin-when-cross-origin` et non `no-referrer` — le serveur de
+  // tuiles OpenStreetMap exige un Referer identifiant le site (conditions d'usage).
+  routeRules: {
+    '/**': {
+      headers: {
+        'strict-transport-security': 'max-age=31536000; includeSubDomains',
+        'x-content-type-options': 'nosniff',
+        'referrer-policy': 'strict-origin-when-cross-origin',
+        'x-frame-options': 'DENY',
+        'permissions-policy': 'geolocation=(self), camera=(), microphone=(), payment=(), usb=()',
+        'cross-origin-opener-policy': 'same-origin',
+      },
+    },
+  },
   modules: [
     '@nuxt/eslint',
     '@nuxt/fonts',
@@ -97,6 +122,9 @@ export default defineNuxtConfig({
         url: 'http://localhost:1337', // Public URL for Client
       },
       allowDesktop: 'true', // Overridden by NUXT_PUBLIC_ALLOW_DESKTOP at runtime
+      // ID du client **Web** Google (public) : `serverClientId` de Credential Manager dans l'app
+      // Android. Vide = bouton Google masqué. Doit rester égal à celui du backend (lib/google.ts).
+      googleWebClientId: '1087365705292-su8t603pcte3aq89b42bgnummabuna4k.apps.googleusercontent.com',
     },
   },
   // NB : @nuxtjs/strapi retiré (migration BFF httpOnly #17). L'auth passe par les routes

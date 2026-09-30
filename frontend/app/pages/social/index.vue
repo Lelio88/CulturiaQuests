@@ -8,6 +8,7 @@
 
         <div class="flex items-center gap-2">
         <button
+          aria-label="Amis"
           @click="router.push('/social/friends')"
           class="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-indigo-50 transition-colors cursor-pointer"
         >
@@ -75,6 +76,7 @@
 
     <div class="fixed bottom-24 right-4 z-40">
         <button 
+            aria-label="Partager une aventure"
             @click="router.push('/createpost')"
             class="w-14 h-14 bg-[#4D4DFF] rounded-full flex items-center justify-center text-white shadow-lg hover:bg-[#3d3ddb] transition-transform hover:scale-105 active:scale-95 group"
         >

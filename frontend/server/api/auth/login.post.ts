@@ -1,49 +1,59 @@
 /**
- * BFF — Connexion (socle httpOnly, phase 1).
+ * BFF — Connexion par identifiant (e-mail ou pseudo) et mot de passe.
  *
- * Reçoit { identifier, password }, appelle Strapi /api/auth/local côté serveur, puis pose
- * le JWT dans un cookie HTTP-ONLY (`cq_session`) inaccessible au JavaScript → un vol de
- * token par XSS devient impossible. Ne renvoie JAMAIS le token au client, seulement le user.
+ * Appelle Strapi `/api/auth/local` côté serveur, pose la session en cookies httpOnly
+ * (`server/utils/session.ts`) et ne renvoie que l'utilisateur, jamais les jetons.
  *
- * Cookie DÉDIÉ `cq_session` (≠ `culturia_jwt` de @nuxtjs/strapi) pour cohabiter sans conflit
- * pendant la migration. Voir frontend/server/README.md (plan de migration phase 2).
+ * Choix non-évidents :
+ * - Limitation par compte + IP, délai croissant (`auth-guard.ts`) ; un succès remet le compteur
+ *   du compte à zéro.
+ * - Réponse d'au moins 400 ms : compte inconnu et mot de passe faux prennent le même temps.
+ * - « Adresse non confirmée » et « compte suspendu » ne sont dits qu'après un mot de passe
+ *   **correct** (Strapi vérifie le mot de passe d'abord) : ils ne révèlent rien à un inconnu.
+ * - `deviceId` généré ici : la déconnexion ne révoquera que la session de cet appareil.
  */
+// Strapi ne donne pas de code pour ce cas, seulement son message (« Your account email is not
+// confirmed »). Motif large : une reformulation retomberait sur « identifiants invalides »,
+// sans rien révéler, mais l'invitation à confirmer disparaîtrait.
+const NOT_CONFIRMED = /not confirmed/i
+
 export default defineEventHandler(async (event) => {
-  const { identifier, password } = await readBody(event)
-  if (!identifier || !password) {
-    throw createError({ statusCode: 400, statusMessage: 'identifier et password requis' })
-  }
+  assertSameOrigin(event)
+  const body = await readJsonObject(event)
+  const identifier = typeof body.identifier === 'string' ? body.identifier.trim() : ''
+  const password = typeof body.password === 'string' ? body.password : ''
+  if (!identifier || !password) throw authError(400, 'invalid_credentials')
 
-  const strapiUrl = useRuntimeConfig(event).strapi?.url || 'http://localhost:1337'
+  const ip = playerIp(event)
+  const accountKey = `${identifier.toLowerCase()}|${ip}`
+  assertNotThrottled(event, [['loginByAccount', accountKey], ['loginByIp', ip]])
+  const deviceId = crypto.randomUUID()
 
-  let res: { jwt: string; user: Record<string, unknown> }
-  try {
-    // Paramètre de type explicite : sans lui, l'inférence de $fetch explose sur le registre de
-    // routes Nitro (TS2321 « Excessive stack depth »).
-    res = await $fetch<{ jwt: string; user: Record<string, unknown> }>(`${strapiUrl}/api/auth/local`, {
-      method: 'POST',
-      body: { identifier, password },
-    })
-  } catch (err: any) {
-    // Distinguer « mauvais identifiants » (Strapi répond 4xx) d'une panne d'infra (Strapi
-    // down / timeout / 5xx) : sans ça, un incident backend était masqué en « Identifiants
-    // invalides » (faux signal support). On loggue toujours côté serveur pour diagnostic.
-    const status = err?.response?.status
-    if (status && status >= 400 && status < 500) {
-      throw createError({ statusCode: 401, statusMessage: 'Identifiants invalides' })
+  return withMinimumDuration(400, async () => {
+    let res: { jwt: string; refreshToken: string; user: Record<string, unknown> }
+    try {
+      res = await $fetch<typeof res>(`${strapiBaseUrl(event)}/api/auth/local`, {
+        method: 'POST',
+        body: { identifier, password, deviceId },
+        headers: forwardedHeaders(event),
+      })
+    } catch (err) {
+      const failure = strapiFailure(err)
+      if (failure.status === 400 && NOT_CONFIRMED.test(failure.message ?? '')) {
+        limiter('loginByAccount').reset(accountKey)
+        throw authError(403, 'email_not_confirmed')
+      }
+      if (failure.status === 400 && /blocked/i.test(failure.message ?? '')) throw authError(403, 'account_blocked')
+      if (failure.status && failure.status < 500 && failure.status !== 429) {
+        limiter('loginByAccount').fail(accountKey)
+        limiter('loginByIp').fail(ip)
+        throw authError(401, 'invalid_credentials')
+      }
+      throw translateStrapiError(err)
     }
-    console.error('[auth/login] échec non-authentification:', status ?? err?.message ?? err)
-    throw createError({ statusCode: 503, statusMessage: "Service d'authentification indisponible" })
-  }
 
-  setCookie(event, 'cq_session', res.jwt, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 14 * 24 * 60 * 60, // 14 jours
+    limiter('loginByAccount').reset(accountKey)
+    setSessionCookies(event, res, deviceId)
+    return { user: res.user }
   })
-
-  // On ne renvoie que l'utilisateur — jamais le JWT.
-  return { user: res.user }
 })

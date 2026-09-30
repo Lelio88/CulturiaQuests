@@ -150,13 +150,14 @@
 
         <div class="flex items-center justify-between gap-4">
           <div class="flex-1">
-            <p class="text-base font-power text-indigo-950">Demandes d'amis</p>
+            <p id="friend-requests-label" class="text-base font-power text-indigo-950">Demandes d'amis</p>
             <p class="text-sm font-onest text-indigo-950 opacity-60 mt-1">
               Autoriser les autres joueurs à vous envoyer des demandes d'amis
             </p>
           </div>
 
           <FormPixelSwitch
+            aria-labelledby="friend-requests-label"
             :model-value="friendRequestsEnabled"
             :loading="loading"
             @update:model-value="handleToggleFriendRequests"

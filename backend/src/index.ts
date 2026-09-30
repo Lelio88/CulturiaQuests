@@ -1,6 +1,8 @@
 import type { Core } from '@strapi/strapi';
 import fs from 'fs';
 import path from 'path';
+import { ensureAuthSettings } from './extensions/users-permissions/lib/emails';
+import { EMAIL_CONFIRMATION_SINCE } from './utils/account-rules';
 
 /**
  * Vérifie au démarrage que les données source du quiz quotidien sont présentes
@@ -88,49 +90,21 @@ async function ensureCustomIndexes(strapi: Core.Strapi) {
 }
 
 /**
- * Force l'expéditeur des e-mails users-permissions (reset password + confirmation de compte)
- * sur l'adresse validée côté Brevo (`SMTP_DEFAULT_FROM`), à la place du défaut `no-reply@strapi.io`
- * que Brevo REJETTE (« sender not valid »).
- *
- * Motivation : le template e-mail de users-permissions impose son propre `from`, qui écrase le
- * `defaultFrom` du provider (config/plugins.ts). Sur un déploiement neuf, le store est initialisé
- * par le plugin avec `no-reply@strapi.io` → tous les envois échouent silencieusement (le controller
- * renvoie quand même `{ ok: true }` par anti-énumération, d'où un debug pénible). Ce seed idempotent
- * corrige le `from` à chaque boot SANS toucher au reste du template (sujet/corps personnalisés dans
- * l'admin sont préservés). No-op si `SMTP_DEFAULT_FROM` est absent (dev local sans SMTP).
+ * Les comptes créés avant la confirmation d'adresse obligatoire (`EMAIL_CONFIRMATION_SINCE`) se
+ * connectaient sans elle : ils sont marqués confirmés une fois pour toutes, sinon l'activation
+ * de `email_confirmation` les aurait verrouillés dehors.
  */
-async function ensureEmailSenders(strapi: Core.Strapi) {
-  const fromEmail = process.env.SMTP_DEFAULT_FROM;
-  if (!fromEmail) return; // pas de SMTP configuré → on ne force rien
-
-  type EmailOptions = { from?: { name?: string; email?: string } };
-  type EmailStore = Record<string, { options?: EmailOptions } | undefined>;
-
-  const pluginStore = strapi.store({ type: 'plugin', name: 'users-permissions' });
-  const emails = (await pluginStore.get({ key: 'email' })) as EmailStore | null;
-  if (!emails) return;
-
-  const senderName = 'CulturiaQuests';
-  let changed = false;
-
-  for (const key of ['reset_password', 'email_confirmation']) {
-    const options = emails[key]?.options;
-    if (!options) continue;
-    if (!options.from) options.from = {};
-    const from = options.from;
-    if (from.email !== fromEmail) {
-      from.email = fromEmail;
-      changed = true;
-    }
-    if (!from.name || from.name === 'Administration Panel') {
-      from.name = senderName;
-      changed = true;
-    }
-  }
-
-  if (changed) {
-    await pluginStore.set({ key: 'email', value: emails });
-    strapi.log.info(`users-permissions: expéditeur des e-mails forcé sur ${fromEmail}`);
+async function confirmLegacyAccounts(strapi: Core.Strapi) {
+  const updated = await strapi.db.query('plugin::users-permissions.user').updateMany({
+    // `$ne: true` écarterait les NULL (SQL) : on les vise explicitement.
+    where: {
+      $or: [{ confirmed: false }, { confirmed: { $null: true } }],
+      createdAt: { $lt: EMAIL_CONFIRMATION_SINCE },
+    },
+    data: { confirmed: true },
+  });
+  if (updated?.count) {
+    strapi.log.info(`users-permissions : ${updated.count} compte(s) antérieur(s) à la confirmation marqué(s) confirmé(s)`);
   }
 }
 
@@ -151,6 +125,13 @@ export default {
    * run jobs, or perform some special logic.
    */
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
+    // IP du client : dernier maillon de X-Forwarded-For seulement. Un seul proxy (Caddy, ou le BFF
+    // Nuxt qui pose l'en-tête lui-même) précède Strapi ; les maillons de gauche viennent du client
+    // et peuvent être forgés. Sans cette borne, Koa prend le premier — usurpable — et la limite
+    // de tentatives se contourne en changeant d'IP fictive à chaque essai. Si un CDN s'intercale
+    // un jour devant Caddy, passer à 2.
+    strapi.server.app.maxIpsCount = 1;
+
     // Grant permissions to Public role (unauthenticated users)
     const publicRole = await strapi.db.query('plugin::users-permissions.role').findOne({
       where: { type: 'public' },
@@ -163,6 +144,11 @@ export default {
         // mot de passe. Consommés avant authentification (utilisateur déconnecté par nature).
         'plugin::users-permissions.auth.forgotPassword',
         'plugin::users-permissions.auth.resetPassword',
+        // Confirmation d'adresse (lien de l'e-mail, relayé par le BFF) et renvoi du lien.
+        'plugin::users-permissions.auth.emailConfirmation',
+        'plugin::users-permissions.auth.sendEmailConfirmation',
+        // Sessions `refresh` : le BFF renouvelle le jeton d'accès sans en-tête Authorization.
+        'plugin::users-permissions.auth.refresh',
         'api::character.character.getCharacterIcons',
         // Zones géographiques (contours de région/département/comcom) : données PUBLIQUES non
         // sensibles, chargées par le zone store dès l'ouverture de la carte. Accordées au rôle Public
@@ -297,6 +283,11 @@ export default {
         // BFF httpOnly (#17) : /users/me-with-role peuple le role (le /users/me natif le strippe).
         // Requis par useAuth/useAdmin côté front. L'Admin l'hérite via la copie des perms authenticated.
         'plugin::users-permissions.user.meWithRole',
+        // Réacceptation des CGU quand leur version change (écran /account/conditions).
+        'plugin::users-permissions.user.acceptTerms',
+        // Sessions `refresh` : déconnexion = révocation côté serveur.
+        'plugin::users-permissions.auth.logout',
+        'plugin::users-permissions.auth.refresh',
       ], 'Authenticated');
     }
 
@@ -360,8 +351,9 @@ export default {
     // Vérification des données source du quiz quotidien (log explicite si absentes). #73
     checkQuizDataPresence(strapi);
 
-    // Expéditeur des e-mails users-permissions forcé sur SMTP_DEFAULT_FROM
-    // (évite le piège `no-reply@strapi.io` rejeté par Brevo). Idempotent.
-    await ensureEmailSenders(strapi);
+    // Réglages avancés et gabarits e-mail users-permissions alignés sur le dépôt (confirmation
+    // obligatoire, pages de retour, expéditeur SMTP_DEFAULT_FROM validé par Brevo). Idempotent.
+    await ensureAuthSettings();
+    await confirmLegacyAccounts(strapi);
   },
 };

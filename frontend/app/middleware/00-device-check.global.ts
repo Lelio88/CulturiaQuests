@@ -30,6 +30,9 @@ export default defineNuxtRouteMiddleware((to) => {
     '/account/register',
     '/account/forgot-password',
     '/account/reset-password',
+    '/account/confirm',
+    '/account/google',
+    '/suppression-compte',
     '/CGU',
     '/mentions-legales',
     '/politique-confidentialite'

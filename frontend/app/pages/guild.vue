@@ -10,6 +10,7 @@
             <!-- Settings Button (Top Right) -->
             <button
                 class="absolute top-[env(safe-area-inset-top)] right-6 z-20 w-12 h-12 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/20 transition-all duration-300 active:scale-95 border border-white/20"
+                aria-label="Paramètres"
                 @click="router.push('/account/settings')"
             >
                 <Icon name="mdi:cog" class="w-6 h-6 text-white drop-shadow-lg" />

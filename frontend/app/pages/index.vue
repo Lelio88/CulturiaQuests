@@ -23,6 +23,8 @@
           </PixelButton>
         </NuxtLink>
       </div>
+
+      <LegalLinks class="mt-10" />
     </div>
   </div>
 </template>

@@ -34,6 +34,7 @@
         </select>
         <button
           class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-gray-400 hover:text-white transition-colors"
+          :aria-label="sortOrder === 'asc' ? 'Tri croissant' : 'Tri décroissant'"
           @click="toggleSortOrder"
         >
           <Icon :name="sortOrder === 'asc' ? 'bx-sort-up' : 'bx-sort-down'" class="w-5 h-5" />

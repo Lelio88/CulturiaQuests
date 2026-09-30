@@ -26,13 +26,14 @@
           class="w-full aspect-square bg-gray-800 rounded-xl p-0.5 border-2 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)] relative group cursor-pointer hover:scale-105 transition-transform"
         >
             <div class="w-full h-full rounded-lg bg-black/40 flex items-center justify-center overflow-hidden">
-                <img :src="equippedBadges[index - 1].image" class="w-full h-full object-contain" />
+                <img :src="equippedBadges[index - 1].image" :alt="equippedBadges[index - 1].name || 'Badge équipé'" class="w-full h-full object-contain" />
             </div>
             
             </div>
 
         <button 
           v-else 
+          aria-label="Choisir un badge"
           @click="$emit('open-collection')"
           class="w-full aspect-square rounded-xl border-2 border-dashed border-gray-700 bg-gray-800/30 hover:bg-gray-800 hover:border-gray-500 hover:text-white text-gray-500 flex items-center justify-center transition-all group"
         >

@@ -17,7 +17,7 @@
         <div class="flex flex-col items-center gap-1">
           <span class="font-bold text-2xl font-power text-green-600">+{{ gain }}</span>
           <div class="flex items-center gap-1 text-gray-600 text-[10px] font-bold">
-            <img src="/assets/scrap.png" class="w-3 h-3 object-contain" /> Scrap
+            <img src="/assets/scrap.png" alt="" class="w-3 h-3 object-contain" /> Scrap
           </div>
         </div>
      </div>

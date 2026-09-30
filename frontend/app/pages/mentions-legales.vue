@@ -8,7 +8,7 @@
           Mentions Légales
         </h1>
         <p class="text-sm text-gray-500 font-pixel">
-          Dernière mise à jour : 18 février 2026
+          Dernière mise à jour : 1er octobre 2026
         </p>
       </div>
 
@@ -57,14 +57,21 @@
             4. Propriété intellectuelle
           </h2>
           <p class="leading-relaxed">
-            L'ensemble des éléments constituant l'application CulturiaQuests (design, graphismes, code source,
-            textes, personnages, quêtes, mécaniques de jeu) est la propriété exclusive de Lelio Buton
-            ou de ses concédants de licence, et est protégé par les lois françaises et internationales relatives
-            au droit d'auteur et à la propriété intellectuelle.
+            Les éléments propres à CulturiaQuests (design, graphismes, code source, textes, personnages,
+            quêtes, mécaniques de jeu) appartiennent à leurs auteurs, Brice Ledanois, Ethan Raulin et
+            Lelio Buton, qui l'ont conçu à l'IUT Grand Ouest Normandie (Université de Caen Normandie). Ils
+            sont protégés par le droit d'auteur : toute reproduction ou utilisation sans leur accord est
+            interdite.
           </p>
-          <p class="leading-relaxed mt-2">
-            Toute reproduction, distribution ou utilisation non autorisée de ces éléments est strictement interdite.
-          </p>
+          <p class="leading-relaxed mt-2">Contenus tiers, utilisés selon leur licence :</p>
+          <ul class="list-disc pl-5 space-y-1 text-sm leading-relaxed mt-1">
+            <li>Carte et lieux : © les contributeurs
+              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" class="text-indigo-600 underline">OpenStreetMap</a>,
+              données sous licence ODbL.</li>
+            <li>Questions à choix multiples du quiz :
+              <a href="https://www.openquizzdb.org" target="_blank" rel="noopener" class="text-indigo-600 underline">OpenQuizzDB</a>,
+              fournisseur de contenu libre, et les rédacteurs de chaque quiz.</li>
+          </ul>
         </section>
 
         <!-- 5. Données personnelles -->

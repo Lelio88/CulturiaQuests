@@ -20,7 +20,7 @@
                 <div class="bg-[#F8F9FF] rounded-[40px] p-6 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300 my-auto">
                     <div class="flex items-center justify-between mb-6">
                         <h3 class="text-xl font-bold text-slate-800 font-power">Modifier le post</h3>
-                        <button @click="showEditModal = false" class="text-gray-400 hover:text-gray-600">
+                        <button aria-label="Fermer" @click="showEditModal = false" class="text-gray-400 hover:text-gray-600">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                     </div>
@@ -93,7 +93,8 @@
       <div class="flex items-center gap-3 min-w-0">
         <div class="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-100 shadow-inner shrink-0 aspect-square">
             <img 
-                :src="post.authorAvatar || '/assets/user/placeholder_pdp.jpg'" 
+                :src="post.authorAvatar || '/assets/user/placeholder_pdp.jpg'"
+                alt="" 
                 class="w-full h-full object-cover" 
                 @error="(e) => ((e.target as HTMLImageElement).src = '/assets/user/placeholder_pdp.jpg')"
             />
@@ -103,7 +104,7 @@
           <p class="text-[10px] text-gray-400 font-bold mt-1 uppercase tracking-wider truncate">{{ post.location }} • {{ post.timeAgo }}</p>
         </div>
       </div>
-      <button v-if="isAuthor" @click.stop="showMenu = !showMenu" class="text-gray-300 hover:text-gray-500 transition-colors p-1 shrink-0">
+      <button v-if="isAuthor" aria-label="Options de la publication" @click.stop="showMenu = !showMenu" class="text-gray-300 hover:text-gray-500 transition-colors p-1 shrink-0">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" /></svg>
       </button>
     </div>
@@ -111,7 +112,7 @@
     <!-- Museum Info -->
     <div class="bg-gray-50 rounded-2xl p-4 mb-4 flex items-center gap-4 border border-gray-100/50">
         <div class="w-14 h-14 bg-white rounded-xl shadow-sm p-1.5 shrink-0 flex items-center justify-center border border-white">
-            <img :src="post.museumImage" class="w-full h-full object-contain pixelated" />
+            <img :src="post.museumImage" alt="" class="w-full h-full object-contain pixelated" />
         </div>
         <div class="min-w-0">
             <p class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest mb-0.5 opacity-80">Lieu visité</p>
@@ -127,7 +128,7 @@
         >
             <template v-if="stat.key === 'bestLoot'">
                 <div class="w-10 h-10 mb-1 relative flex items-center justify-center">
-                    <img :src="stat.image || '/assets/charm2.png'" class="w-full h-full object-contain pixelated drop-shadow-md" />
+                    <img :src="stat.image || '/assets/charm2.png'" alt="Meilleur butin" class="w-full h-full object-contain pixelated drop-shadow-md" />
                     <span v-if="stat.power" class="absolute -bottom-1 -right-1 font-pixel text-white text-[10px] text-shadow-outline leading-none">
                         {{ stat.power }}
                     </span>

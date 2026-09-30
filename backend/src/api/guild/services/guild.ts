@@ -3,8 +3,70 @@
  */
 
 import { factories } from '@strapi/strapi';
+import type { GuildSetupInput } from '../../../utils/account-rules';
 
 export default factories.createCoreService('api::guild.guild', ({ strapi }) => ({
+  /**
+   * L'icône choisie est-elle bien une icône de personnage (dossier média `characters`) ?
+   * Sans ce contrôle, n'importe quel fichier téléversé (avatar d'un autre joueur compris)
+   * pourrait devenir l'icône d'un personnage.
+   */
+  async isCharacterIcon(iconId: number): Promise<boolean> {
+    const folder = await strapi.db.query('plugin::upload.folder').findOne({
+      where: { name: 'characters' },
+      select: ['id'],
+    });
+    if (!folder) return false;
+    const count = await strapi.db.query('plugin::upload.file').count({
+      where: { id: iconId, folder: { id: folder.id }, mime: { $startsWith: 'image/' } },
+    });
+    return count > 0;
+  },
+
+  /**
+   * Crée la guilde d'un joueur, son premier personnage et ses objets de départ. Appelé par
+   * l'inscription (e-mail ou Google), qui l'enchaîne à la création du compte, et par
+   * `POST /guilds/setup`. Les entrées sont déjà validées (`parseGuildSetup`) ; le refus d'une
+   * seconde guilde reste ici, car c'est un invariant du modèle et non du formulaire.
+   */
+  async createForUser(userId: number, input: GuildSetupInput) {
+    const existingGuild = await strapi.db.query('api::guild.guild').findOne({
+      where: { user: { id: userId } },
+      select: ['id'],
+    });
+    if (existingGuild) {
+      throw new Error('User already has a guild');
+    }
+
+    const newGuild = await strapi.documents('api::guild.guild').create({
+      data: {
+        name: input.guildName,
+        user: userId,
+        publishedAt: new Date(),
+        gold: 0,
+        scrap: 0,
+        exp: 0,
+      },
+    });
+
+    const newCharacter = await strapi.documents('api::character.character').create({
+      data: {
+        firstname: input.firstname,
+        lastname: input.lastname,
+        guild: newGuild.documentId,
+        icon: input.iconId,
+        publishedAt: new Date(),
+      },
+    });
+
+    await strapi.service('api::character.character').createStarterItems(
+      newCharacter.documentId,
+      newGuild.documentId
+    );
+
+    return newGuild;
+  },
+
   /**
    * Delete a guild and all its associated data (characters, items, friendships, runs, visits, quests)
    */

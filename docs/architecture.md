@@ -43,7 +43,7 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 │                          └──────────────────┘                              │
 └───────────────────────────────────────────────────────────────────────────┘
 
-   Cookie de session HTTP-only « cq_session » (sameSite=lax, secure=true en prod, 14 jours)
+   Session : cookies HTTP-only cq_session / cq_refresh / cq_device (sameSite=lax, secure en prod, 30 jours au plus)
    Pinia → localStorage (jamais en cookie — limite 431 atteinte sinon)
 ```
 
@@ -195,7 +195,7 @@ masqué en conséquence.
 
 Exemple end-to-end représentatif (auth + validation métier + interaction multi-service).
 
-1. **Browser / Capacitor WebView** envoie `POST /api/strapi/runs/startExpedition` (proxy BFF same-origin) avec body `{ museumDocumentId, userLat, userLng }`. Le serveur Nuxt lit le cookie HTTP-only `cq_session` et relaie vers Strapi `POST /api/runs/startExpedition` en injectant l'en-tête `Authorization: Bearer` (le cookie n'est jamais exposé au JavaScript).
+1. **Browser / Capacitor WebView** envoie `POST /api/strapi/runs/startExpedition` (proxy BFF same-origin) avec body `{ museumDocumentId, userLat, userLng }`. Le serveur Nuxt prend le jeton d'accès de la session (cookies HTTP-only, renouvelé au besoin) et relaie vers Strapi `POST /api/runs/startExpedition` en injectant l'en-tête `Authorization: Bearer` (le cookie n'est jamais exposé au JavaScript).
 2. **CORS middleware** (`strapi::cors`) vérifie l'origine contre l'allowlist (`http://localhost:3000`, `capacitor://localhost`, etc.). Refus si non listée.
 3. **CSP / security middleware** (`strapi::security`) ajoute les headers de sécurité.
 4. **Strapi router** matche la route custom `runs/startExpedition` définie dans `backend/src/api/run/routes/01-custom-run.ts`.
@@ -230,23 +230,39 @@ Exemple end-to-end représentatif (auth + validation métier + interaction multi
 
 ### Frontend Nuxt 4
 
-- **`useStrapiClient()` pour l'API**, pas de `fetch` brut. Le client embarque le JWT cookie automatiquement.
+- **`useApi()` pour l'API**, pas de `fetch` brut : il passe par le proxy BFF, qui injecte le jeton de session côté serveur.
 - **Pinia + Composition API** : `defineStore('name', () => { ... }, { persist: { pick: [...] } })`. Toujours déclarer `pick` pour ne pas persister les flags `loading` / `error`.
 - **Hydratation centralisée** : `useGuildStore().fetchAll()` peuple tous les stores liés (character, inventory, quest, visit, run, friendship, progression) en un seul appel avec `populate` imbriqué. Évite les cascades de requêtes au login.
 - **Lecture defensive du shape Strapi** : `guild.value?.gold ?? guild.value?.attributes?.gold ?? 0` — Strapi v5 a aplati la structure mais certaines réponses peuvent encore retourner `attributes`. Toujours fournir un fallback `0` / `''`.
 - **SSR vs CSR** : `runtimeConfig.strapi.url = 'http://backend:1337'` (interne Docker, utilisé par le SSR), `runtimeConfig.public.strapi.url = 'http://localhost:1337'` (utilisé par le browser). Ne **jamais** inverser.
 
-### BFF httpOnly — le JWT soustrait au JavaScript
+### BFF httpOnly — sessions révocables, jamais visibles du JavaScript
 
-Objectif : soustraire le JWT au JavaScript. Le token vit dans un cookie **HTTP-ONLY** (`cq_session`) détenu côté serveur Nuxt, et tous les appels passent par un **BFF** (Backend-For-Frontend) same-origin.
+Le navigateur ne voit aucun jeton. Strapi tourne en **`jwtManagement: 'refresh'`** (`backend/config/plugins.ts`) : jeton d'accès de **10 minutes** et jeton de rafraîchissement **tournant**, révocable, **14 jours d'inactivité et 30 jours au plus**. Le BFF Nuxt les garde dans trois cookies httpOnly (`cq_session` accès, `cq_refresh` rafraîchissement, `cq_device` appareil ; `Secure` en prod, `SameSite=Lax`).
 
-- **Routes serveur** (`frontend/server/api/`) :
-  - `POST /api/auth/login|register`, `POST /api/auth/logout`, `GET /api/auth/me` : auth ; posent/lisent/effacent le cookie httpOnly `cq_session`, ne renvoient jamais le JWT au client.
-  - `POST /api/auth/forgot-password` : relaie `{ email }` vers Strapi ; renvoie **toujours** `{ ok: true }` (anti-énumération — n'indique jamais si l'e-mail existe). `POST /api/auth/reset-password` : relaie `{ code, password, passwordConfirmation }`, pose `cq_session` en cas de succès (auto-login). Nécessite un **provider e-mail** configuré (`backend/config/plugins.ts` → nodemailer/SMTP Brevo, identifiants via env `SMTP_*`) + l'URL de reset réglée dans l'admin Strapi (Settings → Users & Permissions → Advanced → « Reset password page » = `https://culturia.heianenterprise.com/account/reset-password`). Permissions `auth.forgotPassword`/`auth.resetPassword` accordées au rôle Public au bootstrap. Pages front : `/account/forgot-password`, `/account/reset-password` (publiques dans le middleware). Sur mobile, un **App Link** (`app/plugins/deeplinks.client.ts` via `@capacitor/app` + `AndroidManifest` `autoVerify` sur `culturia.heianenterprise.com/account/reset-password` + `frontend/public/.well-known/assetlinks.json`) ouvre le lien de reset directement dans l'app ; fallback navigateur si la vérification échoue. `assetlinks.json` doit lister le SHA-256 du certificat **Google Play App Signing** (en plus de l'upload key) pour les installs Play.
-  - `ANY /api/strapi/<chemin>` : proxy authentifié — relaie vers Strapi `/api/<chemin>` en injectant `Authorization: Bearer` côté serveur. Garde `!jwt` (401), **défense CSRF** (origine same-origin exigée sur POST/PUT/PATCH/DELETE), mapping d'erreur robuste. **Exception** : une allowlist `PUBLIC_GET_PATHS` (GET uniquement, ex. `character-icons`) est relayée **sans session** — routes accordées au rôle Public côté Strapi, consommées avant authentification (écran d'inscription → choix de l'icône). Sans cookie, aucun en-tête `Authorization` n'est envoyé (Strapi applique ses permissions Public).
-- **Endpoint backend `GET /api/users/me-with-role`** (extension users-permissions) : variante de `/users/me` qui **peuple le `role`** (le `me` natif le retire au `sanitizeQuery`), requis par les checks admin du front. Permission `plugin::users-permissions.user.meWithRole` accordée au bootstrap (`authenticated`, héritée par `admin`).
-- **Front (`useApi` / `useAuth` / `plugins/auth.ts`)** : `useApi()` (compatible `useStrapiClient`) route vers le proxy ; `useAuth()` remplace `useStrapiUser/Auth` ; le plugin hydrate l'user en SSR (gate sur présence du cookie). Le fetcher SSR utilise `useRequestFetch()` pour propager le cookie httpOnly.
-- **Périmètre** : le JWT vit uniquement dans le cookie HTTP-only `cq_session` (BFF). `@nuxtjs/strapi` est **entièrement retiré** — modules de `nuxt.config.ts` **et** dépendance `package.json`. `runtimeConfig.strapi.url` (proxy SSR) et `public.strapi.url` (URLs média) sont conservés. Le logout efface défensivement un éventuel cookie `culturia_jwt` legacy. Détail : `frontend/server/README.md`.
+- **Renouvellement** (`frontend/server/utils/session.ts` + `server/middleware/10-session.ts`) : avant tout handler, si l'accès expire dans moins d'une minute, le BFF le renouvelle et pose les cookies sur la réponse **de la page** (le Set-Cookie d'une sous-requête SSR serait perdu). Une rotation à la fois par jeton ; Strapi rend le même successeur pour un jeton déjà tourné. `sessionToken(event)` donne le jeton valide aux handlers.
+- **Déconnexion** = révocation serveur de la session de cet appareil (`deviceId`) ; réinitialisation du mot de passe et blocage d'un joueur = révocation de toutes ses sessions.
+- **Limitation des tentatives** (`server/utils/throttle.ts`, `auth-guard.ts`) : par compte + IP et par IP, en mémoire, délai qui double à chaque échec (30 s → 15 min), jamais de verrouillage définitif. Le BFF transmet l'IP du joueur à Strapi (`X-Forwarded-For`, lu de Caddy qui remplace celui du client) : la limite native de Strapi compte donc par joueur, et non plus au nom du conteneur Nuxt.
+- **Anti-énumération** : réponses de durée minimale (400 ms connexion, 1,2 s inscription), messages par **code** traduits par `AUTH_MESSAGES` — aucun texte brut de Strapi n'atteint l'écran.
+- **Routes serveur** (`frontend/server/api/auth/`) :
+  - `login` (e-mail ou pseudo) ; `register` → toujours `{ pending: true }`, aucune session : l'adresse se confirme d'abord ; `confirm-email` (bouton de la page `/account/confirm`, jamais au chargement, pour qu'un scanner de messagerie ne confirme pas à la place du titulaire) ; `resend-confirmation` et `forgot-password` → toujours `{ ok: true }` ; `reset-password` → ouvre la session ; `logout` ; `me`.
+  - `google` et `google/register` : connexion Google de l'app Android (voir ci-dessous).
+  - `ANY /api/strapi/<chemin>` : proxy authentifié vers Strapi `/api/<chemin>` (Bearer injecté côté serveur, IP transmise, « .. » refusé). **Défense CSRF** (Sec-Fetch-Site, repli Origin/Host) sur toute mutation, comme sur les routes d'auth. **Exception** : `PUBLIC_GET_PATHS` (GET seulement, ex. `character-icons`) relayés sans session.
+- **Extension users-permissions** (`backend/src/extensions/users-permissions/`) : ⚠️ dans Strapi 5, `plugin.controllers.auth` est une **fabrique** — l'extension la remplace par une fabrique qui enveloppe l'originale (une méthode posée sur la fabrique n'a aucun effet). Elle réécrit `register` (`lib/registration.ts` : compte + guilde + personnage en une requête, lien de confirmation envoyé en dernier, tout défait si une étape échoue ; adresse déjà prise → même réponse et avertissement au titulaire, plafonné à un par heure), applique la règle de mot de passe à `resetPassword`/`changePassword`, journalise les connexions (date seule), et ajoute `GET /users/me-with-role` (rôle peuplé, liste blanche de champs, `terms_outdated`) et `POST /users/me/accept-terms`.
+- **Règles de compte** (`backend/src/utils/account-rules.ts`, testées) : mot de passe 8 caractères avec lettre et chiffre (72 octets au plus), 15 ans révolus, pseudo 3–30 sans « @ », acceptation des CGU obligatoire, `TERMS_VERSION`. L'écran les annonce (`app/utils/accountRules.ts`), le serveur fait foi.
+- **Réglages users-permissions versionnés** : `ensureAuthSettings` (bootstrap) aligne à chaque démarrage la confirmation obligatoire, les pages de retour (`FRONTEND_URL`) et les gabarits e-mail (français, sans pseudo : `<%= %>` n'échappe rien). Une retouche dans l'admin est écrasée au déploiement suivant.
+- **Confirmation obligatoire depuis `EMAIL_CONFIRMATION_SINCE`** : les comptes antérieurs sont marqués confirmés au démarrage ; une inscription non confirmée est effacée au bout de 7 jours (cron `purge-retention`, avec les journaux de connexion de plus de 6 mois).
+- **CGU** : acceptation datée et versionnée à l'inscription ; quand `TERMS_VERSION` change, le middleware `01-terms.global.ts` conduit le joueur à `/account/conditions` (textes, suppression de compte et déconnexion restent ouverts).
+- **Connexion Google (Android seulement)** : Google refuse les WebView, donc le greffon maison `GoogleSignInPlugin` (Credential Manager, `frontend/android/…/GoogleSignInPlugin.java`) rend un jeton d'identité, que Strapi vérifie (`backend/src/utils/google-id-token.ts` : RS256 imposé, audience = client **Web**, adresse vérifiée). Compte connu (par `google_sub`, sinon même adresse) → session ; un compte jamais confirmé perd son mot de passe à la liaison (un tiers a pu le créer avec l'adresse). Adresse inconnue → jeton d'inscription HMAC de 15 min (cookie `cq_google_onboarding`) et écran `/account/google` (pseudo, âge, CGU, guilde) : le compte n'existe qu'après. Aucun script Google sur le site. L'ID du client Web est public (`GOOGLE_WEB_CLIENT_ID` côté Strapi, `googleWebClientId` côté Nuxt) ; vide = bouton masqué.
+- **Suppression du compte** : dans l'app (Paramètres) et sur `/suppression-compte` (web, ouverte sur ordinateur, confirmation écrite « SUPPRIMER ») — URL déclarée à Google Play. `purgeUserData` efface aussi les publications et révoque les sessions.
+- **Liens des e-mails dans l'app** : `/account/reset-password` et `/account/confirm` sont des App Links (`AndroidManifest` `autoVerify` + `frontend/public/.well-known/assetlinks.json`, qui liste le SHA-256 de Play App Signing et celui de la clé d'envoi) ; `plugins/deeplinks.client.ts` route le WebView. Repli navigateur si la vérification échoue.
+- **Front** : `useAuth()` (état via `/me`, jamais via la réponse du login) ; `plugins/auth.ts` hydrate en SSR si `cq_session` **ou** `cq_refresh` existe. `@nuxtjs/strapi` est retiré ; le logout efface aussi un éventuel `culturia_jwt` legacy.
+
+### Sécurité du front
+
+`nuxt.config.ts` (`routeRules`) pose HSTS, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` (pas `no-referrer` : les tuiles OpenStreetMap exigent un Referer) et `Permissions-Policy`. `server/plugins/content-security-policy.ts` pose une **CSP à nonce** par page (scripts du site et porteurs du nonce seulement ; images : tuiles OSM et médias Strapi) et retire `X-Powered-By`. ⚠️ Le nonce est ajouté à tous les `<script` du HTML rendu : sûr tant qu'aucun `v-html` n'affiche un contenu de joueur. Côté Strapi, `config/middlewares.ts` : CSP sans `'unsafe-inline'` pour les scripts, CORS limité au domaine du jeu en production.
+
+Inventaire des données personnelles (guide de conformité §A6) : [`donnees-personnelles.md`](./donnees-personnelles.md).
 
 ### Conventions cross-cutting
 
@@ -260,7 +276,9 @@ Objectif : soustraire le JWT au JavaScript. Le token vit dans un cookie **HTTP-O
 - ❌ **Requête Strapi sans filtre user** dans un controller custom — fuite cross-tenant garantie. Toujours passer par `ctx.state.user.id` + relation `guild.user`.
 - ❌ **Réimplémenter le lookup guilde-par-utilisateur inline** (`strapi.db.query('api::guild.guild').findOne({ where: { user: { id } } })`) — utiliser le helper unique `getUserGuild(strapi, userId, { select?, populate? })` (`backend/src/utils/guild-helpers.ts`). Point unique pour l'invariant d'isolation, évite la dérive du format de filtre (`user: user.id` vs `user: { id }`).
 - ❌ **Persistance Pinia en cookie** — provoque l'erreur HTTP 431 (Request Header Fields Too Large) dès que l'inventaire dépasse quelques dizaines d'items. Configuration figée dans `nuxt.config.ts` (`storage: 'localStorage'`).
-- ❌ **Token JWT en `localStorage` côté frontend** — le JWT vit uniquement dans le cookie HTTP-only `cq_session`, posé et lu côté serveur par le BFF Nuxt (jamais accessible au JavaScript).
+- ❌ **Jeton en `localStorage` ou renvoyé au navigateur** — les jetons vivent uniquement dans les cookies HTTP-only de session, posés et lus côté serveur par le BFF Nuxt.
+- ❌ **Méthode posée sur `plugin.controllers.auth` dans l'extension users-permissions** — c'est une fabrique en Strapi 5 : la méthode est ignorée sans erreur. Envelopper la fabrique (cf. `strapi-server.ts`).
+- ❌ **`v-html` sur un contenu de joueur** — la CSP pose son nonce sur tout `<script` du HTML rendu ; un script injecté par ce biais s'exécuterait.
 - ❌ **Permissions ajoutées via le panel admin Strapi** — non versionnées, perdues au prochain rebuild. Tout passe par `backend/src/index.ts`.
 - ❌ **`strapi.entityService.*`** — déprécié en Strapi v5. Utiliser `strapi.documents(...)`.
 - ❌ **Mutation d'un objet store Pinia depuis un composant** — toujours passer par une action du store (immutabilité du state public).
@@ -276,7 +294,7 @@ Objectif : soustraire le JWT au JavaScript. Le token vit dans un cookie **HTTP-O
 
 | Niveau | Outillage | Couverture |
 |---|---|---|
-| Unit | **Vitest** câblé (`backend/package.json` → `npm test` / `test:watch`), suites à écrire pour les services purs (`run.service.calculateRewards`, `quiz-attempt.service.calculateScore`, `utils/geometry.ts`, `utils/guildLevel.ts`). | Cible **80%** sur la logique métier (cf. `~/.claude/rules/common/testing.md`). |
+| Unit | **Vitest** : `backend` (`npm test` — règles de compte, vérification des jetons Google, dates du quiz, expérience de guilde) et `frontend` (`npm run test:unit` — limitation des tentatives, expiration des jetons ; tests sous `tests/unit/`, jamais dans `server/`, que Nitro embarquerait). | Cible **80%** sur la logique métier (cf. `~/.claude/rules/common/testing.md`). |
 | Integration backend | Aucun en place. Strapi expose un harness `strapi/factories` utilisable mais non câblé. | À introduire pour les controllers à filtre `user.id` (vérifier l'isolation). |
 | E2E frontend | Playwright (`frontend/playwright.config.ts`, scripts `npm test` / `npm run test:ui`). | Flows critiques à couvrir : login → guild setup → expedition → chest, quiz daily, friendship request. |
 
@@ -319,5 +337,8 @@ Fichier `.env` à la racine pour Docker Compose (cf. `.env.exemple`) :
 | `OLLAMA_BASE_URL` | URL Ollama (défaut `http://ollama:11434` en Docker). |
 | `NUXT_PUBLIC_API_URL` | URL publique de l'API pour le browser (défaut `http://localhost:1337`). |
 | `NUXT_PUBLIC_ALLOW_DESKTOP` | `true` pour autoriser le desktop hors `/dashboard`. Défaut `true` en dev. |
+| `FRONTEND_URL` | URL du jeu, pour les liens des e-mails d'authentification (Strapi). Défaut prod dans `docker-compose.prod.yml`. |
+| `GOOGLE_WEB_CLIENT_ID` / `NUXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` | ID (public) du client Web Google : surcharge de la valeur du code, pour un autre projet Google Cloud. |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_DEFAULT_FROM` | Envoi des e-mails via Brevo (confirmation, réinitialisation, avertissement de doublon). |
 
 En production, `.env.production` ajoute les mêmes variables avec valeurs de prod + `NODE_ENV=production`.

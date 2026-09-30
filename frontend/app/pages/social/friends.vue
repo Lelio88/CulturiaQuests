@@ -95,6 +95,7 @@
               <button
                 class="w-10 h-10 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center transition-colors disabled:opacity-50"
                 :disabled="store.actionLoading[friendship.documentId]"
+                aria-label="Accepter la demande"
                 @click="store.acceptRequest(friendship.documentId)"
               >
                 <span v-if="store.actionLoading[friendship.documentId]" class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
@@ -103,6 +104,7 @@
               <button
                 class="w-10 h-10 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-colors disabled:opacity-50"
                 :disabled="store.actionLoading[friendship.documentId]"
+                aria-label="Refuser la demande"
                 @click="store.rejectRequest(friendship.documentId)"
               >
                 <Icon name="mdi:close" class="w-5 h-5" />

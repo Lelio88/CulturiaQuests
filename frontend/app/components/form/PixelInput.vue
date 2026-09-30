@@ -3,11 +3,13 @@
     <div class="space-y-2">
       <label
         v-if="label"
+        :for="inputId"
         class="block text-sm font-pixel text-indigo-600"
       >
         {{ label }}
       </label>
       <div :class="wrapperClasses"><input
+          :id="inputId"
           v-bind="$attrs"
           :value="modelValue"
           @input="handleInput"
@@ -61,6 +63,10 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
+// Libellé relié au champ (lecteurs d'écran, clic sur le libellé) ; un `id` passé par le parent
+// l'emporte (il arrive par $attrs, lié après celui-ci).
+const inputId = useId()
+
 // Toggle de visibilité du mot de passe (bouton œil affiché uniquement si type === 'password').
 const showPassword = ref(false)
 const effectiveType = computed(() =>
@@ -73,7 +79,9 @@ const wrapperClasses = computed(() => [
   'group',
   'relative',
   'transition-colors',
-  props.disabled ? 'bg-gray-400' : 'bg-indigo-600 hover:bg-indigo-700'
+  props.disabled ? 'bg-gray-400' : 'bg-indigo-600 hover:bg-indigo-700',
+  // Le champ lui-même n'a pas de contour au focus (style pixel) : c'est le cadre qui le signale.
+  'focus-within:bg-amber-500',
 ])
 
 const inputClasses = computed(() => [

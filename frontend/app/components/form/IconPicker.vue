@@ -31,17 +31,24 @@
         Aucun élément disponible
       </div>
 
+      <!-- Chaque icône est un vrai bouton (clavier, lecteur d'écran), dans un groupe de choix
+           unique : `aria-pressed` dit laquelle est retenue. -->
       <div
         v-else
+        role="group"
+        :aria-label="label || 'Choix d’une icône'"
         :class="[
           'grid gap-3',
           `grid-cols-${columns}`,
           `sm:grid-cols-${smColumns}`
         ]"
       >
-        <div
+        <button
           v-for="item in items"
           :key="item.id"
+          type="button"
+          :aria-pressed="modelValue === item.id"
+          :disabled="disabled"
           @click="handleSelect(item)"
           :class="[
             'cursor-pointer transition-all aspect-square',
@@ -64,7 +71,7 @@
             :alt="item.name || 'Item'"
             class="w-full h-full object-contain rounded"
           />
-        </div>
+        </button>
       </div>
     </div>
   </ClientOnly>

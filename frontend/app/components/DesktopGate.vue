@@ -29,7 +29,16 @@ const config = useRuntimeConfig()
 const route = useRoute()
 
 const EXEMPT_PREFIXES = ['/dashboard']
-const EXEMPT_EXACT = ['/account/login', '/politique-confidentialite', '/mentions-legales', '/CGU']
+// `/suppression-compte` et `/account/confirm` : on doit pouvoir supprimer son compte ou confirmer
+// son adresse depuis un ordinateur (exigence Google Play pour la suppression).
+const EXEMPT_EXACT = [
+  '/account/login',
+  '/account/confirm',
+  '/politique-confidentialite',
+  '/mentions-legales',
+  '/CGU',
+  '/suppression-compte',
+]
 
 const allowDesktop = computed(() => String(config.public.allowDesktop) === 'true')
 const isExempt = computed(
@@ -65,6 +74,7 @@ const showGate = computed(() => isDesktop && !allowDesktop.value && !isExempt.va
       >
         culturia.heianenterprise.com
       </div>
+      <LegalLinks tone="dark" />
     </div>
   </div>
 </template>

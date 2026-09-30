@@ -1951,6 +1951,9 @@ export interface PluginUsersPermissionsUser
       }>;
     friend_requests_enabled: Schema.Attribute.Boolean &
       Schema.Attribute.DefaultTo<true>;
+    google_sub: Schema.Attribute.String &
+      Schema.Attribute.Private &
+      Schema.Attribute.Unique;
     guild: Schema.Attribute.Relation<'oneToOne', 'api::guild.guild'>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -1971,6 +1974,8 @@ export interface PluginUsersPermissionsUser
       'manyToOne',
       'plugin::users-permissions.role'
     >;
+    terms_accepted_at: Schema.Attribute.DateTime & Schema.Attribute.Private;
+    terms_version: Schema.Attribute.String & Schema.Attribute.Private;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;

@@ -3,11 +3,11 @@
      
      <div class="flex justify-between gap-2">
         <div class="bg-white rounded-full px-3 py-1 flex items-center gap-2 shadow-sm border border-gray-100 flex-1 justify-center">
-           <img src="/assets/coin.png" class="w-4 h-4 object-contain" />
+           <img src="/assets/coin.png" alt="Or" class="w-4 h-4 object-contain" />
            <span class="font-bold text-sm text-gray-800">{{ formatNumber(userGold) }}</span>
         </div>
         <div class="bg-white rounded-full px-3 py-1 flex items-center gap-2 shadow-sm border border-gray-100 flex-1 justify-center">
-           <img src="/assets/scrap.png" class="w-4 h-4 object-contain" />
+           <img src="/assets/scrap.png" alt="Scrap" class="w-4 h-4 object-contain" />
            <span class="font-bold text-sm text-gray-800">{{ formatNumber(userScrap) }}</span>
         </div>
      </div>
@@ -26,11 +26,11 @@
                 <div class="flex flex-col items-center mb-1">
                     <span :class="['text-xs font-bold flex items-center gap-1', canAfford ? 'text-gray-700' : 'text-red-500']">
                         -{{ formatNumber(cost.scrap) }} 
-                        <img src="/assets/scrap.png" class="w-2.5 h-2.5 object-contain"/>
+                        <img src="/assets/scrap.png" alt="scrap" class="w-2.5 h-2.5 object-contain"/>
                     </span>
                     <span :class="['text-xs font-bold flex items-center gap-1', canAfford ? 'text-gray-700' : 'text-red-500']">
                         -{{ formatNumber(cost.gold) }} 
-                        <img src="/assets/coin.png" class="w-2.5 h-2.5 object-contain"/>
+                        <img src="/assets/coin.png" alt="or" class="w-2.5 h-2.5 object-contain"/>
                     </span>
                 </div>
                 

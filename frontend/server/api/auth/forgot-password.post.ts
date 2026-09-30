@@ -1,28 +1,33 @@
 /**
  * BFF — Mot de passe oublié (demande d'e-mail de réinitialisation).
  *
- * Relaie { email } vers Strapi /api/auth/forgot-password (qui génère un token de reset et
- * envoie l'e-mail via le provider SMTP). Renvoie TOUJOURS { ok: true }, quelle que soit
- * l'issue — anti-énumération : le client ne doit pas pouvoir distinguer « e-mail inconnu »,
- * « e-mail envoyé » ou « échec SMTP ». Les erreurs réelles sont journalisées côté serveur
- * (sans l'e-mail — PII).
+ * Renvoie TOUJOURS { ok: true }, quelle que soit l'issue — anti-énumération : le client ne doit
+ * pas pouvoir distinguer « e-mail inconnu », « e-mail envoyé » ou « échec SMTP ». Les erreurs
+ * réelles sont journalisées côté serveur (sans l'e-mail). Limité par adresse et par IP : sans
+ * cela, le formulaire servirait à inonder une boîte de messages.
  */
 export default defineEventHandler(async (event) => {
-  const { email } = await readBody(event)
-  const strapiUrl = useRuntimeConfig(event).strapi?.url || 'http://localhost:1337'
+  assertSameOrigin(event)
+  const body = await readJsonObject(event)
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const ip = playerIp(event)
 
-  if (email && typeof email === 'string') {
-    try {
-      // Paramètre de type explicite : coupe l'inférence via le registre de routes Nitro (TS2321).
-      await $fetch<unknown>(`${strapiUrl}/api/auth/forgot-password`, {
-        method: 'POST',
-        body: { email },
-      })
-    } catch (err: any) {
-      // Jamais propagé au client (anti-énumération). Statut seul, pas l'e-mail.
-      console.error('[auth/forgot-password] échec relais Strapi:', err?.response?.status || err?.message)
+  assertNotThrottled(event, [['emailByAddress', email], ['emailByIp', ip]])
+  limiter('emailByIp').hit(ip)
+  if (email) limiter('emailByAddress').hit(email)
+
+  return withMinimumDuration(600, async () => {
+    if (email) {
+      try {
+        await $fetch<unknown>(`${strapiBaseUrl(event)}/api/auth/forgot-password`, {
+          method: 'POST',
+          body: { email },
+          headers: forwardedHeaders(event),
+        })
+      } catch (err) {
+        console.error('[auth/forgot-password] échec relais Strapi :', strapiFailure(err).status ?? (err as Error)?.message)
+      }
     }
-  }
-
-  return { ok: true }
+    return { ok: true }
+  })
 })
