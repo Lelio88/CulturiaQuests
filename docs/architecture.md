@@ -262,7 +262,7 @@ Le navigateur ne voit aucun jeton. Strapi tourne en **`jwtManagement: 'refresh'`
 
 `nuxt.config.ts` (`routeRules`) pose HSTS, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` (pas `no-referrer` : les tuiles OpenStreetMap exigent un Referer) et `Permissions-Policy`. `server/plugins/content-security-policy.ts` pose une **CSP à nonce** par page (scripts du site et porteurs du nonce seulement ; images : tuiles OSM et médias Strapi) et retire `X-Powered-By`. ⚠️ Le nonce est ajouté à tous les `<script` du HTML rendu : sûr tant qu'aucun `v-html` n'affiche un contenu de joueur. Côté Strapi, `config/middlewares.ts` : CSP sans `'unsafe-inline'` pour les scripts, CORS limité au domaine du jeu en production.
 
-Inventaire des données personnelles (guide de conformité §A6) : [`donnees-personnelles.md`](./donnees-personnelles.md).
+Inventaire des données personnelles ([bonnes pratiques](../../docs/bonnes-pratiques.md) du conteneur §A6) : [`donnees-personnelles.md`](./donnees-personnelles.md).
 
 ### Conventions cross-cutting
 
