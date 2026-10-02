@@ -29,6 +29,9 @@ export default defineNuxtConfig({
         'x-frame-options': 'DENY',
         'permissions-policy': 'geolocation=(self), camera=(), microphone=(), payment=(), usb=()',
         'cross-origin-opener-policy': 'same-origin',
+        // Réserve de fouille de textes et de données (CPI art. L122-5-3) : la
+        // forme juridique du refus exprimé aux robots d'IA par robots.txt.
+        'tdm-reservation': '1',
       },
     },
   },
