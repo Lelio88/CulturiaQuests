@@ -83,7 +83,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 # App mobile Android (Capacitor — module frontend/)
 cd frontend && npm run generate && npx cap sync android  # web → android/
 cd frontend/android && ./gradlew bundleRelease           # AAB signé (keystore.properties, non versionné)
-# Clé, coffre et câblage Gradle : ../android-signing-guide.md (convention du conteneur)
+# Clé, coffre et câblage Gradle : ../docs/android-signing-guide.md (convention du conteneur)
 
 # Publication Play Store (prérequis : 1ʳᵉ version envoyée à la main dans la console)
 python scripts/publish_play.py --show-config                    # config détectée, sans réseau
@@ -105,7 +105,7 @@ python scripts/publish_play.py --track alpha --notes-file <f>   # publie en test
 | Nouvel anti-pattern découvert | Section « Anti-patterns » de `docs/architecture.md` |
 | Migration de données (one-shot) | Script dans `scripts/populate_db/` + mention dans `docs/architecture.md` |
 | Donnée personnelle, prestataire ou durée de conservation changés | `docs/donnees-personnelles.md` + politique (`pages/politique-confidentialite.vue`) + déclaration Play ; `TERMS_VERSION` si substantiel ; page publique ajoutée : `public/sitemap.xml` — robots d'entraînement IA **refusés** (`public/robots.txt` + en-tête `tdm-reservation` dans `nuxt.config.ts`), moteurs de recherche admis |
-| Procédure de publication Play | `scripts/publish_play.py` + `../play-store-publication-guide.md` §13. Service account JSON dans `../.culturiaquests-secrets/play-sa.json` — **hors dépôt** |
+| Procédure de publication Play | `scripts/publish_play.py` + `../docs/play-store-publication-guide.md` §13. Service account JSON dans `../.culturiaquests-secrets/play-sa.json` — **hors dépôt** |
 
 ## VIII. Contexte de Session
 
