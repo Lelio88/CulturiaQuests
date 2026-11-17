@@ -3,6 +3,8 @@ import { useQuestStore } from '~/stores/quest'
 import { usePOIStore } from '~/stores/poi'
 import { storeToRefs } from 'pinia'
 import { calculateDistance } from '~/utils/geolocation'
+import { readLastPosition } from '~/utils/last-position'
+import { useGeolocation } from '~/composables/useGeolocation'
 import QuestBox from '~/components/quest/QuestBox.vue'
 import PixelButton from '~/components/form/PixelButton.vue'
 
@@ -12,6 +14,7 @@ const poiStore = usePOIStore()
 const { availableQuests, claimableCount } = storeToRefs(questStore)
 
 const generating = ref(false)
+const { userLat, userLng, hasFix, isTracking } = useGeolocation()
 
 // Les quêtes « à réclamer » (2 POI visités, récompense en attente) remontent en tête de liste.
 const displayedQuests = computed(() => {
@@ -63,25 +66,29 @@ async function generateQuests() {
     }
 }
 
-function getCurrentPosition(): Promise<{ lat: number; lng: number }> {
-    return new Promise((resolve) => {
-        // Guard SSR + absence d'API : repli sur la position par défaut (Saint-Lô). #81
-        if (!import.meta.client || !navigator.geolocation) {
-            resolve({ lat: 49.1167, lng: -1.0833 })
-            return
-        }
+/** Délai maximal d'attente du premier point GPS avant de générer les quêtes. */
+const FIRST_FIX_WAIT_MS = 10_000
 
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude })
-            },
-            () => {
-                // En cas d'erreur, utiliser la position par défaut (Saint-Lô)
-                resolve({ lat: 49.1167, lng: -1.0833 })
-            },
-            { enableHighAccuracy: false, timeout: 5000, maximumAge: 30000 }
-        )
-    })
+/**
+ * Position du joueur pour choisir les POI des quêtes : celle que suit déjà `useGeolocation`
+ * (une seule source GPS pour toute l'app, en haute précision), plutôt qu'une demande séparée.
+ * Sans point encore reçu, on attend le premier (si le suivi tourne), puis on se replie sur la
+ * dernière position mémorisée, ou Saint-Lô.
+ */
+async function getCurrentPosition(): Promise<{ lat: number; lng: number }> {
+    if (!hasFix.value && isTracking.value) {
+        await new Promise<void>((resolve) => {
+            const timer = setTimeout(() => { stop(); resolve() }, FIRST_FIX_WAIT_MS)
+            const stop = watch(hasFix, (fixed) => {
+                if (!fixed) return
+                clearTimeout(timer)
+                stop()
+                resolve()
+            })
+        })
+    }
+    if (hasFix.value) return { lat: userLat.value, lng: userLng.value }
+    return readLastPosition()
 }
 </script>
 

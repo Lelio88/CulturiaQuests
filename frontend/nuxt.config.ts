@@ -148,6 +148,14 @@ export default defineNuxtConfig({
     ],
   },
 
+  // Fichiers statiques (/_nuxt, /assets) pré-compressés au build en gzip et brotli : Nitro sert la
+  // variante que le navigateur accepte. Caddy ne compresse pas (pas d'`encode`), et l'app mobile
+  // télécharge ces fichiers depuis le serveur distant : ~511 Ko de JS/CSS au premier lancement
+  // tombent à ~175 Ko.
+  nitro: {
+    compressPublicAssets: { gzip: true, brotli: true },
+  },
+
   // Configuration Vite
   vite: {
     optimizeDeps: {
