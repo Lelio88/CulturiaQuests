@@ -110,4 +110,4 @@ python scripts/publish_play.py --track alpha --notes-file <f>   # publie en test
 ## VIII. Contexte de Session
 
 - **Dernier focus** : géolocalisation native à précision adaptative (version Play 1.2.0), statiques pré-compressés, brouillard redessiné en fin de geste.
-- **Focus immédiat** : essais sur téléphone de la 1.2.0 (premier point, passage en GPS près d'un coffre, reprise après arrière-plan, bords du brouillard au glissement) ; `encode zstd gzip` dans le Caddyfile.
+- **Focus immédiat** : essais sur téléphone de la 1.2.0 (premier point, passage en GPS près d'un coffre, reprise après arrière-plan, bords du brouillard au glissement).
