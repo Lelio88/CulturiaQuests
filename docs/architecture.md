@@ -282,6 +282,7 @@ Inventaire des données personnelles ([bonnes pratiques](../../docs/bonnes-prati
 
 - ❌ **Requête Strapi sans filtre user** dans un controller custom — fuite cross-tenant garantie. Toujours passer par `ctx.state.user.id` + relation `guild.user`.
 - ❌ **Réimplémenter le lookup guilde-par-utilisateur inline** (`strapi.db.query('api::guild.guild').findOne({ where: { user: { id } } })`) — utiliser le helper unique `getUserGuild(strapi, userId, { select?, populate? })` (`backend/src/utils/guild-helpers.ts`). Point unique pour l'invariant d'isolation, évite la dérive du format de filtre (`user: user.id` vs `user: { id }`).
+- ❌ **Greffon Capacitor natif sans repli web** — le code web est servi à distance (`CAP_SERVER_URL`) et tourne aussi dans les binaires installés avant l'ajout du greffon. Tester `Capacitor.isPluginAvailable('<Nom>')` et garder un chemin web (cf. `useGeolocation`).
 - ❌ **Persistance Pinia en cookie** — provoque l'erreur HTTP 431 (Request Header Fields Too Large) dès que l'inventaire dépasse quelques dizaines d'items. Configuration figée dans `nuxt.config.ts` (`storage: 'localStorage'`).
 - ❌ **Jeton en `localStorage` ou renvoyé au navigateur** — les jetons vivent uniquement dans les cookies HTTP-only de session, posés et lus côté serveur par le BFF Nuxt.
 - ❌ **Méthode posée sur `plugin.controllers.auth` dans l'extension users-permissions** — c'est une fabrique en Strapi 5 : la méthode est ignorée sans erreur. Envelopper la fabrique (cf. `strapi-server.ts`).
