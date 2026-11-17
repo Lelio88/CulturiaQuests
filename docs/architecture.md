@@ -125,7 +125,7 @@ La couche métier vit côté Strapi (controllers + services), pas côté Nuxt. L
 | `middleware/admin.ts` | Garde-route admin (vérifie le rôle via `useStrapiUser().role`). |
 | `layouts/` | `default` (header/footer game), `blank` (login/register), `dashboard` (admin), `test` (pages dev). |
 | `types/` | 18 types TypeScript miroirs des content-types Strapi (`character.ts`, `guild.ts`, `item.ts`, …). |
-| `utils/` | `geometry.ts` (point-in-polygon, distances), `geolocation.ts` (Haversine, en km arrondis et en mètres bruts), `last-position.ts` (dernière position connue), `storage.ts`, `strapiHelpers.ts`, `guildLevel.ts` (formule niveau = `√(exp / 75) + 1`). |
+| `utils/` | `geometry.ts` (point-in-polygon, distances), `geolocation.ts` (Haversine, en km arrondis et en mètres bruts), `last-position.ts` (dernière position connue), `location-precision.ts` (règle de précision adaptative du GPS), `storage.ts`, `strapiHelpers.ts`, `guildLevel.ts` (formule niveau = `√(exp / 75) + 1`). |
 
 ### Tutoriel d'accueil
 
@@ -157,12 +157,19 @@ Trois invariants :
   la précision courante, et ceux impliquant plus de 30 m/s entre deux points, sont rejetés — c'est
   ce qui élimine les « téléportations » dues aux bascules GPS ↔ réseau. Soupape : après 30 s sans
   fix accepté, le suivant passe quand même (une position grossière vaut mieux qu'une position gelée).
-- **Haute précision en continu** (`enableHighAccuracy: true` y compris sur `watchPosition`) : en
-  basse précision, les fixes réseau à ±500 m rendent injouable le geofence de 50 m des coffres.
+- **Deux sources de position** : dans l'app Android, le greffon natif `@capacitor/geolocation`
+  (Fused Location Provider) ; dans le navigateur, ou dans une app installée sans ce greffon (le code
+  web servi à distance tourne aussi dans les anciens binaires), l'API web `navigator.geolocation`.
+  Un échec du greffon bascule sur l'API web pour le reste de la session.
+- **Précision adaptative** (source native seulement) : GPS fin (un point toutes les 1 à 2 s) à
+  moins de 250 m d'un POI ou d'un musée, précision équilibrée (5 à 10 s) au-delà de 400 m. Si le
+  mode économie ne livre que des points à plus de 100 m, le GPS est rétabli pendant 5 minutes.
+  Règle : `utils/location-precision.ts`, appliquée par `plugins/geolocation.client.ts`. L'API web
+  reste en haute précision : ses points en basse précision (±500 m) rendraient injouable le
+  geofence de 50 m.
 
-Aucun tracking en arrière-plan (API web premier-plan uniquement, pas de foreground service) : le
-suivi est suspendu par l'OS quand l'app passe en arrière-plan, et le bandeau de notification est
-masqué en conséquence.
+Aucun tracking en arrière-plan (pas de foreground service) : la surveillance est coupée quand l'app
+passe en arrière-plan et relancée au retour, et le bandeau de notification suit le même cycle.
 
 ### Scripts (`scripts/`)
 

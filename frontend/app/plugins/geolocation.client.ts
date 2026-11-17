@@ -2,6 +2,14 @@ import { saveLastPosition } from '~/utils/last-position'
 import { useFogStore } from '~/stores/fog'
 import { useZoneCompletion } from '~/composables/useZoneCompletion'
 import { useGeolocation } from '~/composables/useGeolocation'
+import { usePOIStore } from '~/stores/poi'
+import { useMuseumStore } from '~/stores/museum'
+import {
+  INITIAL_PRECISION_STATE,
+  nearestDistanceM,
+  nextPrecision,
+  type PrecisionState,
+} from '~/utils/location-precision'
 
 /**
  * Pilote le cycle de vie du tracking GPS **au niveau application**.
@@ -20,6 +28,9 @@ import { useGeolocation } from '~/composables/useGeolocation'
  *   acquise. Faire autrement ferait surgir la popup système sur une page arbitraire (un quiz, une
  *   story) hors de tout contexte : la demande reste la responsabilité de `GeolocationRequest.vue`,
  *   affiché sur la carte avec son explication.
+ * - **Précision adaptative appliquée ici**, pas dans le composable : la règle a besoin des lieux
+ *   chargés (POI, musées), et le composable ne dépend d'aucun store. À chaque position, la
+ *   distance au lieu le plus proche décide du mode (`utils/location-precision.ts`).
  * - **Stores résolus paresseusement**, à l'intérieur des callbacks : le plugin peut s'initialiser
  *   avant que Pinia n'ait fini d'être installé.
  *
@@ -89,9 +100,26 @@ export default defineNuxtPlugin((nuxtApp) => {
     useZoneCompletion().checkFogCoverage(lat, lng)
   }
 
+  // Précision adaptative : GPS fin à l'approche d'un lieu, économie loin de tout.
+  let precisionState: PrecisionState = INITIAL_PRECISION_STATE
+  const adaptPrecision = (lat: number, lng: number) => {
+    const nearestTargetM = nearestDistanceM(lat, lng, usePOIStore().pois, useMuseumStore().museums)
+    precisionState = nextPrecision(precisionState, {
+      nearestTargetM,
+      accuracyM: geolocation.accuracy.value,
+      now: Date.now(),
+    })
+    geolocation.setPrecisionMode(precisionState.mode)
+  }
+
+  const onPosition = (lat: number, lng: number) => {
+    applyGameEffects(lat, lng)
+    adaptPrecision(lat, lng)
+  }
+
   geolocation.registerCallbacks({
-    onFirstPosition: applyGameEffects,
-    onPositionUpdate: applyGameEffects,
+    onFirstPosition: onPosition,
+    onPositionUpdate: onPosition,
   })
 
   // Synchronise le tracking avec la route courante. Async : la vérification de consentement l'est.
