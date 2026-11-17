@@ -26,7 +26,14 @@ const CONFIG = {
   RADIUS_METERS: 100,
   OPACITY: 0.95,
   COLOR: '210, 215, 220',
-  BG_COLOR: 'rgba(190, 195, 200, 0.3)'
+  BG_COLOR: 'rgba(190, 195, 200, 0.3)',
+  /**
+   * Marge du canvas autour de l'écran, en fraction de sa taille (0.5 = une demi-largeur de chaque
+   * côté). Pendant un glissement, Leaflet translate le calque en CSS : tant que l'écran reste dans
+   * la zone dessinée, aucun redessin n'est nécessaire. Même principe que le `padding` des
+   * renderers Leaflet.
+   */
+  PAD: 0.5,
 }
 
 // --- ÉTAT INTERNE ---
@@ -34,6 +41,9 @@ let cloudPattern: CanvasPattern | null = null
 let brushCanvas: HTMLCanvasElement | null = null
 let lastZoomForBrush = -1
 let fogRafId: number | null = null
+// Zone effectivement dessinée, en coordonnées « layer » Leaflet (stables pendant un glissement).
+let drawnOrigin: L.Point | null = null
+let drawnSize: L.Point | null = null
 
 // --- GÉNÉRATEURS ---
 
@@ -102,36 +112,37 @@ const updateBrush = (zoom: number, centerLat: number): HTMLCanvasElement => {
 
 // --- GEOMETRY HELPERS ---
 
-const projectRing = (ctx: CanvasRenderingContext2D, coords: any[], map: Map) => {
+// `offset` : décalage du coin du canvas par rapport au coin de l'écran (la marge PAD).
+const projectRing = (ctx: CanvasRenderingContext2D, coords: any[], map: Map, offset: L.Point) => {
   if (coords.length === 0) return
   const start = map.latLngToContainerPoint([coords[0][1], coords[0][0]]) // [lng, lat] -> [lat, lng]
-  ctx.moveTo(start.x, start.y)
+  ctx.moveTo(start.x + offset.x, start.y + offset.y)
   
   for (let i = 1; i < coords.length; i++) {
     const p = map.latLngToContainerPoint([coords[i][1], coords[i][0]])
-    ctx.lineTo(p.x, p.y)
+    ctx.lineTo(p.x + offset.x, p.y + offset.y)
   }
 }
 
-const drawGeometry = (ctx: CanvasRenderingContext2D, geometry: any, map: Map) => {
+const drawGeometry = (ctx: CanvasRenderingContext2D, geometry: any, map: Map, offset: L.Point) => {
   if (!geometry) return
 
   ctx.beginPath() // Un seul path pour toute la géométrie
   if (geometry.type === 'Polygon') {
     // Outer ring
-    projectRing(ctx, geometry.coordinates[0], map)
+    projectRing(ctx, geometry.coordinates[0], map, offset)
     ctx.closePath()
     // Holes (Leaflet/Canvas gère les trous avec la règle evenodd/nonzero si on trace tout dans le même path)
     for (let i = 1; i < geometry.coordinates.length; i++) {
-      projectRing(ctx, geometry.coordinates[i], map)
+      projectRing(ctx, geometry.coordinates[i], map, offset)
       ctx.closePath()
     }
   } else if (geometry.type === 'MultiPolygon') {
     for (const poly of geometry.coordinates) {
-      projectRing(ctx, poly[0], map)
+      projectRing(ctx, poly[0], map, offset)
       ctx.closePath()
       for (let i = 1; i < poly.length; i++) {
-        projectRing(ctx, poly[i], map)
+        projectRing(ctx, poly[i], map, offset)
         ctx.closePath()
       }
     }
@@ -150,9 +161,14 @@ const drawFog = () => {
 
   if (!cloudPattern) cloudPattern = createCloudPattern(ctx)
 
-  const size = map.getSize()
-  const topLeft = map.containerPointToLayerPoint([0, 0])
+  // Canvas plus grand que l'écran (marge PAD de chaque côté) : cf. CONFIG.PAD.
+  const viewSize = map.getSize()
+  const offset = L.point(Math.round(viewSize.x * CONFIG.PAD), Math.round(viewSize.y * CONFIG.PAD))
+  const size = viewSize.add(offset.multiplyBy(2))
+  const topLeft = map.containerPointToLayerPoint([-offset.x, -offset.y])
   L.DomUtil.setPosition(canvas.value, topLeft)
+  drawnOrigin = topLeft
+  drawnSize = size
   
   if (canvas.value.width !== size.x || canvas.value.height !== size.y) {
     canvas.value.width = size.x
@@ -179,7 +195,7 @@ const drawFog = () => {
   // 3. Gommage des Zones Complétées (viewport culling)
   const zoom = map.getZoom()
   const allZones = zoneStore.getZonesForZoom(zoom)
-  const viewBounds = map.getBounds().pad(0.3)
+  const viewBounds = map.getBounds().pad(CONFIG.PAD + 0.3)
   // Bornes numériques extraites une fois : évite un `new L.LatLng` par zone (bounds.contains([...]))
   // à chaque frame — le redraw tourne désormais sur 'move' (suivi du doigt), pas seulement 'moveend'.
   const vS = viewBounds.getSouth(), vN = viewBounds.getNorth(), vW = viewBounds.getWest(), vE = viewBounds.getEast()
@@ -198,7 +214,7 @@ const drawFog = () => {
     if (zone.centerLat != null && zone.centerLng != null &&
         (zone.centerLat < vS || zone.centerLat > vN || zone.centerLng < vW || zone.centerLng > vE)) continue
     if (isCompleted(zone)) {
-      drawGeometry(ctx, zone.geometry, map)
+      drawGeometry(ctx, zone.geometry, map, offset)
     }
   }
 
@@ -209,19 +225,21 @@ const drawFog = () => {
   }
 
   if (brushCanvas) {
-    const bounds = map.getBounds().pad(0.2)
+    const bounds = map.getBounds().pad(CONFIG.PAD + 0.2)
     // Bornes numériques extraites une fois : le culling évite un `new L.LatLng` par point
     // (jusqu'à ~5000) à chaque frame — critique maintenant que le redraw tourne sur 'move'.
     const pS = bounds.getSouth(), pN = bounds.getNorth(), pW = bounds.getWest(), pE = bounds.getEast()
     const points = fogStore.discoveredPoints
     const radiusOffset = brushCanvas.width / 2
+    const dx = offset.x - radiusOffset
+    const dy = offset.y - radiusOffset
 
     for (let i = 0; i < points.length; i++) {
       const pt = points[i]!
       if (pt.lat < pS || pt.lat > pN || pt.lng < pW || pt.lng > pE) continue
 
       const p = map.latLngToContainerPoint([pt.lat, pt.lng])
-      ctx.drawImage(brushCanvas, p.x - radiusOffset, p.y - radiusOffset)
+      ctx.drawImage(brushCanvas, p.x + dx, p.y + dy)
     }
   }
 }
@@ -237,6 +255,25 @@ const scheduleFogRedraw = () => {
     fogRafId = null
     drawFog()
   })
+}
+
+/**
+ * Pendant un glissement : redessine seulement si l'écran sort de la zone déjà dessinée. Le reste
+ * du temps, la translation CSS de Leaflet suffit et aucun pixel n'est recalculé.
+ */
+const onMapMove = () => {
+  if (!props.map || !drawnOrigin || !drawnSize) {
+    scheduleFogRedraw()
+    return
+  }
+  const map = props.map as Map
+  const view = map.getSize()
+  const viewTopLeft = map.containerPointToLayerPoint([0, 0])
+  const isOutside = viewTopLeft.x < drawnOrigin.x
+    || viewTopLeft.y < drawnOrigin.y
+    || viewTopLeft.x + view.x > drawnOrigin.x + drawnSize.x
+    || viewTopLeft.y + view.y > drawnOrigin.y + drawnSize.y
+  if (isOutside) scheduleFogRedraw()
 }
 
 // --- LIFECYCLE ---
@@ -258,13 +295,14 @@ onMounted(() => {
   fogPane?.appendChild(cvs)
   canvas.value = cvs
 
-  // Suivi fluide pendant le déplacement : on écoute aussi 'move' (drag continu), pas seulement
-  // 'moveend'. Avant, le brouillard restait figé pendant le drag et ne se recalait qu'au
-  // relâchement du doigt. Tous les redraws passent par le rAF-coalescing (scheduleFogRedraw) →
-  // au plus 1 dessin/frame. 'zoom' (continu) est volontairement EXCLU : le canvas porte la
-  // classe `leaflet-zoom-animated` → Leaflet gère l'échelle pendant l'animation de zoom, un
-  // redraw en plein zoom entrerait en conflit avec cette transformation (on recale au 'zoomend').
-  map.on('move moveend zoomend resize', scheduleFogRedraw)
+  // Pendant le glissement ('move'), le canvas suit la carte par translation CSS et sa marge
+  // (CONFIG.PAD) couvre les bords : on ne redessine que si l'écran sort de la zone dessinée
+  // (onMapMove), puis une fois en fin de geste ('moveend') pour recentrer la marge. Tous les
+  // redraws passent par le rAF-coalescing (au plus 1 dessin/frame). 'zoom' (continu) est
+  // volontairement EXCLU : le canvas porte la classe `leaflet-zoom-animated`, un redraw en plein
+  // zoom entrerait en conflit avec l'animation (on recale au 'zoomend').
+  map.on('move', onMapMove)
+  map.on('moveend zoomend resize', scheduleFogRedraw)
   drawFog() // premier rendu immédiat (pas différé au prochain frame)
 })
 
@@ -274,13 +312,19 @@ function cleanup() {
     fogRafId = null
   }
   if (props.map) {
-    try { (props.map as Map).off('move moveend zoomend resize', scheduleFogRedraw) } catch (_) { /* ignore */ }
+    try {
+      const map = props.map as Map
+      map.off('move', onMapMove)
+      map.off('moveend zoomend resize', scheduleFogRedraw)
+    } catch (_) { /* ignore */ }
   }
   if (canvas.value && fogPane) {
     try { fogPane.removeChild(canvas.value) } catch (_) { /* ignore */ }
   }
   canvas.value = null
   fogPane = null
+  drawnOrigin = null
+  drawnSize = null
 }
 
 defineExpose({ cleanup })
