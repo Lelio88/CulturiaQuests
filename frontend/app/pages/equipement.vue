@@ -270,7 +270,7 @@ const mapSingleItem = (itemObj) => {
      index_damage: item.index_damage || 0,
      rarity: String(rarityVal).toLowerCase(),
      category: item.slot || 'weapon',
-     image: getImageUrl(item.icon, '/assets/default-avatar.png'),
+     image: getImageUrl(item.icon, '/assets/avatar-placeholder.svg'),
      types: tagList,
      isScrapped: item.isScrapped || false,
      power: calculatedPower // Ajout de la puissance calculée
@@ -289,7 +289,7 @@ const formattedCharacters = computed(() => {
       id: char.id,
       documentId: c.documentId,
       name: `${c.firstname || ''} ${c.lastname || ''}`.trim(),
-      avatar: getImageUrl(c.icon, '/assets/default-avatar.png'),
+      avatar: getImageUrl(c.icon, '/assets/avatar-placeholder.svg'),
       equippedItems: mapItems(c.items)
     };
   });

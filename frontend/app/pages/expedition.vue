@@ -119,7 +119,7 @@ const formattedCharacters = computed(() => {
         return {
             id: char.id,
             name: c.firstname,
-            avatar: getImageUrl(c.icon, '/assets/default-avatar.png')
+            avatar: getImageUrl(c.icon, '/assets/avatar-placeholder.svg')
         };
     });
 });
