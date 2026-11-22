@@ -111,7 +111,7 @@ const museumImage = "/assets/musee.png"; // Placeholder
 const characters = computed(() => {
     return characterStore.characters.map(c => {
         const char = c.attributes || c;
-        return { id: c.id, avatar: getImageUrl(char.icon, '/assets/default-avatar.png') };
+        return { id: c.id, avatar: getImageUrl(char.icon, '/assets/avatar-placeholder.svg') };
     });
 });
 
@@ -159,7 +159,7 @@ onMounted(async () => {
              
              return {
                  id: item.id,
-                 image: getImageUrl(i.icon, '/assets/default-avatar.png'),
+                 image: getImageUrl(i.icon, '/assets/avatar-placeholder.svg'),
                  rarity: rarity,
                  level: i.level,
                  index_damage: i.index_damage,

@@ -63,7 +63,8 @@ export function useAuth() {
       ? (useRequestFetch() as unknown as SimpleFetch)
       : ($fetch as unknown as SimpleFetch)
     try {
-      user.value = await fetcher<CqUser>('/api/auth/me')
+      // `null` (ou corps vide) = visiteur sans session.
+      user.value = (await fetcher<CqUser | null>('/api/auth/me')) ?? null
       reconcileUser(user.value?.id)
     } catch {
       user.value = null

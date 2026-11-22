@@ -20,7 +20,7 @@ export function useNpcPresentation() {
   /** Chemin de l'image du PNJ d'après son prénom ; avatar par défaut si absent/« Inconnu ». */
   function npcImagePath(firstname?: string | null): string {
     const first = (firstname || '').trim()
-    if (!first || first === 'Inconnu') return '/assets/default-avatar.png'
+    if (!first || first === 'Inconnu') return '/assets/avatar-placeholder.svg'
     return `/assets/npc/${first}/${first}.webp`
   }
 

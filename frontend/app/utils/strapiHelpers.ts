@@ -61,7 +61,7 @@ export function buildStrapiUrl(path: string): string {
  *
  * @param imgData  objet image brut (relation media Strapi) — ou null/undefined.
  * @param fallback valeur de repli si aucune URL n'est trouvée (défaut `null`). Les vues "avatar"
- *   passent `'/assets/default-avatar.png'` ; celles qui gèrent l'absence au call-site laissent `null`.
+ *   passent `'/assets/avatar-placeholder.svg'` ; celles qui gèrent l'absence au call-site laissent `null`.
  * @returns l'URL absolue (via buildStrapiUrl) ou `fallback`.
  */
 export function getImageUrl(imgData: any, fallback: string | null = null): string | null {
